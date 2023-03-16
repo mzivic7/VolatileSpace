@@ -1,0 +1,19 @@
+### more orbital parameters ###
+Pe = a * (1 - e)   # periapsis distance from planet center
+Ap = a * (1 + e)   # apoapsis distance from planet center
+Pev = [Pe * cos(omega + pi) + P1_x, Pe * sin(omega + pi) + P1_y]   # periapsis vector
+Apv = [Ap * cos(omega), Ap * sin(omega)]   # apoapsis vector
+T = 2 * pi * sqrt(a^3 / u)   # orbital period [7]
+Ta = atan2(Pr_y, Pr_x)   # true anomaly from relative position in -pi to pi range (angle between horizont and body)
+Ta = (omega - Ta - pi)%(2pi)   # this puts true anomaly in right quadrants and adds argument of Pe
+moment = rel_pos cross rel_vel   # rotation moment
+direction = sign(moment)   # if moment is negative, rotation is clockwise (-1)
+if direction is -1:
+    Ta = 2pi - Ta   # invert Ta to be calculated in opposite direction
+Lat = (Ta - omega) * 180 / pi   # latitude
+d = |Pr|   # distance
+vo = |vr|   # orbit speed
+vv = (vr_x * cos(Ta) + vr_y * sin(Ta))   # vertical speed
+vh = abs(vr_x * sin(Ta) - vr_y * cos(Ta))   # horizontal speed
+# Vertical and horizontal speeds are calculated as components of vr, but coordinate system is rotated by pi/2 - true anomaly - to be normal with body position vector relative to orbiting mass.
+

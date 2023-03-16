@@ -1,0 +1,25 @@
+System savefile is human readable plain text document, containing information of every body in simulation.
+Savefiles uses ini format.
+It is divided in sections by this rule:
+First section called [config] i used for global variables in simulation. This section is followed with: [body1], [body2], [body3]... one section for each body in simulation.
+
+
+
+Section parameters:
+
+[config]
+time = 0   # simulation time displayed on screen (in seconds)
+
+[body1]
+mass = 100000   # body mass
+density = 1.0   # body density
+position = [0, 0]   # ABSOLUTE position
+velocity = [0, 0]   # ABSOLUTE velocity
+color = [70, 200, 200]   # body base color
+
+
+
+Notes:
+Changing time won't change orbits.
+Real color is calculated by temperature and base color.
+System must have at least 2 bodies.

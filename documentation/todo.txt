@@ -1,0 +1,70 @@
+### TIMELINE ###
+1. advanced orbital parameters - parabola, hyperbola
+2. inverse functions - parabola, hyperbola
+3. more advanced orbital parameters
+4. main GUI (main menu, about, map editor, settings)
+5. 2 keplerian orbit lines - predict leaving orbit
+6. separate physics models for vessels and planets
+7. Rotation
+8. advanced GUI (new game/load/save, multiplayer-WIP, play pause)
+9. body apearance when zoom out (no ap / pe, icons, rebuild selecting)
+10. collision with rotation for bodies
+11. STAR PHYSICS
+12. BODY TEXTURES
+13. GAME
+14. VESSEL TEXTURES
+15. MULTIPLAYER
+
+
+
+### STAR PHYSICS ###
+calculate surface temp
+shadows
+calculate luminosity
+body classification - planet sizes and types (gas / solid), only main sequence and BH
+star age - composition: H - He
+star physics tick warp system
+support non-main-sequence stars
+black holes
+simulation sizes adjustment
+
+
+
+### BODY TEXTURES ###
+stars
+black hole
+planets
+atmosphere
+random life, water, ice
+special bodies (pulasar, neutron star, black hole...)
+
+
+
+### GAME ###
+game GUI
+vessel
+engine
+manuvers
+fuel
+rotation
+icons, modules, markers
+SAS
+deltaV
+vessel parts and editor
+atmosphere
+docking
+collisions
+launch / staging
+heat
+comms
+electric power
+balancing
+
+
+
+### VESSEL TEXTURES ###
+vessels
+atmospheric effects
+exaust effects
+explosions
+

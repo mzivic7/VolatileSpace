@@ -1,0 +1,310 @@
+### Constants ###
+G = 6.674 * 10^-11 - Gravitational constant
+pi = 3.14159265 - pi constant
+
+
+
+
+
+### Variables ###
+i = phisics tck per second (unwarped)
+i_w = phisics tck per second (warped)
+w = warp multiplier
+P, P1, P2 = position vectors (P1 is more massive body)
+Pr = relative position vector
+v, v1, v2 = velocity vectors (v1 is more massive body)
+vr = relative velocity vector
+|vr| = relative velocity magnitude
+vr_a = angle of relative velocity vector
+m = mass in Kg
+ac = acceleration
+av = acceleration vector
+F = force
+rCOI = radius of circle of influence
+d = distance (height)
+ev = eccentricity vector
+e = eccentricity
+u = standard gravitational parameter
+a = semi-major axis
+b = semi-minor axis
+f = focus
+omega = argument of periapsis
+p = omega   # to save space
+
+Pe = periapsis
+Ap = apoapsis
+Pev = periapsis vector
+Apv = apoapsis vector
+Ta = true anomaly
+Ea = eccentric anomaly
+Lat = latitude - angular displacement from argument of periapsis
+Ma = mean anomaly
+T = orbital priod
+Mm = mean motion
+tPe = time to periapsis from current position
+tAp = time to apoapsis from current position
+
+
+
+
+
+# system
+i_w = i * w   # warped physics tick
+all calculated times are at end divided by i
+(Apt, Pet, T)
+
+### Orbital Phisics ###
+
+
+# Complex orbit model (NOT USED IN SIMULATION)
+# (each body effects every other body)
+F = m1 * m2 / d^2   # Newton's law of universal gravitation
+# repeat for both bodies (m1 and m2):
+ac = F / m   # acceleration
+angle = arctan2(y1 - y2, x1 - x2)   # angle between 2 bodies and horizon
+ac_x = a * cos(angle)   # get vector from magnitude and angle 
+ac_y = a * sin(angle)
+av = [ac_x, ac_y]   # acceleration vector
+v = v + av   # update velocity vector
+P = P + v   # update position vector
+
+
+
+
+
+# simplified orbit model
+# (body inside COI of other body is effected only by that body)
+F = m1 * m2 / d^2   # Newton's law of universal gravitation
+a = F * m1   # acceleration
+# body has no effect on its parrent, so above two formulas can be written in one: a = m2 / d^2
+angle = arctan2(y1 - y2, x1 - x2)   # angle between 2 bodies and horizon
+a_x = a * cos(angle)   # get vector from magnitude and angle 
+a_y = a * sin(angle)
+av = [a_x, a_y]   # acceleration vector
+vr = vr + av   # update relative velocity vector
+v = vr + v_p   # absolute vel from relative vel and parents absolute vel
+P = P + v   # absolute position
+rCOI = a1(m1 / m2)^(2/5)   # radius of circle of influence [8]
+
+# where: 
+v_p = parents absolute velocity vector
+a1 = semi-major axis of smaller objects orbit around larger one
+m1 = mass of smaller body
+m2 = mass of larger body
+
+
+
+
+
+# Keplerian orbit (only for simplified orbit model)
+i = 0   # inclination (for 3D)
+asc_node = 0   # longitude of ascending node (for 3D)
+n = [-Lx, Lz, 0]   # vector to ascending node (for 3D)
+Pr = P2 - P1   # relative position vector
+vr = v2 - v1   # relative velocity vector
+u = G * m   # standard gravitational parameter
+a = -1 * u / (2*(|vr|^2 / 2 - u / |Pr|))   # semi-major axis [5], also can be calculated from vis-viva equation [9]
+h = Pr x vr   # orbital momentum, since simulation is 2D, momentum is scalar
+ev = (vr x h)/u - Pr/|Pr|  # eccentricity vector [10], this is general equation for 3D and 2D
+# since this is 2D and h is scalar, (vr x h) cross product is not needed, so just multiply, swap axes and -y
+e = |ev|   # eccentricity
+f = sqrt(a^2 - b^2)   # focus
+f = e * a   # focus (from: e = f / a)
+b = sqrt(f^2 - a^2)   # semi-minor axis
+omega = pi + arctan2(ev_y, ev_x)   # argument of periapsis [4]
+    if e = 0:   # if it is circle
+        omega = 0   # there is no periapsis
+
+
+
+
+
+# more orbital parameters
+Pe = a * (1 - e)   # periapsis distance from planet center
+Ap = a * (1 + e)   # apoapsis distance from planet center
+Pev = [Pe * cos(omega + pi) + P1_x, Pe * sin(omega + pi) + P1_y]   # periapsis vector
+Apv = [Ap * cos(omega), Ap * sin(omega)]   # apoapsis vector
+T = 2 * pi * sqrt(a^3 / u)   # orbital period [7]
+Ta = atan2(Pr_y, Pr_x)   # true anomaly from relative position in -pi to pi range (angle between horizont and body)
+Ta = (omega - Ta - pi)%(2pi)   # this puts true anomaly in right quadrants and adds argument of Pe
+moment = rel_pos cross rel_vel   # rotation moment
+direction = sign(moment)   # if moment is negative, rotation is clockwise (-1)
+if direction is -1:
+    Ta = 2pi - Ta   # invert Ta to be calculated in opposite direction
+Lat = (Ta - omega) * 180 / pi   # latitude
+d = |Pr|   # distance
+vo = |vr|   # orbit speed
+vv = (vr_x * cos(Ta) + vr_y * sin(Ta))   # vertical speed
+vh = abs(vr_x * sin(Ta) - vr_y * cos(Ta))   # horizontal speed
+# Vertical and horizontal speeds are calculated as components of vr, but coordinate system is rotated by pi/2 - true anomaly - to be normal with body position vector relative to orbiting mass.
+
+
+
+
+
+# Orbit shape sensitive orbital parameters:
+
+# Ellipse and circle ecc < 1:
+Ea = 2 * arctan(sqrt((1 - e)/(1 + e)) * tan(Ta / 2))%2pi   # eccentric anomaly from true anomaly [1]
+Ma = (Ea - e * sin(Ea))   # mean anomaly from Keplers equation [2]
+tPe = T - (Ma * T / (2pi))   # time to periapsis [6]
+tN = T - (Ma * T / (2pi)) - (phi * T / (2pi))   # time to point on orbit, point is given by angle phi starting from periapsis
+# time to point on orbit is calcuated as difernce of time to Pe from current point and time to Pe from target point
+tN = T - (Ma + phi)(T / (2pi))%T   # above equation simplified
+tAp = T - (Ma + pi)(T / (2pi))%T   # time to apoapsis
+
+# Parabola ecc = 1:
+
+# Hyperbola:
+
+
+
+
+
+# parametric equations
+- pi < t < pi   # parameter
+
+# circle   # e = 0
+x = radius * cos(t) 
+y = radius * sin(t) 
+
+# ellipse   # 0 < e < 1
+x = semi_major * cos(t) 
+y = semi_minor * sin(t) 
+
+# parabola   # e = 1
+x = at^2 - a   # - a is added to align parabola with sphere
+y = 2at
+
+# hyperbola   # e > 1
+t = [pi/2, pi) U (-pi, -pi/2]   # parameter is half to remove one side of hyperbola
+x = semi_major * sec(t) - 2 * semi_major   # sec(t) is same as arccos(t)
+y = semi_minor * tan(t)
+
+# rotation matrix
+rot = [[cos(omega), -sin(omega)],
+       [sin(omega),  cos(omega)]]   # rotation matrix
+
+[x_r, y_r] = rot dot [x, y]   # rotation
+x_t = x_r + P1_x + focus_x + P1_x   # translate it to body position + focus 
+y_t = y_r + P1_y + focus_y + P1_y
+
+
+
+
+
+# Inverse equations from orbital parameters to positional and velocity vectors for ecc < 1:
+# Inputs: e, omega_deg, Pe, Ma, Ap, direction   # clockwise direction is negative
+
+u = G * m   # standard gravitational parameter
+a = - Pe / (e - 1)   # semi-major axis from periapsis
+e = (Ap / a) - 1   # eccentricity from apoapsis
+b = a * sqrt(1-e^2)   # semi minor axis
+f = sqrt(a^2 - b^2)   # focus distance from center of ellipse
+omega = omega_deg * pi / 180   # periapsis argument from deg to rad
+if e = 0:   # if eccentricity is set to 0 (it is circle):
+    omega = 0   # disable omega input
+
+Get Ea from Ma using Newtons method for finding equation roots [3]. Plug this in Newton root solver:
+0 = Ea - e * sin(Ea) - Ma   # Keplers equation
+d(f(E))/dE = 1.0 - e * np.cos(E)   # derivative from Keplers equation
+Ta = 2 * arctan(sqrt((1+e) / (1-e)) * tan(Ea/2))%(2pi)   # true anomaly from eccentric anomaly [11]
+
+
+# -calculate position vector Pr- #
+k = tan(Ta)   # line at angle Ta rotated by omega (y = kx + n)
+n = -(k * f)   # line at angle Ta containing focus point
+# Solve system for this line and orbit ellipse to get intersect points:
+D = sqrt(a^2 * k^2 + b^2 - n^2)   # discriminant
+if ta < pi/2 or ta > 3pi/2:   # there are 2 points, pick one at correct angle Ta
+    Pr_x = (a^2 * k * n - a * b * D) / (a^2 * k^2 + b^2)   # intersect point coordinates of line and ellipse
+    Pr_y = direction * (-b^2 * n + a * b * k * D) / (a^2 * k^2 + b^2)   # if direction is clockwise invert y axis
+else:
+    Pr_x = (a^2 * k * n + a * b * D) / (a^2 * k^2 + b^2)
+    Pr_y = direction * (- b^2 * n - a * b * k * D) / (a^2 * k^2 + b^2)
+Pr = [Pr_x * cos(omega - pi) - Pr_y * sin(omega - pi), Pr_x * sin(omega - pi) + Pr_y * cos(omega - pi)]   # rotate point by argument of Pe
+
+
+# -Determine where Pr on ellipse is, on positive or negative part- #
+# angle of velocity is calculated from slope of tangent on ellipse in point Pr, from implicit derivative
+(((x*cos(p)+y*sin(p))^2)/a^2) + (((x*sin(p)-y*cos(p))^2)/b^2) = 1   # Rotated ellipse implicit formula:
+# Implicit derivative in respect to x:
+k = -(b^2 * x * cos(p)^2 + a^2 * x * sin(p)^2 + b^2 * y * sin(p)cos(p) - a^2 * y * sin(p)cos(p)) /
+     (a^2 * y * cos(p)^2 + b^2 * y * sin(p)^2 + b^2 * x * sin(p)cos(p) - a^2 * x * sin(p)cos(p))
+vr_a = arctan(k)   # angle from tangent slope
+
+# calculate domain of function and substract some small value (10**-6) so y can be calculated
+x_max = msqrt(a^2 * cos(2p) + a^2 - b^2 * cos(2p) + b^2)/sqrt(2) - [10^-6]
+# rotatted ellipse formula by y, but only positive half:
+y_max = (sqrt(a^2 * b^2 * (a^2 * cos(p)^2 + b^2 * sin(p)^2 - x^2 * sin(p)^4 - x^2 * cos(p)^4 - 2 * x^2 * sin(p)^2 * cos(p)^2)) + 
+        a^2 * x * sin(p) * cos(p) - b^2 * x * sin(p) * cos(p)) / 
+        (a^2 * cos(p)^2 + b^2 * sin(p)^2)
+
+x_max1, y_max1 = x_max + f * cos(p), y_max + f * sin(p)   # add rotated focus since it is origin not (0, 0)
+x_max2, y_max2 = -x_max + f * cos(p), -y_max + f * sin(p)   # functon domain is symetrical, so there are 2 points 
+# same angle is calculated on positive and negative part of ellipse curve, so:
+if ((x_max2 - x_max1) * (pr_y - y_max1)) - ((y_max2 - y_max1) * (pr_x - x_max1)) < 0:   # when in positive part of curve:
+    vr_angle = vr_angle + pi   # add pi to angle, put it in range (-1/2pi, 3/2pi) range
+vr_angle = vr_angle % 2pi   # put it in (0, 2pi) range
+
+
+# -Calculate velocity vector Vr- #
+a = 1 / ((2 / |Pr|) - (|vr|^2 / u))   # solve semi-major axis formula for |vr|:
+|vr| = -direction * sqrt((2 * a * u - |Pr| * u) / (a * |Pr|))   # velocity vector magnitude
+# because clockwise direction is negative, here is -direction
+vr_x = |vr| * cos(vr_a)   # and get eccentricity vector from angle of velocity
+vr_y = |vr| * sin(vr_a)
+vr = [vr_x, vr_y]
+
+P2 = P1 + Pr   # absolute position vector (P1 is parent pos)
+P2 in simplified orbit model is updated with this P2
+# vr in simplified orbit model is updated with this vr
+
+
+
+
+
+# Inverse equations from orbital parameters to positional and velocity vectors for ecc = 1:
+
+
+
+
+
+# Inverse equations from orbital parameters to positional and velocity vectors for ecc > 1:
+
+
+
+
+
+# Inelastic collision (2 bodies merge into third one):
+mr = m1 + m2   # resulting mass
+mv1 = v1 * m1   # first body momentum vector
+mv2 = v2 * m1   # second body momentum vector
+v = (mv1 + mv2) / mr   # resulting velocity vector
+
+
+
+
+
+
+
+
+# REFERENCES: 
+[1]  https://orbital-mechanics.space/time-since-periapsis-and-keplers-equation/elliptical-orbits.html#eccentric-anomaly
+[2]  https://orbital-mechanics.space/time-since-periapsis-and-keplers-equation/elliptical-orbits.html#kepler-s-equation
+[3]  https://orbital-mechanics.space/time-since-periapsis-and-keplers-equation/elliptical-orbits.html#newton-s-method-to-solve-kepler-s-equation
+[4]  https://en.wikipedia.org/wiki/Argument_of_periapsis#Calculation
+[5]  https://en.wikipedia.org/wiki/Semi-major_and_semi-minor_axes#Energy;_calculation_of_semi-major_axis_from_state_vectors
+[6]  https://orbital-mechanics.space/time-since-periapsis-and-keplers-equation/elliptical-orbits.html#given-true-anomaly-find-time-since-periapsis
+[7]  https://en.wikipedia.org/wiki/Orbital_period#Small_body_orbiting_a_central_body
+[8]  https://en.wikipedia.org/wiki/Sphere_of_influence_(astrodynamics)
+[9]  https://en.wikipedia.org/wiki/Vis-viva_equation
+[10] https://en.wikipedia.org/wiki/Eccentricity_vector
+[11] https://en.wikipedia.org/wiki/True_anomaly#From_the_eccentric_anomaly
+
+
+
+# NOTES
+%2pi converts angle from (-pi, pi) range to (0, 2pi). It can be ignored in equations, but it is important in some calculations.
+%T prevents time to point going negative when passing that point, since here is needed Ma in (-p, pi) range, but (0, 2pi) is given. It can be ignored in equations, but it is important in some calculations.
+-pi is added to omega, tis rotates its origin from right side to left, this is needed when displaying something on screen

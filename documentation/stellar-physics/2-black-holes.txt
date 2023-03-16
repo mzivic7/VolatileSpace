@@ -1,0 +1,5 @@
+### black holes ###
+# Star is BH only if its radius is smaller than its Schwarzschild radius
+R = cbrt((3 * vol) / (4 * pi))
+Rs = (2 * m * G) / c^2
+

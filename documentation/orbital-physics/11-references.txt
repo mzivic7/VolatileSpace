@@ -1,0 +1,13 @@
+### references ### 
+[1]  https://orbital-mechanics.space/time-since-periapsis-and-keplers-equation/elliptical-orbits.html#eccentric-anomaly
+[2]  https://orbital-mechanics.space/time-since-periapsis-and-keplers-equation/elliptical-orbits.html#kepler-s-equation
+[3]  https://orbital-mechanics.space/time-since-periapsis-and-keplers-equation/elliptical-orbits.html#newton-s-method-to-solve-kepler-s-equation
+[4]  https://en.wikipedia.org/wiki/Argument_of_periapsis#Calculation
+[5]  https://en.wikipedia.org/wiki/Semi-major_and_semi-minor_axes#Energy;_calculation_of_semi-major_axis_from_state_vectors
+[6]  https://orbital-mechanics.space/time-since-periapsis-and-keplers-equation/elliptical-orbits.html#given-true-anomaly-find-time-since-periapsis
+[7]  https://en.wikipedia.org/wiki/Orbital_period#Small_body_orbiting_a_central_body
+[8]  https://en.wikipedia.org/wiki/Sphere_of_influence_(astrodynamics)
+[9]  https://en.wikipedia.org/wiki/Vis-viva_equation
+[10] https://en.wikipedia.org/wiki/Eccentricity_vector
+[11] https://en.wikipedia.org/wiki/True_anomaly#From_the_eccentric_anomaly
+

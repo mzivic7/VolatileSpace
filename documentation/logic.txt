@@ -1,0 +1,2 @@
+In find_parents():
+Bodies are not sorted by coi, but by mass, becouse small bodies can get large coi with large semi-major axis and intersect with larger ones that have smaller semi-major axis. This will result in more massive body orbiting around less massive body.

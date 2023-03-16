@@ -1,0 +1,13 @@
+### Complex orbit model (NOT USED IN SIMULATION) ###
+# (each body effects every other body)
+
+F = m1 * m2 / d^2   # Newton's law of universal gravitation
+# repeat for both bodies (m1 and m2):
+ac = F / m   # acceleration
+angle = arctan2(y1 - y2, x1 - x2)   # angle between 2 bodies and horizon
+ac_x = a * cos(angle)   # get vector from magnitude and angle 
+ac_y = a * sin(angle)
+av = [ac_x, ac_y]   # acceleration vector
+v = v + av   # update velocity vector
+P = P + v   # update position vector
+

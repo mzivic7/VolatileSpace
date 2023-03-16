@@ -1,0 +1,15 @@
+### orbit shape specific parameters: ###
+
+# Ellipse and circle ecc < 1:
+Ea = 2 * arctan(sqrt((1 - e)/(1 + e)) * tan(Ta / 2))%2pi   # eccentric anomaly from true anomaly [1]
+Ma = (Ea - e * sin(Ea))   # mean anomaly from Keplers equation [2]
+tPe = T - (Ma * T / (2pi))   # time to periapsis [6]
+tN = T - (Ma * T / (2pi)) - (phi * T / (2pi))   # time to point on orbit, point is given by angle phi starting from periapsis
+# time to point on orbit is calcuated as difernce of time to Pe from current point and time to Pe from target point
+tN = T - (Ma + phi)(T / (2pi))%T   # above equation simplified
+tAp = T - (Ma + pi)(T / (2pi))%T   # time to apoapsis
+
+# Parabola ecc = 1:
+
+# Hyperbola ecc > 1:
+

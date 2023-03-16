@@ -1,0 +1,28 @@
+### parametric equations ###
+- pi < t < pi   # parameter
+
+# circle   # e = 0
+x = radius * cos(t) 
+y = radius * sin(t) 
+
+# ellipse   # 0 < e < 1
+x = semi_major * cos(t) 
+y = semi_minor * sin(t) 
+
+# parabola   # e = 1
+x = at^2 - a   # - a is added to align parabola with sphere
+y = 2at
+
+# hyperbola   # e > 1
+t = [pi/2, pi) U (-pi, -pi/2]   # parameter is half to remove one side of hyperbola
+x = semi_major * sec(t) - 2 * semi_major   # sec(t) is same as arccos(t)
+y = semi_minor * tan(t)
+
+# rotation matrix
+rot = [[cos(omega), -sin(omega)],
+       [sin(omega),  cos(omega)]]   # rotation matrix
+
+[x_r, y_r] = rot dot [x, y]   # rotation
+x_t = x_r + P1_x + focus_x + P1_x   # translate it to body position + focus 
+y_t = y_r + P1_y + focus_y + P1_y
+

@@ -1,0 +1,5 @@
+### Inverse equations from orbital parameters to positional and velocity vectors ###
+# ecc > 1
+# Inputs: e, omega_deg, Pe, Ma, direction
+# clockwise direction is negative
+
