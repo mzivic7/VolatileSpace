@@ -6,7 +6,8 @@ import math
 white = (255, 255, 255)
 
 red = (255, 0, 0)
-red1 = (255, 140, 140)
+red1 = (255, 124, 124)
+red2 = (164, 0, 0)
 
 orange = (255, 165, 0)
 
@@ -23,10 +24,7 @@ blue = (0, 0, 255)
 purple = (128, 0, 128)
 magenta = (255, 0, 255)
 
-gray = (128, 128, 128)
-gray1 = (210, 210, 210)
+gray = (210, 210, 210)
+gray1 = (96, 96, 96)
+gray2 = (42, 42, 42)
 black = (0, 0, 0)
-
-all_main = np.array(
-    [red, orange, lime, green, cyan, blue, purple, magenta, gray, black]
-)

@@ -9,12 +9,13 @@
 8. advanced GUI (new game/load/save, multiplayer-WIP, play pause)
 9. body apearance when zoom out (no ap / pe, icons, rebuild selecting)
 10. collision with rotation for bodies
-11. STAR PHYSICS
-12. BODY TEXTURES
-13. GAME
-14. VESSEL TEXTURES
-15. MULTIPLAYER
-
+11. enable GPU rendering
+12. STAR PHYSICS
+13. BODY TEXTURES
+14. GAME
+15. VESSEL TEXTURES
+16. MULTIPLAYER
+17. port to andrid
 
 
 ### STAR PHYSICS ###

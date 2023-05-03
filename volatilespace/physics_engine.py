@@ -1,28 +1,33 @@
 import numpy as np
 import math
 
+from volatilespace import fileops
 
-# constants
+
+###### --Constants-- ######
 c = 299792458   # speed of light in vacuum
 k = 1.381 * 10**-23   # boltzman constant
 gc = 1   # newtonian constant of gravitation
 m_h = 1.674 * 10**-27    # hydrogen atom mass in kg
 m_he = 6.646 * 10**-27   # helimum atom mass in kg
 mp = (m_h * 99 + m_he * 1) / 100   # average particle mass   # depends on star age
-mass_sim_mult = 10**24  # mass simulation multiplyer, since real values are needed in core temperature formula
+mass_sim_mult = 10**24  # mass simulation multiplyer, since real values are needed in core temperature equation
 rad_sim_mult = 10**6   # radius sim multiplyer
 rad_mult = 10   # radius multiplyer to make bodies larger 
-curve_ponts = 100   # number of points from which curve is drawn
+curve_points = int(fileops.load_settings("graphics", "curve_points"))   # number of points from which curve is drawn
 
 
-# parameters for each curve type
-ell_t = np.linspace(-np.pi, np.pi, curve_ponts)   # ellipse parameter
-par_t = np.linspace(- np.pi - 1, np.pi + 1, curve_ponts)   # parabola parameter
-hyp_t_1 = np.linspace(- np.pi, - np.pi/2 -0.1, int(curve_ponts/2))   # (-pi, -pi/2]
-hyp_t_2 = np.linspace(np.pi/2 + 0.1, np.pi, int(curve_ponts/2))   # [pi/2, pi)
+
+###### --Parameters-- ######
+ell_t = np.linspace(-np.pi, np.pi, curve_points)   # ellipse parameter
+par_t = np.linspace(- np.pi - 1, np.pi + 1, curve_points)   # parabola parameter
+hyp_t_1 = np.linspace(- np.pi, - np.pi/2 -0.1, int(curve_points/2))   # (-pi, -pi/2]
+hyp_t_2 = np.linspace(np.pi/2 + 0.1, np.pi, int(curve_points/2))   # [pi/2, pi)
 hyp_t = np.concatenate([hyp_t_2, hyp_t_1])   # hyperbola parameter [pi/2, pi) U (-pi, -pi/2]
 
 
+
+###### --Functions-- ######
 def newton_root(function, derivative, root_guess, vars = {}):
     """Newton root solver"""
     root = root_guess   # take guessed root input
@@ -59,6 +64,7 @@ def rot_ellipse_by_y(x, a, b, p):
     """Rotatted ellipse by y, but only positive half"""
     y = (math.sqrt(a**2 * b**2 * (a**2 * math.cos(p)**2 + b**2 * math.sin(p)**2 - x**2 * math.sin(p)**4 - x**2 * math.cos(p)**4 - 2 * x**2 * math.sin(p)**2 * math.cos(p)**2)) + a**2 * x * math.sin(p) * math.cos(p) - b**2 * x * math.sin(p) * math.cos(p)) / (a**2 * math.cos(p)**2 + b**2 * math.sin(p)**2)
     return y
+
 
 
 class Physics():
@@ -293,7 +299,7 @@ class Physics():
         return ecc, periapsis, apoapsis, pe_d, ap_d, distance, period, pe_t, ap_t, orb_angle, speed_orb, speed_hor, speed_vert
     
     
-    # inverse kepler formulas
+    # inverse kepler equations
     def kepler_inverse(self, body, ecc, omega_deg, pe_d, mean_anomaly, ap_d, direction):
         parent = self.parents[body]  # get parent body
         u = gc * self.mass[parent]   # standard gravitational parameter
@@ -340,7 +346,7 @@ class Physics():
         vr_angle = vr_angle%(2*np.pi)   # put it in (0, 2pi) range
         
         prm = mag(pr)   # relative position vector magnitude
-        vrm = -direction * math.sqrt((2 * a * u - prm * u) / (a * prm))   # velocity vector from semi-major axis formula
+        vrm = -direction * math.sqrt((2 * a * u - prm * u) / (a * prm))   # velocity vector from semi-major axis equation
         
         vr_x = 50 * vrm * math.cos(vr_angle)   # eccentricity vector from angle of velocity
         vr_y = 50 * vrm * math.sin(vr_angle)
@@ -357,7 +363,7 @@ class Physics():
         rot = np.array([[np.cos(self.periapsis_arg) , - np.sin(self.periapsis_arg)], [np.sin(self.periapsis_arg) , np.cos(self.periapsis_arg)]])
         
         # calculate curves points # curve[axis, body, point]
-        curves = np.zeros((2, len(self.ecc_v), curve_ponts))
+        curves = np.zeros((2, len(self.ecc_v), curve_points))
         for num in range(len(self.ecc_v)):
             ecc = np.sqrt(self.ecc_v[num].dot(self.ecc_v[num]))   # eccentricity
             if ecc < 1:   # ellipse
@@ -368,7 +374,7 @@ class Physics():
                     curves[0, num, :] = curves[0, num, :] - self.semi_major[num, np.newaxis]   # translate parabola by semi_major, since its center is not in 0,0
                 if ecc > 1:   # hyperbola
                     curves[:, num, :] = np.array([self.semi_major[num] * 1/np.cos(hyp_t), self.semi_minor[num] * np.tan(hyp_t)])   # raw hyperbolas
-                # parametric formula for circle is same as for sphere, just semi_major = semi_minor, thus it is not required
+                # parametric equation for circle is same as for sphere, just semi_major = semi_minor, thus it is not required
         
         curves_rot = np.zeros((2, curves.shape[1], curves.shape[2]))   # empty array for new rotaded curve
         for body in range(curves.shape[1]):   # for each body
@@ -468,6 +474,7 @@ class Physics():
     def get_body_orbits(self):
         return self.semi_major, self.semi_minor, self.coi, self.parents
 
+
     # change body parameters
     def set_body_mass(self, body, mass):
         self.mass[body] = mass
@@ -486,4 +493,4 @@ class Physics():
     
     def set_body_color(self, body, color):   # set body base color
         self.base_color[body] = color
-    
+
