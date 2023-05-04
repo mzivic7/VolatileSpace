@@ -70,14 +70,14 @@ def new_pos(pos, res, extra, zoom_off, zoom):
     """Cycle stars from extended screen edge to opposite"""
     change = True   # position is changed
     if pos[0] >= res[0] + extra:   # if star is out of screen
-        pos[0] = (np.random.randint(- extra, 0) + zoom_off[0]) / zoom   # move it to opposite side
+        pos[0] = (np.random.randint(- extra, 0) / zoom) - 2*zoom_off[0]   # move it to opposite side
         # and remove zoom to get real pos (not screen coordinate)
     elif pos[0] <= - extra:
-        pos[0] = (np.random.randint(res[0], res[0] + extra) - zoom_off[0]*2) / zoom
+        pos[0] = (np.random.randint(res[0], res[0] + extra) / zoom) - 2*zoom_off[0]
     elif pos[1] >= res[1] + extra:
-        pos[1] = (np.random.randint(- extra, 0) + zoom_off[1]) / zoom
+        pos[1] = (np.random.randint(- extra, 0) / zoom) - 2*zoom_off[1]
     elif pos[1] <= - extra:
-        pos[1] = (np.random.randint(res[1], res[1] + extra) - zoom_off[1]*2) / zoom
+        pos[1] = (np.random.randint(res[1], res[1] + extra) / zoom) - 2*zoom_off[1]
     else:
         change = False   # position is not changed
     return pos, change

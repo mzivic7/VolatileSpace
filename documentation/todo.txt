@@ -1,9 +1,9 @@
 ### TIMELINE ###
-1. advanced orbital parameters - parabola, hyperbola
-2. inverse functions - parabola, hyperbola
-3. more advanced orbital parameters
-4. main GUI (main menu, about, map editor, settings)
-5. 2 keplerian orbit lines - predict leaving orbit
+1. main GUI (main menu, about, map editor, settings), solar system
+2. advanced orbital parameters - parabola, hyperbolai
+3. nverse functions - parabola, hyperbola
+4. more advanced orbital parameters
+5. 2 keplerian orbimaint lines - predict leaving orbit
 6. separate physics models for vessels and planets
 7. Rotation
 8. advanced GUI (new game/load/save, multiplayer-WIP, play pause)
