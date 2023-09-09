@@ -13,7 +13,7 @@ m_he = 6.646 * 10**-27   # helimum atom mass in kg
 mp = (m_h * 99 + m_he * 1) / 100   # average particle mass   # depends on star age
 mass_sim_mult = 10**24  # mass simulation multiplyer, since real values are needed in core temperature equation
 rad_sim_mult = 10**6   # radius sim multiplyer
-rad_mult = 10   # radius multiplyer to make bodies larger 
+rad_mult = 10   # radius multiplyer to make bodies larger
 curve_points = int(fileops.load_settings("graphics", "curve_points"))   # number of points from which curve is drawn
 
 
@@ -21,14 +21,13 @@ curve_points = int(fileops.load_settings("graphics", "curve_points"))   # number
 ###### --Parameters-- ######
 ell_t = np.linspace(-np.pi, np.pi, curve_points)   # ellipse parameter
 par_t = np.linspace(- np.pi - 1, np.pi + 1, curve_points)   # parabola parameter
-hyp_t_1 = np.linspace(- np.pi, - np.pi/2 -0.1, int(curve_points/2))   # (-pi, -pi/2]
+hyp_t_1 = np.linspace(- np.pi, - np.pi/2 - 0.1, int(curve_points/2))   # (-pi, -pi/2]
 hyp_t_2 = np.linspace(np.pi/2 + 0.1, np.pi, int(curve_points/2))   # [pi/2, pi)
 hyp_t = np.concatenate([hyp_t_2, hyp_t_1])   # hyperbola parameter [pi/2, pi) U (-pi, -pi/2]
 
 
-
 ###### --Functions-- ######
-def newton_root(function, derivative, root_guess, vars = {}):
+def newton_root(function, derivative, root_guess, vars={}):
     """Newton root solver"""
     root = root_guess   # take guessed root input
     for num in range(50):
@@ -38,12 +37,16 @@ def newton_root(function, derivative, root_guess, vars = {}):
             return root   # return root
     return root   # if it is not returned above (it has too high deviation) return it anyway
 
+
 def keplers_eq(E, vars):
     """Keplers equation"""
-    return E - vars['e'] * np.sin(E) - vars['Ma'] 
-def keplers_eq_derivative(E, vars ):
+    return E - vars['e'] * np.sin(E) - vars['Ma']
+
+
+def keplers_eq_derivative(E, vars):
     """Derivative of keplers equation"""
     return 1.0 - vars['e'] * np.cos(E)
+
 
 def get_angle(a, b, c):
     """Angle between 3 points in 2D or 3D"""
@@ -52,13 +55,16 @@ def get_angle(a, b, c):
     cosine_angle = np.dot(ba, bc) / (np.linalg.norm(ba) * np.linalg.norm(bc))   # angle brtween 2 vectors
     return np.arccos(cosine_angle)
 
+
 def mag(vector):
     """Vector magnitude"""
     return math.sqrt(vector.dot(vector))
 
+
 def orbit_time_to(mean_anomaly, target_angle, period):
     """Time to point on orbit"""
-    return period - (mean_anomaly + target_angle)*(period / (2 * np.pi))%period
+    return period - (mean_anomaly + target_angle)*(period / (2 * np.pi)) % period
+
 
 def rot_ellipse_by_y(x, a, b, p):
     """Rotatted ellipse by y, but only positive half"""
@@ -104,7 +110,7 @@ class Physics():
         self.type = np.array([])
         self.pos = position
         self.vel = velocity
-        self.parents = np.array([0,0,1], dtype=int)   # parents indexes
+        self.parents = np.array([0, 0, 1], dtype=int)   # parents indexes
         self.simplified_orbit_coi()   # calculate COIs
         self.find_parents()   # find parents for all bodies
         self.rel_vel = velocity - velocity[self.parents]
@@ -126,7 +132,7 @@ class Physics():
         volume = self.mass / self.den   # volume from mass and density
         self.rad = rad_mult * np.cbrt(3 * volume / (4 * np.pi))   # calculate radius from volume
         self.pos = np.vstack((self.pos, position))
-        self.vel = np.vstack((self.vel, [0,0]))   # just add placeholder as [0, 0], since vel is calculated later in gravity()
+        self.vel = np.vstack((self.vel, [0, 0]))   # just add placeholder as [0, 0], since vel is calculated later in gravity()
         self.parents = np.append(self.parents, 0)
         self.simplified_orbit_coi()   # re-calculate COIs
         self.find_parents()   # find parents for all bodies
@@ -171,7 +177,7 @@ class Physics():
             for numL in range(len(bodies_sorted[:num+1])):   # for previously calculated bodies (skip all smaller than this body):
                 pot_parent = body_indexes[numL]   # potential parent index
                 # if this body is inside potential parents COI:
-                if (self.pos[body, 0] -  self.pos[pot_parent, 0])**2 + (self.pos[body, 1] - self.pos[pot_parent, 1])**2 < (self.coi[pot_parent])**2:
+                if (self.pos[body, 0] - self.pos[pot_parent, 0])**2 + (self.pos[body, 1] - self.pos[pot_parent, 1])**2 < (self.coi[pot_parent])**2:
                     parent = pot_parent   # this body is parent
                     # loop continues until smallest parent body is found
             rel_pos = self.pos[parent] - self.pos[body]   # relative position
@@ -192,7 +198,7 @@ class Physics():
             for numL in range(len(mass_sorted[:num+1])):   # for previously calculated bodies:
                 pot_parent = bodies_sorted[numL]   # potential parent index
                 # if this body is inside potential parents COI:
-                if (self.pos[body, 0] -  self.pos[pot_parent, 0])**2 + (self.pos[body, 1] - self.pos[pot_parent, 1])**2 < (self.coi[pot_parent])**2:
+                if (self.pos[body, 0] - self.pos[pot_parent, 0])**2 + (self.pos[body, 1] - self.pos[pot_parent, 1])**2 < (self.coi[pot_parent])**2:
                     parent = pot_parent   # this body is parent
                     # loop continues until smallest parent body is found
             self.parents[body] = parent   # add it to array
@@ -258,7 +264,7 @@ class Physics():
         u = gc * self.mass[parent]   # standard gravitational parameter
         distance = mag(rel_pos)   # distance to parent
         speed_orb = mag(rel_vel)   # orbit speed
-        true_anomaly = (periapsis_arg - (math.atan2(rel_pos[1], rel_pos[0])- np.pi))%(2*np.pi)  # true anomaly from relative position
+        true_anomaly = (periapsis_arg - (math.atan2(rel_pos[1], rel_pos[0]) - np.pi)) % (2*np.pi)  # true anomaly from relative position
         moment = np.cross(rel_pos, rel_vel)   # rotation moment
         direction = -1 * int(math.copysign(1, moment))   # if moment is negative, rotation is clockwise (-1)
         if direction == -1:   # if direction is clockwise
@@ -270,8 +276,8 @@ class Physics():
             pe_d = semi_major * (1 - ecc)   # periapsis distance and coordinate:
             periapsis = np.array([pe_d * math.cos(periapsis_arg - np.pi), pe_d * math.sin(periapsis_arg - np.pi)]) + self.pos[parent]
             if ecc < 1:   # if orbit is ellipse
-                ecc_anomaly = (2 * np.arctan(math.sqrt((1 - ecc)/(1 + ecc)) * math.tan(true_anomaly / 2)))%(2*np.pi)   # eccentric from true anomaly
-                mean_anomaly = (ecc_anomaly - ecc * math.sin(ecc_anomaly))%(2*np.pi)   # mean anomaly from Keplers equation
+                ecc_anomaly = (2 * np.arctan(math.sqrt((1 - ecc)/(1 + ecc)) * math.tan(true_anomaly / 2))) % (2*np.pi)   # eccentric from true anomaly
+                mean_anomaly = (ecc_anomaly - ecc * math.sin(ecc_anomaly)) % (2*np.pi)   # mean anomaly from Keplers equation
                 period = (2 * np.pi * math.sqrt(semi_major**3 / u))   # orbital period
                 pe_t = orbit_time_to(mean_anomaly, 0, period)  # time to periapsis
                 orb_angle = (abs(true_anomaly - periapsis_arg)) * 180 / np.pi   # angular displacement from argument of periapsis
@@ -312,8 +318,8 @@ class Physics():
         f = math.sqrt(a**2 - b**2)   # focus distance from center of ellipse
         f_rot = [f * math.cos(omega), f * math.sin(omega)]   # focus rotated by omega
         
-        ea = newton_root( keplers_eq, keplers_eq_derivative, 0.0, {'Ma': mean_anomaly, 'e': ecc})   # newton root for keplers equation
-        ta = 2 * math.atan(math.sqrt((1+ecc) / (1-ecc)) * math.tan(ea/2))%(2*np.pi)   # true anomaly from eccentric anomaly
+        ea = newton_root(keplers_eq, keplers_eq_derivative, 0.0, {'Ma': mean_anomaly, 'e': ecc})   # newton root for keplers equation
+        ta = 2 * math.atan(math.sqrt((1+ecc) / (1-ecc)) * math.tan(ea/2)) % (2*np.pi)   # true anomaly from eccentric anomaly
         
         k = math.tan(ta)   # line at angle Ta (y = kx + n)
         n = -(k * f)   # line at angle Ta containing focus point
@@ -330,20 +336,20 @@ class Physics():
         
         p_x, p_y = pr[0] - f * np.cos(omega), pr[1] - f * np.sin(omega)   # point on ellipse relative to its center
         vr_angle = np.arctan(   # implicit derivative of rotated ellipse
-            -(b**2 * p_x * math.cos(omega)**2 + a**2 * p_x * math.sin(omega)**2 + 
-              b**2 * p_y * math.sin(omega) * math.cos(omega) - a**2 * p_y * math.sin(omega) * math.cos(omega)) / 
-             (a**2 * p_y * math.cos(omega)**2 + b**2 * p_y * math.sin(omega)**2 + 
+            -(b**2 * p_x * math.cos(omega)**2 + a**2 * p_x * math.sin(omega)**2 +
+              b**2 * p_y * math.sin(omega) * math.cos(omega) - a**2 * p_y * math.sin(omega) * math.cos(omega)) /
+             (a**2 * p_y * math.cos(omega)**2 + b**2 * p_y * math.sin(omega)**2 +
               b**2 * p_x * math.sin(omega) * math.cos(omega) - a**2 * p_x * math.sin(omega) * math.cos(omega)))
         
         # calculate domain of function and substract some small value (10**-6) so y can be calculated
         x_max = math.sqrt(a**2 * math.cos(2*omega) + a**2 - b**2 * math.cos(2*omega) + b**2)/math.sqrt(2) - 10**-6
         y_max = rot_ellipse_by_y(x_max, a, b, omega)   # calculate y
         x_max1, y_max1 = x_max + f_rot[0], y_max + f_rot[1]   # add rotated focus since it is origin
-        x_max2, y_max2 = -x_max + f_rot[0], -y_max + f_rot[1]   # functon domain is symetrical, so there are 2 points 
+        x_max2, y_max2 = -x_max + f_rot[0], -y_max + f_rot[1]   # functon domain is symetrical, so there are 2 points
         # same angle is calculated on positive and negative part of ellipse curve, so:
         if ((x_max2 - x_max1) * (pr[1] - y_max1)) - ((y_max2 - y_max1) * (pr[0] - x_max1)) < 0:   # when in positive part of curve:
             vr_angle += np.pi   # add pi to angle, put it in range (-1/2pi, 3/2pi) range
-        vr_angle = vr_angle%(2*np.pi)   # put it in (0, 2pi) range
+        vr_angle = vr_angle % (2*np.pi)   # put it in (0, 2pi) range
         
         prm = mag(pr)   # relative position vector magnitude
         vrm = -direction * math.sqrt((2 * a * u - prm * u) / (a * prm))   # velocity vector from semi-major axis equation
@@ -359,8 +365,8 @@ class Physics():
     def curve(self):
         focus_x = self.focus * np.cos(self.periapsis_arg)   # focus coords from focus magnitude and angle
         focus_y = self.focus * np.sin(self.periapsis_arg)
-        #2D rotation matrix # rot[rotation, rotation, body]
-        rot = np.array([[np.cos(self.periapsis_arg) , - np.sin(self.periapsis_arg)], [np.sin(self.periapsis_arg) , np.cos(self.periapsis_arg)]])
+        # 2D rotation matrix # rot[rotation, rotation, body]
+        rot = np.array([[np.cos(self.periapsis_arg), - np.sin(self.periapsis_arg)], [np.sin(self.periapsis_arg), np.cos(self.periapsis_arg)]])
         
         # calculate curves points # curve[axis, body, point]
         curves = np.zeros((2, len(self.ecc_v), curve_points))
@@ -390,8 +396,10 @@ class Physics():
             for body2, mass2 in enumerate(self.mass[body1+1:], body1+1):   # repeat between this and every other body:
                 distance = math.dist((self.pos[body1, 0], self.pos[body1, 1]), (self.pos[body2, 0], self.pos[body2, 1]))
                 if distance <= self.rad[body1] + self.rad[body2]:   # if bodies collide
-                    if mass1 <= mass2: return body1, body2   # set smaller object to be deleted
-                    else: return body2, body1
+                    if mass1 <= mass2:   # set smaller object to be deleted
+                        return body1, body2
+                    else:
+                        return body2, body1
         return False, False   # return none if there are no collisions
     
     
@@ -427,23 +435,23 @@ class Physics():
     # termal calculations
     def body_temp(self):
         core_temp = (gc * mp * self.mass * mass_sim_mult) / ((3/2) * k * self.rad * rad_sim_mult)   # core temperature
-        self.temp = 0 / core_temp   # surface temperature ### remove when fixed
+        self.temp = 0 / core_temp   # surface temperature ### remove when fixed ###
     
     
     # set color depending on temperature
     def body_color(self):
         # temperature to 1000 - BASE
         # temperature from 1000 to 3000 - RED
-        self.color[:,0] = np.where(self.temp > 1000, self.base_color[:,0] + ((255 - self.base_color[:,0]) * (self.temp - 1000)) / 2000, self.base_color[:,0])   # transition from base red to full red
-        self.color[:,1] = np.where(self.temp > 1000, self.base_color[:,1] - ((self.base_color[:,1]) * (self.temp - 1000)) / 2000, self.base_color[:,1])   # transition from base green to no green
-        self.color[:,2] = np.where(self.temp > 1000, self.base_color[:,2] - ((self.base_color[:,2]) * (self.temp - 1000)) / 2000, self.base_color[:,2])   # transition from base blue to no blue
+        self.color[:, 0] = np.where(self.temp > 1000, self.base_color[:, 0] + ((255 - self.base_color[:, 0]) * (self.temp - 1000)) / 2000, self.base_color[:, 0])   # transition from base red to full red
+        self.color[:, 1] = np.where(self.temp > 1000, self.base_color[:, 1] - ((self.base_color[:, 1]) * (self.temp - 1000)) / 2000, self.base_color[:, 1])   # transition from base green to no green
+        self.color[:, 2] = np.where(self.temp > 1000, self.base_color[:, 2] - ((self.base_color[:, 2]) * (self.temp - 1000)) / 2000, self.base_color[:, 2])   # transition from base blue to no blue
         # temperature from 3000 to 6000 - YELLOW
-        self.color[:,1] = np.where(self.temp > 3000, (255 * (self.temp - 3000)) / 3000, self.color[:,1])   # transition from no green to full green
+        self.color[:, 1] = np.where(self.temp > 3000, (255 * (self.temp - 3000)) / 3000, self.color[:, 1])   # transition from no green to full green
         # temperature from 6000 to 10000 - WHITE
-        self.color[:,2] = np.where(self.temp > 6000, (255 * (self.temp - 6000)) / 4000, self.color[:,2])   # transition from no blue to full blue
+        self.color[:, 2] = np.where(self.temp > 6000, (255 * (self.temp - 6000)) / 4000, self.color[:, 2])   # transition from no blue to full blue
         # temperature from 10000 to 30000 - BLUE
-        self.color[:,0] = np.where(self.temp > 10000, 255 - ((255 * (self.temp - 10000) /10000)), self.color[:,0])   # transition from full red to no red
-        self.color[:,1] = np.where(self.temp > 10000, 255 - ((135 * (self.temp - 10000) / 20000)), self.color[:,1])   # transition from full green to 120 green
+        self.color[:, 0] = np.where(self.temp > 10000, 255 - ((255 * (self.temp - 10000) / 10000)), self.color[:, 0])   # transition from full red to no red
+        self.color[:, 1] = np.where(self.temp > 10000, 255 - ((135 * (self.temp - 10000) / 20000)), self.color[:, 1])   # transition from full green to 120 green
         self.color = np.where(self.color > 220, 220, self.color)   # limit values to be max 255
         self.color = np.where(self.color < 0, 0, self.color)   # limit values to be min 0
         return self.color   # return calculated color
@@ -493,4 +501,3 @@ class Physics():
     
     def set_body_color(self, body, color):   # set body base color
         self.base_color[body] = color
-

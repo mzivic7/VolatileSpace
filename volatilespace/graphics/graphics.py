@@ -17,7 +17,7 @@ class Graphics():
         self.timer = 0   # timer for drawing timed text on screen
         self.spacing_min = int(fileops.load_settings("graphics", "grid_spacing_min"))   # minimum and maximum size spacing of grid
         self.spacing_max = int(fileops.load_settings("graphics", "grid_spacing_max"))
-        self.color, self.font, self.text_str, self.pos, self.time, self.center = (0, 0, 0), 0, 0, [0,0], 0, 0   # initial vars for timed text
+        self.color, self.font, self.text_str, self.pos, self.time, self.center = (0, 0, 0), 0, 0, [0, 0], 0, 0   # initial vars for timed text
         
     
     def set_screen(self):
@@ -47,24 +47,26 @@ class Graphics():
         """Draw a circle"""
         if self.antial is True and radius < 1000:   # limit radius because gfxdraw bugs ### BUG ###
             # if circle is off screen dont draw it, because gfxdraw uses short integers for pposition and radius
-            if center[0]+radius>0 and center[0]-radius<self.screen_x and center[1]+radius>0 and center[1]-radius<self.screen_y:
+            if center[0]+radius > 0 and center[0]-radius < self.screen_x and center[1]+radius > 0 and center[1]-radius < self.screen_y:
                 gfxdraw.aacircle(surface, int(center[0]), int(center[1]), int(radius), color)   # draw initial circle ### BUG ###
                 if thickness != 1:   # antialiased line has no thickness option ### BUG ###
                     for num in range(1, thickness):   # draw one more circle for each number of thicknes
-                        gfxdraw.aacircle(surface, int(center[0]), int(center[1]), int(radius)+num, color) 
+                        gfxdraw.aacircle(surface, int(center[0]), int(center[1]), int(radius)+num, color)
         else:
             pygame.draw.circle(surface, color, center, radius, thickness)
         
     
     def draw_circle_fill(self, surface, color, center, radius, antial=None):
         """Draw a filled circle"""
-        if antial == None: func_antial = self.antial
-        else: func_antial = antial   # antial as function argument is optional override to global antial
+        if antial is None:
+            func_antial = self.antial
+        else:
+            func_antial = antial   # antial as function argument is optional override to global antial
         if radius == 1:   # if star radius is 1px
             gfxdraw.pixel(surface, int(center[0]), int(center[1]), color)    # draw just that pixel
         else:   # if radius is more than 1px (radius-1 because 1px radius covers 4px total)
-            if func_antial is True and radius < 1000:   #### BUG ###
-                if center[0]+radius>0 and center[0]-radius<self.screen_x:
+            if func_antial is True and radius < 1000:   # ### BUG ###
+                if center[0] + radius > 0 and center[0] - radius < self.screen_x:
                     gfxdraw.aacircle(surface, int(center[0]), int(center[1]), int(radius - 1), color)
                     gfxdraw.filled_circle(surface, int(center[0]), int(center[1]), int(radius - 1), color)
             else:
@@ -91,8 +93,8 @@ class Graphics():
     
     def timed_text_init(self, color, font, text, pos, time=2, center=False, bg_color=False):
         """Timed text on screen, optionally centered to given coordinates, this is activated once"""
-        self.timed_text_enable = True 
-        self.color, self.font, self.text_str, self.pos, self.time, self.center = color, font, text, pos, time, center 
+        self.timed_text_enable = True
+        self.color, self.font, self.text_str, self.pos, self.time, self.center = color, font, text, pos, time, center
     
     
     def timed_text(self, screen, clock):

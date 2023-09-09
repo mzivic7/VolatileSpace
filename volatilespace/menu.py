@@ -1,4 +1,9 @@
 import pygame
 
-class menu():
+
+version = "0.1.0"
+
+
+class Menu():
     def __init__(self):
+        pass

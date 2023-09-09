@@ -26,13 +26,15 @@ class Editor():
         self.res_change = False   # cycle through resolution
         avail_res = pygame.display.list_modes()
         self.screen_x, self.screen_y = pygame.display.get_surface().get_size()   # window width, window height
-        try: 
+        try:
             self.selected_res = avail_res.index((self.screen_x, self.screen_y))
-        except:   # fail-safe repair if resolution is invalid
+        except Exception:   # fail-safe repair if resolution is invalid
             self.selected_res = 0   # use maximum resolution
             fileops.save_settings("graphics", "resolution", list(avail_res[0]))   # save it to file
-            if self.fullscreen is True: pygame.display.set_mode((avail_res[0]), pygame.FULLSCREEN)
-            else: pygame.display.set_mode((avail_res[0]))
+            if self.fullscreen is True:
+                pygame.display.set_mode((avail_res[0]), pygame.FULLSCREEN)
+            else:
+                pygame.display.set_mode((avail_res[0]))
         self.antial = leval(fileops.load_settings("graphics", "antialiasing"))   # global antialiasing
         self.fontmd = pygame.font.Font("fonts/LiberationSans-Regular.ttf", 16)   # medium text font
         self.fontsm = pygame.font.Font("fonts/LiberationSans-Regular.ttf", 10)   # small text font
@@ -58,7 +60,7 @@ class Editor():
         self.offset_x = self.screen_x / 2   # initial centered offset to 0, 0 coordinates
         self.offset_y = self.screen_y / 2
         self.mouse_fix_x = False   # fix mouse movement when jumping off screen edge
-        self.mouse_fix_y = False   
+        self.mouse_fix_y = False
         self.zoom_step = 0.05   # initial zoom step
         self.file_path = ""   # path to file to load
         self.warp = self.warp_range[self.warp_index]   # load current warp
@@ -85,11 +87,12 @@ class Editor():
     ###### --Help functions-- ######
     def focus_point(self, pos, zoom=None):
         """Claculate offset and zoom, used to focus on specific coordinates"""
-        if zoom: self.zoom = zoom
+        if zoom:
+            self.zoom = zoom
         self.offset_x = - pos[0] + self.screen_x / 2   # follow selected body
         self.offset_y = - pos[1] + self.screen_y / 2
-        self.zoom_x = (self.screen_x/ 2) - (self.screen_x / (self.zoom * 2))   # zoom translation to center
-        self.zoom_y = (self.screen_y/ 2) - (self.screen_y / (self.zoom * 2))
+        self.zoom_x = (self.screen_x / 2) - (self.screen_x / (self.zoom * 2))   # zoom translation to center
+        self.zoom_y = (self.screen_y / 2) - (self.screen_y / (self.zoom * 2))
 
     def screen_coords(self, coords_in_sim):
         """Converts from sim coords to screen coords. Adds zoom, view move, and moves origin from up-left to bottom-left"""
@@ -109,7 +112,7 @@ class Editor():
     
     ###### --Load system-- ######
     def load_system(self):
-        self.sim_time, self.mass, self.density, self.position, self.velocity, self.color = fileops.load_system("system.ini")   # load initial system 
+        self.sim_time, self.mass, self.density, self.position, self.velocity, self.color = fileops.load_system("system.ini")   # load initial system
         self.sim_time *= self.ptps   # convert from seconds to userevent iterations
         physics.load_system(self.mass, self.density, self.position, self.velocity, self.color)   # add it to physics class
         
@@ -121,15 +124,18 @@ class Editor():
     ###### --Keys-- ######
     def input_keys(self, e):
         if e.type == pygame.KEYDOWN:   # if any key is pressed:
-            if e.key == pygame.K_ESCAPE: self.run = False  # if "escape" key is pressed, close program
+            if e.key == pygame.K_ESCAPE:
+                self.run = False  # if "escape" key is pressed, close program
             
             if e.key == pygame.K_SPACE:   # space key
-                if self.pause is False: self.pause = True   # if it is not paused, pause it 
-                else: self.pause = False  # if it is paused, unpause it
+                if self.pause is False:
+                    self.pause = True   # if it is not paused, pause it
+                else:
+                    self.pause = False  # if it is paused, unpause it
             
             if e.key == pygame.K_h:   # H key
                 self.follow = False   # disable follow
-                self.focus_point([0,0], 0.5)   # return to (0,0) coordinates
+                self.focus_point([0, 0], 0.5)   # return to (0,0) coordinates
                 # self.zoom = 1   # reset zoom
                 # self.zoom_x, self.zoom_y = 0, 0   # reset zoom offset
                 
@@ -210,13 +216,13 @@ class Editor():
         if self.direction is not False:   # add velocity to specific direction
             mass, density, temp, position, velocity, colors, size, rad_sc = physics.get_bodies()   # get body velocity to be increased
             if self.direction == "up":   # new_velocity = old_velocity + key_sensitivity
-                physics.set_body_vel(self.selected, [velocity[self.selected, 0], velocity[self.selected,1] + self.key_sens])   # set new velocity
+                physics.set_body_vel(self.selected, [velocity[self.selected, 0], velocity[self.selected, 1] + self.key_sens])   # set new velocity
             if self.direction == "down":
-                physics.set_body_vel(self.selected, [velocity[self.selected, 0], velocity[self.selected,1] - self.key_sens])
+                physics.set_body_vel(self.selected, [velocity[self.selected, 0], velocity[self.selected, 1] - self.key_sens])
             if self.direction == "left":
-                physics.set_body_vel(self.selected, [velocity[self.selected, 0] - self.key_sens, velocity[self.selected,1]])
+                physics.set_body_vel(self.selected, [velocity[self.selected, 0] - self.key_sens, velocity[self.selected, 1]])
             if self.direction == "right":
-                physics.set_body_vel(self.selected, [velocity[self.selected, 0] + self.key_sens, velocity[self.selected,1]])
+                physics.set_body_vel(self.selected, [velocity[self.selected, 0] + self.key_sens, velocity[self.selected, 1]])
         return self.run
     
     
@@ -224,11 +230,11 @@ class Editor():
     ###### --Mouse-- ######
     def input_mouse(self, e):
         self.mouse_raw = list(pygame.mouse.get_pos())   # get mouse position
-        self.mouse = list((self.mouse_raw[0]/self.zoom, -(self.mouse_raw[1]- self.screen_y)/self.zoom))   # mouse position on zoomed screen
+        self.mouse = list((self.mouse_raw[0]/self.zoom, -(self.mouse_raw[1] - self.screen_y)/self.zoom))   # mouse position on zoomed screen
         # y coordinate in self.mouse is negative for easier applying in formula to check if mouse is inside circle
         
         # left mouse button: move, select
-        if e.type == pygame.MOUSEBUTTONDOWN and e.button == 1:   # is clicked 
+        if e.type == pygame.MOUSEBUTTONDOWN and e.button == 1:   # is clicked
             self.mass, self.density, self.temp, self.position, self.velocity, self.colors, self.size, self.rad_sc = physics.get_bodies()
             self.move = True   # enable view move
             self.mouse_old = self.mouse   # initial mouse position for movement
@@ -250,7 +256,7 @@ class Editor():
         if e.type == pygame.MOUSEBUTTONDOWN and e.button == 3:   # is clicked
             self.insert_body = True   # start inserting body
             self.new_position = self.sim_coords(self.mouse_raw)   # first position
-        if e.type == pygame.MOUSEBUTTONUP and e.button == 3 and self.insert_body == True:   # is released
+        if e.type == pygame.MOUSEBUTTONUP and e.button == 3 and self.insert_body is True:   # is released
             self.insert_body = False   # end inserting body
             drag_position = self.sim_coords(self.mouse_raw)   # second position
             distance = math.dist(self.new_position, drag_position) * self.zoom   # distance
@@ -263,15 +269,15 @@ class Editor():
             self.new_mass = self.new_mass_init   # reset initial new mass
         
         # mouse wheel
-        if e.type == pygame.MOUSEWHEEL and self.insert_body is True: 
+        if e.type == pygame.MOUSEWHEEL and self.insert_body is True:
             if self.new_mass > 1:   # keep mass positive
                 self.new_mass += e.y   # change mass
         if e.type == pygame.MOUSEWHEEL and self.insert_body is False:   # change zoom
             if self.zoom > self.zoom_step or e.y == 1:   # prevent zooming below zoom_step, zoom can't be 0, but allow zoom to increase
-                self.zoom_step = self.zoom/10   # calculate zoom_step from current zoom
+                self.zoom_step = self.zoom / 10   # calculate zoom_step from current zoom
                 self.zoom += e.y * self.zoom_step   # add value to zoom by scrolling on mouse
-                self.zoom_x += (self.screen_x/ 2 / (self.zoom - e.y * self.zoom_step)) - (self.screen_x / (self.zoom * 2))   # zoom translation to center
-                self.zoom_y += (self.screen_y/ 2 / (self.zoom - e.y * self.zoom_step)) - (self.screen_y / (self.zoom * 2))
+                self.zoom_x += (self.screen_x / 2 / (self.zoom - e.y * self.zoom_step)) - (self.screen_x / (self.zoom * 2))   # zoom translation to center
+                self.zoom_y += (self.screen_y / 2 / (self.zoom - e.y * self.zoom_step)) - (self.screen_y / (self.zoom * 2))
                 # these values are added only to displayed objects, traces... But not to real position
                 
     
@@ -299,9 +305,9 @@ class Editor():
                     
                     self.sim_time += 1   # iterate sim_time
                     
-                    if self.first == True:   # this is run only once at userevent start
+                    if self.first is True:   # this is run only once at userevent start
                         self.first = False   # do not run it again
-                        self.focus_point([0,0], 0.5)   # initial zoom and point
+                        self.focus_point([0, 0], 0.5)   # initial zoom and point
                         self.selected = 1   # select body
                         self.follow = True   # follow it
         
@@ -325,16 +331,16 @@ class Editor():
         # screen movement
         if self.move is True:   # this is not in userevent to allow moving while paused
             if self.mouse_fix_x is True:   # when mouse jumps from one edge to other:
-                self.mouse_old[0] = self.mouse[0]   # don't calculate that as mouse movement 
+                self.mouse_old[0] = self.mouse[0]   # don't calculate that as mouse movement
                 self.mouse_fix_x = False
             if self.mouse_fix_y is True:
                 self.mouse_old[1] = self.mouse[1]
                 self.mouse_fix_y = False
             
-            mouse_move = math.dist((self.mouse_raw[0],self.mouse_raw[1]), (self.mouse_raw_old[0], self.mouse_raw_old[1]))   # distance
+            mouse_move = math.dist((self.mouse_raw[0], self.mouse_raw[1]), (self.mouse_raw_old[0], self.mouse_raw_old[1]))   # distance
             self.offset_x += self.mouse[0] - self.mouse_old[0]   # add mouse movement to offset
             self.offset_y += self.mouse[1] - self.mouse_old[1]
-               # save mouse position for next iteration to get movement
+            # save mouse position for next iteration to get movement
             # print position of view, here is not added zoom offset, this shows real position, y axis is inverted
             graphics.text(screen, rgb.white, self.fontmd, "Pos: X:" + str(int(self.offset_x - self.screen_x / 2)) + "; Y:" + str(-int(self.offset_y - self.screen_y / 2)), (300, 2))
             if mouse_move > self.select_sens:   # stop following if mouse distance is more than n pixels
@@ -344,13 +350,13 @@ class Editor():
                 pygame.mouse.set_pos(1, self.mouse_raw[1])   # move it to opposite edge ### BUG ###
                 self.mouse_fix_x = True   # in next itteration, dont calculate that as movement
             if self.mouse_raw[0] <= 0:
-                pygame.mouse.set_pos(self.screen_x, self.mouse_raw[1]-1)
+                pygame.mouse.set_pos(self.screen_x, self.mouse_raw[1]-1)    # ### BUG ###
                 self.mouse_fix_x = True
             if self.mouse_raw[1] >= self.screen_y-1:
-                pygame.mouse.set_pos(self.mouse_raw[0], 1)
+                pygame.mouse.set_pos(self.mouse_raw[0], 1)    # ### BUG ###
                 self.mouse_fix_y = True
             if self.mouse_raw[1] <= 0:
-                pygame.mouse.set_pos(self.mouse_raw[0], self.screen_y-1)
+                pygame.mouse.set_pos(self.mouse_raw[0], self.screen_y-1)    # ### BUG ###
                 self.mouse_fix_y = True
                 
             self.mouse_old = self.mouse
@@ -380,7 +386,7 @@ class Editor():
             self.set_screen()   # change screen size in all classes that are using it
             bg_stars.set_screen()
             graphics.set_screen()
-            self.focus_point((0,0))   # re-calculate initial offset
+            self.focus_point((0, 0))   # re-calculate initial offset
             fileops.save_settings("graphics", "resolution", list(pygame.display.list_modes()[self.selected_res]))
             self.res_change = False
         
@@ -400,11 +406,11 @@ class Editor():
             if self.grid_mode == 0:   # grid mode: home
                 origin = self.screen_coords([0, 0])
             if self.selected is not False:
-                if self.grid_mode == 1:      # grid mode: selected body 
-                        if self.follow is False: 
-                            origin = self.screen_coords(self.position[self.selected])
-                        else:   # When following body, origin is in center of screen
-                            origin = [(- self.zoom_x + self.screen_x/2) * self.zoom, self.screen_y - (- self.zoom_y + self.screen_y/2) * self.zoom]
+                if self.grid_mode == 1:      # grid mode: selected body
+                    if self.follow is False:
+                        origin = self.screen_coords(self.position[self.selected])
+                    else:   # When following body, origin is in center of screen
+                        origin = [(- self.zoom_x + self.screen_x/2) * self.zoom, self.screen_y - (- self.zoom_y + self.screen_y/2) * self.zoom]
                 if self.grid_mode == 2:   # grid mode: parent of selected body
                     origin = self.screen_coords(self.position[self.parents[self.selected]])
             else:
@@ -415,7 +421,7 @@ class Editor():
         # draw orbit curve lines
         curve_x, curve_y = physics.curve()   # calculate all curves
         for body in range(len(self.mass)):   # for each body:
-            if body != 0:   # skip most massive body 
+            if body != 0:   # skip most massive body
                 curve = np.column_stack(self.screen_coords(np.stack([curve_x[body], curve_y[body]])))   # get line coords on screen
                 line_color = np.where(self.colors[body] > 255, 255, self.colors[body])   # get line color and limit values to top 255
                 graphics.draw_lines(screen, tuple(line_color), curve, 2)   # draw that line
@@ -432,7 +438,7 @@ class Editor():
         if self.insert_body is True:
             # calculate distance to current mouse position
             current_position = [(self.mouse_raw[0]/self.zoom) - self.offset_x + self.zoom_x,
-                                 -((self.mouse_raw[1]- self.screen_y)/self.zoom) - self.offset_y + self.zoom_y]
+                                - ((self.mouse_raw[1] - self.screen_y)/self.zoom) - self.offset_y + self.zoom_y]
             drag_distance = math.dist(self.new_position, current_position) * self.zoom
             graphics.text(screen, rgb.white, self.fontmd, "Pos: X:" + str(round(self.new_position[0])) + "; Y:" + str(round(self.new_position[1])), (300, 2))
             graphics.text(screen, rgb.white, self.fontmd, "Mass: " + str(round(self.new_mass)), (470, 2))
@@ -449,7 +455,7 @@ class Editor():
         if self.selected is not False:
             parent = self.parents[self.selected]      # get selected body parent
             body_pos = self.position[self.selected, :]      # get selected body position
-            ecc, periapsis, apoapsis, pe_d, ap_d, distance, period, pe_t, ap_t, orb_angle , speed_orb, speed_hor, speed_vert = physics.kepler_advanced(self.selected)   # get advanced kepler parameters for selected body
+            ecc, periapsis, apoapsis, pe_d, ap_d, distance, period, pe_t, ap_t, orb_angle, speed_orb, speed_hor, speed_vert = physics.kepler_advanced(self.selected)   # get advanced kepler parameters for selected body
             
             # circles
             graphics.draw_circle(screen, rgb.cyan, self.screen_coords(body_pos), self.size[self.selected] * self.zoom + 4, 2)   # selection circle
@@ -484,11 +490,15 @@ class Editor():
             graphics.text(screen, rgb.red1, self.fontmd, "PAUSED", (70, 2))
         else:
             graphics.text(screen, rgb.white, self.fontmd, "Warp: x" + str(int(self.warp)), (70, 2))
-        if self.zoom < 10: zoom_round = round(self.zoom, 2)   # rounding zoom to use max 4 chars (dot included)
-        elif self.zoom < 100: zoom_round = round(self.zoom, 1)
-        elif self.zoom < 1000: zoom_round = int(self.zoom)
-        else: zoom_round = "999+"
+        if self.zoom < 10:   # rounding zoom to use max 4 chars (dot included)
+            zoom_round = round(self.zoom, 2)
+        elif self.zoom < 100:
+            zoom_round = round(self.zoom, 1)
+        elif self.zoom < 1000:
+            zoom_round = int(self.zoom)
+        else:
+            zoom_round = "999+"
         graphics.text(screen, rgb.white, self.fontmd, "Zoom: x" + str(zoom_round), (160, 2))
         graphics.text(screen, rgb.gray, self.fontmd, str(self.mouse_raw), (self.screen_x - 100, self.screen_y - 60))
-        graphics.text(screen, rgb.gray, self.fontmd,"(" + str(int(self.sim_coords(self.mouse_raw)[0])) + ", " + str(int(self.sim_coords(self.mouse_raw)[1])) + ")", (self.screen_x - 100, self.screen_y - 40))
+        graphics.text(screen, rgb.gray, self.fontmd, "(" + str(int(self.sim_coords(self.mouse_raw)[0])) + ", " + str(int(self.sim_coords(self.mouse_raw)[1])) + ")", (self.screen_x - 100, self.screen_y - 40))
         graphics.text(screen, rgb.gray, self.fontmd, "fps: " + str(int(clock.get_fps())), (self.screen_x - 60, self.screen_y - 20))

@@ -6,14 +6,15 @@ from configparser import ConfigParser
 settings = ConfigParser()   # load config class
 settings.read("settings.ini")   # load settings
     
+
 def save_file(file_path):
     """save file with tkinter dialog"""
     root = tk.Tk()   # define tkinter root
     root.withdraw()   # make tkinter root invisible
-    if file_path == "": 
+    if file_path == "":
         file_path = "New_system.ini"
-    save_file = filedialog.asksaveasfile(mode='w', initialfile = file_path, defaultextension=".txt",
-                                filetypes=[("All Files","*.*"),("Text Documents","*.txt")])
+    save_file = filedialog.asksaveasfile(mode='w', initialfil=file_path, defaultextension=".txt", 
+                                         filetypes=[("All Files", "*.*"), ("Text Documents", "*.txt")])
     if save_file is None:   # asksaveasfile return "None" if dialog closed with "cancel"
         return ""
     file_path = save_file.name   # get path
@@ -28,7 +29,7 @@ def load_file():
     try:   # just try to open file to see if it exists
         with open(file_path) as file:
             text = file.read()   # load all text from file
-    except:   # if cant open file
+    except Exception:   # if cant open file
         print("Error: File not found")
         file_path = ""
     return file_path
