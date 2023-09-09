@@ -31,5 +31,5 @@ for filename in file_list:
                     print("Version number updated in: " + filename)
                     for line in lines:
                         if "version = " in line:
-                            line = "version = " + version + "\n"
+                            line = "version = " + '"' + version + '"' + "\n"
                         f.write(line)

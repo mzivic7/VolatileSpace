@@ -3,6 +3,9 @@
 *.kdev4
 /.kdev4
 
+# Mega
+.debris
+
 # Cython
 *.pyc
 

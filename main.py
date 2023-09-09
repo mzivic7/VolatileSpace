@@ -5,9 +5,6 @@ from ast import literal_eval as leval
 def main():
     ###### --Initiaization-- ######
     update = 60   # screen update frequency
-    from volatilespace import menu
-    from volatilespace import game
-    from volatilespace import editor
     from volatilespace import fileops
     
     
@@ -33,6 +30,9 @@ def main():
 
 
     ###### --Load classes-- ######
+    from volatilespace import menu
+    from volatilespace import game
+    from volatilespace import editor
     menu = menu.Menu()
     editor = editor.Editor()
     game = game.Game()
