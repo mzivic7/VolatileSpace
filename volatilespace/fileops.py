@@ -15,7 +15,7 @@ def save_file(file_path):
     root.withdraw()   # make tkinter root invisible
     if file_path == "":
         file_path = "New_system.ini"
-    save_file = filedialog.asksaveasfile(mode='w', initialfil=file_path, defaultextension=".txt", 
+    save_file = filedialog.asksaveasfile(mode='w', initialfile=file_path, defaultextension=".txt",
                                          filetypes=[("All Files", "*.*"), ("Text Documents", "*.txt")])
     if save_file is None:   # asksaveasfile return "None" if dialog closed with "cancel"
         return ""
