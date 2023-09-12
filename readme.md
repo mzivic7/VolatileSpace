@@ -1,7 +1,7 @@
 # Volatile Space
 2D physics-based universe and spaceflight simulator.  
 Written in Python with PyGame.  
-[wiki](documentation/wiki.md)
+[Wiki](documentation/wiki.md)
 
 ## Building
 ### Linux

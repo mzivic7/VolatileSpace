@@ -20,7 +20,7 @@ bg_stars = bg_stars.Bg_Stars()
 
 class Editor():
     def __init__(self):
-        self.run = True
+        self.state = 2
         self.screen_mode = False   # trigger to change screen mode
         self.fullscreen = leval(fileops.load_settings("graphics", "fullscreen"))   # is it fullscreen mode
         self.res_change = False   # cycle through resolution
@@ -56,6 +56,9 @@ class Editor():
         self.direction = False   # keyboard buttons wasd
         self.follow = False   # follow selected body
         self.first = True   # is this first iterration
+        self.mouse_wrap = leval(fileops.load_settings("graphics", "mouse_wrap"))   # mouse wrap
+        self.mouse_raw = [0, 0]   # mouse position on screen
+        self.mouse = [0, 0]   # mouse position in simulation
         self.zoom_x, self.zoom_y = 0, 0   # initial zoom offset
         self.offset_x = self.screen_x / 2   # initial centered offset to 0, 0 coordinates
         self.offset_y = self.screen_y / 2
@@ -123,9 +126,11 @@ class Editor():
     
     ###### --Keys-- ######
     def input_keys(self, e):
+        if self.state != 2:   # when returning to editor menu
+            self.state = 2   # update state
         if e.type == pygame.KEYDOWN:   # if any key is pressed:
             if e.key == pygame.K_ESCAPE:
-                self.run = False  # if "escape" key is pressed, close program
+                self.state = 1  # if "escape" key is pressed, go back to main menu
             
             if e.key == pygame.K_SPACE:   # space key
                 if self.pause is False:
@@ -150,7 +155,7 @@ class Editor():
                     self.sim_time *= self.ptps   # convert from seconds to userevent iterations
                     physics.load_system(self.mass, self.density, self.position, self.velocity, self.color)   # add it to physics class
                     self.mass, self.density, self.temp, self.position, self.velocity, self.colors, self.size, self.rad_sc = physics.get_bodies()   # get information after loading
-
+            
             if e.key == pygame.K_k:   # K key
                 self.pause = True   # pause
                 self.file_path = fileops.save_file(self.file_path)   # get path from save file dialog
@@ -223,7 +228,6 @@ class Editor():
                 physics.set_body_vel(self.selected, [velocity[self.selected, 0] - self.key_sens, velocity[self.selected, 1]])
             if self.direction == "right":
                 physics.set_body_vel(self.selected, [velocity[self.selected, 0] + self.key_sens, velocity[self.selected, 1]])
-        return self.run
     
     
     
@@ -279,7 +283,8 @@ class Editor():
                 self.zoom_x += (self.screen_x / 2 / (self.zoom - e.y * self.zoom_step)) - (self.screen_x / (self.zoom * 2))   # zoom translation to center
                 self.zoom_y += (self.screen_y / 2 / (self.zoom - e.y * self.zoom_step)) - (self.screen_y / (self.zoom * 2))
                 # these values are added only to displayed objects, traces... But not to real position
-                
+        
+        return self.state
     
     
     ###### --Physics-- ######
@@ -346,18 +351,19 @@ class Editor():
             if mouse_move > self.select_sens:   # stop following if mouse distance is more than n pixels
                 self.follow = False   # stop following selected body
             
-            if self.mouse_raw[0] >= self.screen_x-1:   # if mouse hits screen edge
-                pygame.mouse.set_pos(1, self.mouse_raw[1])   # move it to opposite edge ### BUG ###
-                self.mouse_fix_x = True   # in next itteration, dont calculate that as movement
-            if self.mouse_raw[0] <= 0:
-                pygame.mouse.set_pos(self.screen_x, self.mouse_raw[1]-1)    # ### BUG ###
-                self.mouse_fix_x = True
-            if self.mouse_raw[1] >= self.screen_y-1:
-                pygame.mouse.set_pos(self.mouse_raw[0], 1)    # ### BUG ###
-                self.mouse_fix_y = True
-            if self.mouse_raw[1] <= 0:
-                pygame.mouse.set_pos(self.mouse_raw[0], self.screen_y-1)    # ### BUG ###
-                self.mouse_fix_y = True
+            if self.mouse_wrap is True:
+                if self.mouse_raw[0] >= self.screen_x-1:   # if mouse hits screen edge
+                    pygame.mouse.set_pos(1, self.mouse_raw[1])   # move it to opposite edge ### BUG ###
+                    self.mouse_fix_x = True   # in next itteration, dont calculate that as movement
+                if self.mouse_raw[0] <= 0:
+                    pygame.mouse.set_pos(self.screen_x, self.mouse_raw[1]-1)    # ### BUG ###
+                    self.mouse_fix_x = True
+                if self.mouse_raw[1] >= self.screen_y-1:
+                    pygame.mouse.set_pos(self.mouse_raw[0], 1)    # ### BUG ###
+                    self.mouse_fix_y = True
+                if self.mouse_raw[1] <= 0:
+                    pygame.mouse.set_pos(self.mouse_raw[0], self.screen_y-1)    # ### BUG ###
+                    self.mouse_fix_y = True
                 
             self.mouse_old = self.mouse
         
@@ -482,7 +488,7 @@ class Editor():
                     graphics.text(screen, rgb.lime1, self.fontsm, "Apoapsis: " + str(round(ap_d, 1)), (ap_scr[0], ap_scr[1] + 7), True)
                     graphics.text(screen, rgb.lime1, self.fontsm, "T - " + str(datetime.timedelta(seconds=round(ap_t/self.ptps))), (ap_scr[0], ap_scr[1] + 17), True)
         
-            
+        
         # print basic data
         graphics.timed_text(screen, clock)   # timed text on screen
         graphics.text(screen, rgb.white, self.fontmd, str(datetime.timedelta(seconds=round(self.sim_time/self.ptps))), (2, 2))
@@ -502,3 +508,9 @@ class Editor():
         graphics.text(screen, rgb.gray, self.fontmd, str(self.mouse_raw), (self.screen_x - 100, self.screen_y - 60))
         graphics.text(screen, rgb.gray, self.fontmd, "(" + str(int(self.sim_coords(self.mouse_raw)[0])) + ", " + str(int(self.sim_coords(self.mouse_raw)[1])) + ")", (self.screen_x - 100, self.screen_y - 40))
         graphics.text(screen, rgb.gray, self.fontmd, "fps: " + str(int(clock.get_fps())), (self.screen_x - 60, self.screen_y - 20))
+    
+    
+    
+    ###### --Menus-- ######
+    def gui(self):
+        pass

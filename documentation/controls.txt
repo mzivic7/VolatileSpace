@@ -16,7 +16,7 @@ L/K                Load/Save current game to file
 P                  Toggle antialiasing
 B                  Toggle background stars
 G                  Toggle background grid
-V                  Cycle grid modes (0 - global, 1 - selected body, 2 - parent)
+V                  Cycle grid modes (global, selected body, parent)
 U                  Toggle fullscreen
 I/O                Increase/Decrease resolution
 Escape             Quit game

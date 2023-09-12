@@ -1,13 +1,15 @@
 ### TIMELINE ###
-1. main GUI (main menu, about, map editor, settings), solar system
+1. main GUI
+1.2 solar system
+1.5 map editor GUI
 2. advanced orbital parameters - parabola, hyperbola
 3. inverse functions - parabola, hyperbola
 4. more advanced orbital parameters
 5. 2 keplerian orbit lines - predict leaving orbit
 6. separate physics models for vessels and planets
 7. Rotation
-8. advanced GUI (new game/load/save, multiplayer-WIP, play pause)
-9. body apearance when zoom out (no ap / pe, icons, rebuild selecting)
+8. advanced GUI (new game/load/save, multiplayer-WIP, pause menu)
+9. body appearance when zoom out (no ap / pe, icons, rebuild selecting)
 10. collision with rotation for bodies
 11. enable GPU rendering
 12. STAR PHYSICS
@@ -16,7 +18,7 @@
 15. VESSEL TEXTURES
 16. MULTIPLAYER
 17. port to andrid
-
+18. multi language
 
 ### STAR PHYSICS ###
 calculate surface temp
@@ -34,10 +36,11 @@ simulation sizes adjustment
 ### BODY TEXTURES ###
 stars
 black hole
-planets
+planets 
 atmosphere
 random life, water, ice
 special bodies (pulasar, neutron star, black hole...)
+surface rendering in high zoom
 
 
 
@@ -45,7 +48,7 @@ special bodies (pulasar, neutron star, black hole...)
 game GUI
 vessel
 engine
-manuvers
+maneuvers
 fuel
 rotation
 icons, modules, markers
@@ -66,6 +69,6 @@ balancing
 ### VESSEL TEXTURES ###
 vessels
 atmospheric effects
-exaust effects
+exhaust effects
 explosions
 

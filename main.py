@@ -40,33 +40,39 @@ def main():
 
     ###### --Load initial bodies-- ######
     editor.load_system()
+    # this will be loaded in game start/load dialogue
 
 
     ###### --Main loop-- ######
+    state = 1   # enter main menu on startup
     run = True
     while run:
         for e in pygame.event.get():
-            
-            
-            ###### --Keys-- ######
-            run = editor.input_keys(e)
-            
-            
-            ###### --Mouse-- ######
-            editor.input_mouse(e)
-            
-            
-            ###### --Calculations-- ######
-            editor.physics(e)
-            
+            ###### --Editor-- ######
+            if state == 1:   # main menu
+                menu.input_keys(e)
+                state = menu.input_mouse(e)
+            elif state == 2:   # editor
+                editor.input_keys(e)
+                state = editor.input_mouse(e)
+                editor.physics(e)
+            elif state == 3:   # game
+                pass
+            elif state == 0:   # quit
+                run = False
             
             if e.type == pygame.QUIT:
                 run = False   # if quit, break loop
         
         
         ###### --Graphics-- ######
-        editor.graphics(screen, clock)
-        
+        if state == 1:   # main menu
+            menu.gui(screen, clock)
+        elif state == 2:   # editor
+            editor.gui()
+            editor.graphics(screen, clock)
+        elif state == 3:   # game
+            pass
         
         pygame.display.flip()   # update screen
         clock.tick(update)   # screen update frequency

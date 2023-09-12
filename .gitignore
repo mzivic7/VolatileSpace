@@ -22,6 +22,7 @@ __pycache__/
 
 # Distribution / packaging
 build.sh
+build_dep.sh
 .Python
 build/
 develop-eggs/
@@ -47,6 +48,9 @@ MANIFEST
 
 # upx
 upx/
+
+# butler from itch.io
+butler/
 
 # Installer logs
 pip-log.txt
