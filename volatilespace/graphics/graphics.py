@@ -18,13 +18,15 @@ class Graphics():
         self.spacing_min = int(fileops.load_settings("graphics", "grid_spacing_min"))   # minimum and maximum size spacing of grid
         self.spacing_max = int(fileops.load_settings("graphics", "grid_spacing_max"))
         self.color, self.font, self.text_str, self.pos, self.time, self.center = (0, 0, 0), 0, 0, [0, 0], 0, 0   # initial vars for timed text
+        self.fontbt = pygame.font.Font("fonts/LiberationSans-Regular.ttf", 22)   # button text font
+        self.fontmd = pygame.font.Font("fonts/LiberationSans-Regular.ttf", 16)   # medium text font
+        self.fontsm = pygame.font.Font("fonts/LiberationSans-Regular.ttf", 10)   # small text font
+        self.link = pygame.image.load("img/link.png")
         
     
     def set_screen(self):
         """Load pygame-related variables, this should be run after pygame has initialised or resolution has changed"""
         self.screen_x, self.screen_y = pygame.display.get_surface().get_size()   # window width, window height
-        self.fontmd = pygame.font.Font("fonts/LiberationSans-Regular.ttf", 16)   # medium text font
-        self.fontsm = pygame.font.Font("fonts/LiberationSans-Regular.ttf", 10)   # small text font
         
     
     def draw_line(self, surface, color, point_1, point_2, thickness):
@@ -165,3 +167,48 @@ class Graphics():
                 self.draw_line(screen, rgb.gray2, (0, pos_y), (self.screen_x, pos_y), 1)
                 sim_pos_y = round(-((line + moved) * spacing) / zoom)
                 self.text(screen, rgb.gray2, self.fontsm, str(sim_pos_y), (5, pos_y-5), False, rgb.black)
+        
+        
+    def draw_buttons(self, screen, buttons_txt, pos, size, space, mouse, click, prop=None):
+        """Draws buttons with mouse over and click effect. 
+        Properties are passed as list with value for each button. 
+        Values can be: None - no effect, 0 - red color (OFF), 1 - green color (ON), 2 - add link icon on button"""
+        x, y = pos[0], pos[1]
+        w, h = size[0], size[1]
+        for num, text in enumerate(buttons_txt):
+            color = rgb.black
+            if "WIP" not in text:   # black out WIP buttons
+                if prop is not None and prop[num] == 0:   # depending on properties value, determine color
+                    color = rgb.red_s1
+                elif prop is not None and prop[num] == 1:
+                    color = rgb.green_s1
+                else:
+                    color = rgb.gray3
+                    
+            # mouse over button
+            if x <= mouse[0]-1 <= x + w and y <= mouse[1]-1 <= y + h:
+                if "WIP" not in text:
+                    if prop is not None and prop[num] == 0:
+                        color = rgb.red_s2
+                    elif prop is not None and prop[num] == 1:
+                        color = rgb.green_s2
+                    else:
+                        color = rgb.gray2
+                    
+                # click on button
+                if click is True:
+                    if "WIP" not in text:
+                        if prop is not None and prop[num] == 0:
+                            color = rgb.red_s3
+                        elif prop is not None and prop[num] == 1:
+                            color = rgb.green_s3
+                        else:
+                            color = rgb.gray1
+                            
+            pygame.draw.rect(screen, color, (x, y, w, h))
+            pygame.draw.rect(screen, rgb.white, (x, y, w, h), 1)
+            # button text
+            self.text(screen, rgb.white, self.fontbt, text, (x + w/2, y + h/2), True)
+            if prop is not None and prop[num] == 2:   # from properties value add link icon
+                screen.blit(self.link, (x+w-40, y))
+            y += h + space   # calculate position for next button
