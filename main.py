@@ -38,11 +38,6 @@ def main():
     game = game.Game()
 
 
-    ###### --Load initial bodies-- ######
-    editor.load_system()
-    # this will be loaded in game start/load dialogue
-
-
     ###### --Main loop-- ######
     state = 1   # enter main menu on startup
     run = True
@@ -52,6 +47,9 @@ def main():
             if state == 1:   # main menu
                 menu.input_keys(e)
                 state = menu.input_mouse(e)
+                if state == 2:
+                    editor.reload_settings()
+                    editor.load_system()
             elif state == 2:   # editor
                 editor.input_keys(e)
                 state = editor.input_mouse(e)

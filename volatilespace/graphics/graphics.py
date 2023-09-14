@@ -1,32 +1,40 @@
 import pygame
 import math
 from pygame import gfxdraw
+from ast import literal_eval as leval
 
 from volatilespace import fileops
 from volatilespace.graphics import rgb
 
+grid_mode_txts = ["Default", "Selected body", "Orbited body"]   # text displayed on screen
+
 
 class Graphics():
     def __init__(self):
-        self.antial = True
-        self.grid_mode_txts = ["Default", "Selected body", "Orbited body"]   # text displayed on screen
         self.grid_mode = 0   # grid mode: 0 - global, 1 - selected body, 2 - parent
         self.grid_mode_prev = 0   # history of grid mode
         self.screen_x, self.screen_y = 0, 0   # initial window width, window height
         self.timed_text_enable = False   # for drawing timed text on screen
         self.timer = 0   # timer for drawing timed text on screen
-        self.spacing_min = int(fileops.load_settings("graphics", "grid_spacing_min"))   # minimum and maximum size spacing of grid
-        self.spacing_max = int(fileops.load_settings("graphics", "grid_spacing_max"))
+        self.reload_settings()
         self.color, self.font, self.text_str, self.pos, self.time, self.center = (0, 0, 0), 0, 0, [0, 0], 0, 0   # initial vars for timed text
         self.fontbt = pygame.font.Font("fonts/LiberationSans-Regular.ttf", 22)   # button text font
         self.fontmd = pygame.font.Font("fonts/LiberationSans-Regular.ttf", 16)   # medium text font
         self.fontsm = pygame.font.Font("fonts/LiberationSans-Regular.ttf", 10)   # small text font
         self.link = pygame.image.load("img/link.png")
+        self.plus = pygame.image.load("img/plus.png")
+        self.minus = pygame.image.load("img/minus.png")
         
     
     def set_screen(self):
         """Load pygame-related variables, this should be run after pygame has initialised or resolution has changed"""
         self.screen_x, self.screen_y = pygame.display.get_surface().get_size()   # window width, window height
+        
+    
+    def reload_settings(self):
+        self.antial = leval(fileops.load_settings("graphics", "antialiasing"))
+        self.spacing_min = int(fileops.load_settings("graphics", "grid_spacing_min"))   # minimum and maximum size spacing of grid
+        self.spacing_max = int(fileops.load_settings("graphics", "grid_spacing_max"))
         
     
     def draw_line(self, surface, color, point_1, point_2, thickness):
@@ -121,7 +129,7 @@ class Graphics():
             spacing /= 2.  # double decrease spacing
         line_num_x = math.ceil(self.screen_x / spacing)   # number of vertical lines on screen
         line_num_y = math.ceil(self.screen_y / spacing)   # horizontal
-        grid_mode_txt = self.grid_mode_txts[grid_mode]   # get current grid mode text
+        grid_mode_txt = grid_mode_txts[grid_mode]   # get current grid mode text
         if self.grid_mode_prev != self.grid_mode:   # if grid mode has changed, print message on screen
             self.timed_text_init(rgb.gray, self.fontmd, "Grid mode: " + grid_mode_txt, (self.screen_x/2, 70), 1.5, True)
         self.grid_mode_prev = self.grid_mode   # update grid mode history
@@ -172,11 +180,12 @@ class Graphics():
     def draw_buttons(self, screen, buttons_txt, pos, size, space, mouse, click, prop=None):
         """Draws buttons with mouse over and click effect. 
         Properties are passed as list with value for each button. 
-        Values can be: None - no effect, 0 - red color (OFF), 1 - green color (ON), 2 - add link icon on button"""
+        Values can be: None - no effect, 0 - red color (OFF), 1 - green color (ON), 2 - add link icon on button, 3 - +/- buttons"""
         x, y = pos[0], pos[1]
         w, h = size[0], size[1]
         for num, text in enumerate(buttons_txt):
             color = rgb.black
+            color_l = color_r = rgb.gray3
             if "WIP" not in text:   # black out WIP buttons
                 if prop is not None and prop[num] == 0:   # depending on properties value, determine color
                     color = rgb.red_s1
@@ -192,6 +201,11 @@ class Graphics():
                         color = rgb.red_s2
                     elif prop is not None and prop[num] == 1:
                         color = rgb.green_s2
+                    elif prop is not None and prop[num] == 3:
+                        if x <= mouse[0]-1 <= x + 40:
+                            color_l = rgb.gray2
+                        if x+w-40 <= mouse[0]-1 <= x + w:
+                            color_r = rgb.gray2
                     else:
                         color = rgb.gray2
                     
@@ -202,8 +216,63 @@ class Graphics():
                             color = rgb.red_s3
                         elif prop is not None and prop[num] == 1:
                             color = rgb.green_s3
+                        elif prop is not None and prop[num] == 3:
+                            if x <= mouse[0]-1 <= x + 40:
+                                color_l = rgb.gray1
+                            if x+w-40 <= mouse[0]-1 <= x + w:
+                                color_r = rgb.gray1
                         else:
                             color = rgb.gray1
+            
+            if prop is not None and prop[num] == 3:
+                pygame.draw.rect(screen, rgb.gray3, (x, y, w, h))
+                pygame.draw.rect(screen, color_l, (x, y, 40, h))
+                pygame.draw.rect(screen, color_r, (x+w-40, y, 40, h))
+                screen.blit(self.minus, (x, y))
+                screen.blit(self.plus, (x+w-40, y))
+                pygame.draw.rect(screen, rgb.white, (x, y, 40, h), 1)
+                pygame.draw.rect(screen, rgb.white, (x+w-40, y, 40, h), 1)
+            else:
+                pygame.draw.rect(screen, color, (x, y, w, h))
+            pygame.draw.rect(screen, rgb.white, (x, y, w, h), 1)
+            # button text
+            self.text(screen, rgb.white, self.fontbt, text, (x + w/2, y + h/2), True)
+            if prop is not None and prop[num] == 2:   # from properties value add link icon
+                screen.blit(self.link, (x+w-40, y))
+            y += h + space   # calculate position for next button
+    
+    
+    def draw_buttons_hor(self, screen, buttons_txt, pos, size, space, mouse, click, prop=None):
+        """Draws buttons with mouse over and click effect. 
+        Properties are passed as list with value for each button. 
+        Values can be: None - no effect, 0 - red color (OFF), 1 - green color (ON), 2 - add link icon on button"""
+        x, y = pos[0], pos[1]
+        w, h = size[0], size[1]
+        for num, text in enumerate(buttons_txt):
+            if prop is not None and prop[num] == 0:   # depending on properties value, determine color
+                color = rgb.red_s1
+            elif prop is not None and prop[num] == 1:
+                color = rgb.green_s1
+            else:
+                color = rgb.gray3
+                    
+            # mouse over button
+            if x <= mouse[0]-1 <= x + w and y <= mouse[1]-1 <= y + h:
+                if prop is not None and prop[num] == 0:
+                    color = rgb.red_s2
+                elif prop is not None and prop[num] == 1:
+                    color = rgb.green_s2
+                else:
+                    color = rgb.gray2
+                    
+                # click on button
+                if click is True:
+                    if prop is not None and prop[num] == 0:
+                        color = rgb.red_s3
+                    elif prop is not None and prop[num] == 1:
+                        color = rgb.green_s3
+                    else:
+                        color = rgb.gray1
                             
             pygame.draw.rect(screen, color, (x, y, w, h))
             pygame.draw.rect(screen, rgb.white, (x, y, w, h), 1)
@@ -211,4 +280,4 @@ class Graphics():
             self.text(screen, rgb.white, self.fontbt, text, (x + w/2, y + h/2), True)
             if prop is not None and prop[num] == 2:   # from properties value add link icon
                 screen.blit(self.link, (x+w-40, y))
-            y += h + space   # calculate position for next button
+            x += w + space   # calculate position for next button

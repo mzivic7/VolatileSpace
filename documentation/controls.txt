@@ -13,10 +13,7 @@ W/A/S/D            Add velocity, in that direction, to body
 H                  Focus on Home (0, 0) coordinates 
 F                  Follow selected body
 L/K                Load/Save current game to file
-P                  Toggle antialiasing
 B                  Toggle background stars
 G                  Toggle background grid
 V                  Cycle grid modes (global, selected body, parent)
-U                  Toggle fullscreen
-I/O                Increase/Decrease resolution
 Escape             Quit game

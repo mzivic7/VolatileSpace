@@ -22,20 +22,7 @@ class Editor():
     def __init__(self):
         self.state = 2
         self.screen_mode = False   # trigger to change screen mode
-        self.fullscreen = leval(fileops.load_settings("graphics", "fullscreen"))   # is it fullscreen mode
-        self.res_change = False   # cycle through resolution
-        avail_res = pygame.display.list_modes()
-        self.screen_x, self.screen_y = pygame.display.get_surface().get_size()   # window width, window height
-        try:
-            self.selected_res = avail_res.index((self.screen_x, self.screen_y))
-        except Exception:   # fail-safe repair if resolution is invalid
-            self.selected_res = 0   # use maximum resolution
-            fileops.save_settings("graphics", "resolution", list(avail_res[0]))   # save it to file
-            if self.fullscreen is True:
-                pygame.display.set_mode((avail_res[0]), pygame.FULLSCREEN)
-            else:
-                pygame.display.set_mode((avail_res[0]))
-        self.antial = leval(fileops.load_settings("graphics", "antialiasing"))   # global antialiasing
+        self.reload_settings()
         self.fontmd = pygame.font.Font("fonts/LiberationSans-Regular.ttf", 16)   # medium text font
         self.fontsm = pygame.font.Font("fonts/LiberationSans-Regular.ttf", 10)   # small text font
         graphics.antial = self.antial
@@ -56,7 +43,6 @@ class Editor():
         self.direction = False   # keyboard buttons wasd
         self.follow = False   # follow selected body
         self.first = True   # is this first iterration
-        self.mouse_wrap = leval(fileops.load_settings("graphics", "mouse_wrap"))   # mouse wrap
         self.mouse_raw = [0, 0]   # mouse position on screen
         self.mouse = [0, 0]   # mouse position in simulation
         self.zoom_x, self.zoom_y = 0, 0   # initial zoom offset
@@ -74,7 +60,6 @@ class Editor():
         self.new_density = self.new_density_init   # set initial density for custom spawned objects
         self.new_color = (100, 100, 100)   # set initial color for custom spawned objects
         
-        self.bg_stars_enable = leval(fileops.load_settings("background", "stars"))   # background stars
         self.offset_old = np.array([self.offset_x, self.offset_y])
         self.grid_enable = False   # background grid
         self.grid_mode = 0   # grid mode: 0 - global, 1 - selected body, 2 - parent
@@ -84,6 +69,32 @@ class Editor():
     def set_screen(self):
         """Load pygame-related variables, this should be run after pygame has initialised or resolution has changed"""
         self.screen_x, self.screen_y = pygame.display.get_surface().get_size()   # window width, window height
+    
+
+    ###### --Reload settings-- ######
+    def reload_settings(self):
+        """Reload all settings for editor and graphics, should be run every time editor is entered"""
+        self.fullscreen = leval(fileops.load_settings("graphics", "fullscreen"))
+        avail_res = pygame.display.list_modes()
+        self.screen_x, self.screen_y = pygame.display.get_surface().get_size()   # window width, window height
+        try:
+            self.selected_res = avail_res.index((self.screen_x, self.screen_y))
+        except Exception:   # fail-safe repair if resolution is invalid
+            self.selected_res = 0   # use maximum resolution
+            fileops.save_settings("graphics", "resolution", list(avail_res[0]))   # save it to file
+            if self.fullscreen is True:
+                pygame.display.set_mode((avail_res[0]), pygame.FULLSCREEN)
+            else:
+                pygame.display.set_mode((avail_res[0]))
+        self.antial = leval(fileops.load_settings("graphics", "antialiasing"))
+        self.mouse_wrap = leval(fileops.load_settings("graphics", "mouse_wrap"))
+        self.bg_stars_enable = leval(fileops.load_settings("background", "stars"))
+        bg_stars.reload_settings()
+        graphics.reload_settings()
+        physics.reload_settings()
+        self.set_screen()   # resolution may have been changed
+        bg_stars.set_screen()
+        graphics.set_screen()
     
     
     
@@ -121,6 +132,7 @@ class Editor():
         
         # userevent may not been run in first iteration, but this values are needed in graphics section:
         self.mass, self.density, self.temp, self.position, self.velocity, self.colors, self.size, self.rad_sc = physics.get_bodies()   # get body information
+        self.first = True
     
     
     
@@ -163,11 +175,6 @@ class Editor():
                     base_color = physics.get_base_color()
                     fileops.save_system(self.file_path, self.sim_time/self.ptps, self.mass, self.density, self.position, self.velocity, base_color)   # save system
             
-            if e.key == pygame.K_p:   # P key
-                self.antial = not self.antial   # flip antialiasing state
-                graphics.antial = self.antial
-                fileops.save_settings("graphics", "antialiasing", self.antial)   # save setting
-            
             if e.key == pygame.K_b:   # B key
                 self.bg_stars_enable = not self.bg_stars_enable   # flip background stars state
                 fileops.save_settings("background", "stars", self.bg_stars_enable)
@@ -181,16 +188,6 @@ class Editor():
                     if self.grid_mode >= 3:
                         self.grid_mode = 0
             
-            if e.key == pygame.K_u:   # U key
-                self.screen_mode = True   # toggle screen mode (fullscreen or windowed)
-                self.fullscreen = not self.fullscreen   # flip fullscreen mode flag
-                fileops.save_settings("graphics", "fullscreen", self.fullscreen)
-            
-            if e.key == pygame.K_i:   # I key
-                self.res_change = 1   # decrease resolution
-            
-            if e.key == pygame.K_o:   # O key
-                self.res_change = -1   # increase resolution
             
             # time warp
             if e.key == pygame.K_COMMA:   # decrease
@@ -368,35 +365,6 @@ class Editor():
             self.mouse_old = self.mouse
         
         
-        # windowed / fullscreen
-        if self.screen_mode is True:
-            pygame.display.toggle_fullscreen()
-            self.set_screen()   # change screen size in all classes that are using it
-            bg_stars.set_screen()
-            graphics.set_screen()
-            self.screen_mode = False
-        
-        
-        # changing resolution
-        if self.res_change is not False:
-            avail_res = pygame.display.list_modes()   # get available resolutions (greater index - smaller res)
-            self.selected_res += self.res_change   # cycle through resolutions
-            if self.selected_res > len(avail_res) - 1:   # if selected res is out of range
-                self.selected_res = 0   # return it to max res
-            if self.selected_res < 0:   # if selected res is negative
-                self.selected_res = len(avail_res) - 1   # return it to min res
-            if self.fullscreen is True:   # if previously in fullscreen, stay fullscreen
-                pygame.display.set_mode((avail_res[self.selected_res]), pygame.FULLSCREEN)   # change pygame resolution
-            else:
-                pygame.display.set_mode((avail_res[self.selected_res]))   # change pygame resolution
-            self.set_screen()   # change screen size in all classes that are using it
-            bg_stars.set_screen()
-            graphics.set_screen()
-            self.focus_point((0, 0))   # re-calculate initial offset
-            fileops.save_settings("graphics", "resolution", list(pygame.display.list_modes()[self.selected_res]))
-            self.res_change = False
-        
-        
         # background stars:
         if self.bg_stars_enable is True:
             offset_diff = self.offset_old - np.array([self.offset_x, self.offset_y])   # movement vector in one iterration
@@ -513,4 +481,4 @@ class Editor():
     
     ###### --Menus-- ######
     def gui(self):
-        pass
+        pass   # ### TODO ###

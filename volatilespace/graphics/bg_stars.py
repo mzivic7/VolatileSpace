@@ -75,6 +75,10 @@ def new_pos(pos, res, extra, zoom_off, zoom):
 
 class Bg_Stars():
     def __init__(self):
+        self.reload_settings()
+        
+        
+    def reload_settings(self):
         self.antial = leval(fileops.load_settings("background", "stars_antialiasing"))   # antialiasing
         self.num = int(fileops.load_settings("background", "stars_num"))   # how many stars on extended screen
         self.new_color = leval(fileops.load_settings("background", "stars_new_color"))   # always generate new star
@@ -83,7 +87,7 @@ class Bg_Stars():
         self.custom_speed = float(fileops.load_settings("background", "stars_speed_mult"))   # custom speed multiplyer
         self.opacity = float(fileops.load_settings("background", "stars_opacity"))   # star color opacity
         self.cluster_enable = leval(fileops.load_settings("background", "cluster_enable"))   # enable clusters
-        self.new_cluster = leval(fileops.load_settings("background", "cluster_new"))   # always generate new cluster
+        self.cluster_new = leval(fileops.load_settings("background", "cluster_new"))   # always generate new cluster
         self.cluster_num = int(fileops.load_settings("background", "cluster_num"))   # number of clusters
         self.cluster_stars = fileops.load_settings("background", "cluster_star")   # min and max number of stars in cluster
         self.size_mult = fileops.load_settings("background", "cluster_size_mult")   # cluster size min and max multiplyer
@@ -93,22 +97,22 @@ class Bg_Stars():
         self.zoom_min = float(fileops.load_settings("background", "stars_zoom_min"))   # minimum zoom
         self.zoom_max = float(fileops.load_settings("background", "stars_zoom_max"))   # maximum zoom
         self.zoom_sim_mult = float(fileops.load_settings("background", "zoom_mult"))   # simulation zoom multiplyer to get bg_zoom
-        
-        self.star_field = np.empty((0, 5), dtype=object)   # [x, y, radius, speed, color]
-        self.clusters = np.empty((0, 4), dtype=object)   # [cx, cy, vel, [sx, sy, rad, col]]
+        graphics.reload_settings()
         
         if self.opacity > 1:
             self.opacity = 1   # limit opacity from 0 to 1
         if self.opacity < 0:
             self.opacity = 0
         
+        
     
     
     ###### --Init after pygame-- ######
     def set_screen(self):
         """Load pygame-related variables, this should be run after pygame has initialised or resolution has changed"""
+        self.star_field = np.empty((0, 5), dtype=object)   # [x, y, radius, speed, color]
+        self.clusters = np.empty((0, 4), dtype=object)   # [cx, cy, vel, [sx, sy, rad, col]]
         self.res = pygame.display.get_surface().get_size()   # window width, window height
-        self.stars_surf = pygame.Surface(self.res)   # surface for stars
         graphics.set_screen()
         
         # generate initial star filed
@@ -155,7 +159,7 @@ class Bg_Stars():
                 cluster[0] -= cluster[2] * speed_mult * np.cos(direction) * self.custom_speed  # move cluster
                 cluster[1] += cluster[2] * speed_mult * np.sin(direction) * self.custom_speed
                 cluster[:2], change = new_pos(cluster[:2], self.res, self.extra, zoom_off, zoom)   # cycle stars at adge
-                if self.new_cluster is True and change is True:
+                if self.cluster_new is True and change is True:
                     cluster[3] = random_cluster_stars(self.cluster_stars, self.size_mult, cluster[2], self.radius_prob)   # gnerate new stars
                 for star in cluster[3]:
                     star_zoom = ((star[0] + cluster[0]) * zoom + zoom_off[0], (star[1] + cluster[1]) * zoom + zoom_off[1])   # star position with zoom

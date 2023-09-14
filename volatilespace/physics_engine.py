@@ -14,16 +14,7 @@ mp = (m_h * 99 + m_he * 1) / 100   # average particle mass   # depends on star a
 mass_sim_mult = 10**24  # mass simulation multiplyer, since real values are needed in core temperature equation
 rad_sim_mult = 10**6   # radius sim multiplyer
 rad_mult = 10   # radius multiplyer to make bodies larger
-curve_points = int(fileops.load_settings("graphics", "curve_points"))   # number of points from which curve is drawn
 
-
-
-###### --Parameters-- ######
-ell_t = np.linspace(-np.pi, np.pi, curve_points)   # ellipse parameter
-par_t = np.linspace(- np.pi - 1, np.pi + 1, curve_points)   # parabola parameter
-hyp_t_1 = np.linspace(- np.pi, - np.pi/2 - 0.1, int(curve_points/2))   # (-pi, -pi/2]
-hyp_t_2 = np.linspace(np.pi/2 + 0.1, np.pi, int(curve_points/2))   # [pi/2, pi)
-hyp_t = np.concatenate([hyp_t_2, hyp_t_1])   # hyperbola parameter [pi/2, pi) U (-pi, -pi/2]
 
 
 ###### --Functions-- ######
@@ -96,6 +87,18 @@ class Physics():
         self.semi_minor = np.array([])   # ellipse semi minor axis
         self.periapsis_arg = np.array([])   # curve periapsis argument
         self.ecc_v = np.empty((0, 2), int)   # curve eccentricity vector
+        self.reload_settings()
+    
+    
+    def reload_settings(self):
+        self.curve_points = int(fileops.load_settings("graphics", "curve_points"))   # number of points from which curve is drawn
+        # parameters
+        self.ell_t = np.linspace(-np.pi, np.pi, self.curve_points)   # ellipse parameter
+        self.par_t = np.linspace(- np.pi - 1, np.pi + 1, self.curve_points)   # parabola parameter
+        hyp_t_1 = np.linspace(- np.pi, - np.pi/2 - 0.1, int(self.curve_points/2))   # (-pi, -pi/2]
+        hyp_t_2 = np.linspace(np.pi/2 + 0.1, np.pi, int(self.curve_points/2))   # [pi/2, pi)
+        self.hyp_t = np.concatenate([hyp_t_2, hyp_t_1])   # hyperbola parameter [pi/2, pi) U (-pi, -pi/2]
+    
     
     # load new system
     def load_system(self, mass, density, position, velocity, color):
@@ -369,17 +372,17 @@ class Physics():
         rot = np.array([[np.cos(self.periapsis_arg), - np.sin(self.periapsis_arg)], [np.sin(self.periapsis_arg), np.cos(self.periapsis_arg)]])
         
         # calculate curves points # curve[axis, body, point]
-        curves = np.zeros((2, len(self.ecc_v), curve_points))
+        curves = np.zeros((2, len(self.ecc_v), self.curve_points))
         for num in range(len(self.ecc_v)):
             ecc = np.sqrt(self.ecc_v[num].dot(self.ecc_v[num]))   # eccentricity
             if ecc < 1:   # ellipse
-                curves[:, num, :] = np.array([self.semi_major[num] * np.cos(ell_t), self.semi_minor[num] * np.sin(ell_t)])   # raw ellipses
+                curves[:, num, :] = np.array([self.semi_major[num] * np.cos(self.ell_t), self.semi_minor[num] * np.sin(self.ell_t)])   # raw ellipses
             else:
                 if ecc == 1:   # parabola
-                    curves[:, num, :] = np.array([self.semi_major[num] * par_t**2, 2 * self.semi_major[num] * par_t])   # raw parabolas
+                    curves[:, num, :] = np.array([self.semi_major[num] * self.par_t**2, 2 * self.semi_major[num] * self.par_t])   # raw parabolas
                     curves[0, num, :] = curves[0, num, :] - self.semi_major[num, np.newaxis]   # translate parabola by semi_major, since its center is not in 0,0
                 if ecc > 1:   # hyperbola
-                    curves[:, num, :] = np.array([self.semi_major[num] * 1/np.cos(hyp_t), self.semi_minor[num] * np.tan(hyp_t)])   # raw hyperbolas
+                    curves[:, num, :] = np.array([self.semi_major[num] * 1/np.cos(self.hyp_t), self.semi_minor[num] * np.tan(self.hyp_t)])   # raw hyperbolas
                 # parametric equation for circle is same as for sphere, just semi_major = semi_minor, thus it is not required
         
         curves_rot = np.zeros((2, curves.shape[1], curves.shape[2]))   # empty array for new rotaded curve

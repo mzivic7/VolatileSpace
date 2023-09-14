@@ -32,7 +32,6 @@ def load_file():
         with open(file_path) as f:
             text = f.read()   # load all text from file
     except Exception:   # if cant open file
-        print("Error: File not found")
         file_path = ""
     return file_path
 
@@ -114,6 +113,10 @@ def load_settings(header, key):
     except Exception:   # if setting is missing
         setting = default_settings.get(key)   # load default setting
         save_settings(header, key, setting)   # save default setting to settings.ini
-        print(header, key, setting)
     return setting
 
+
+def delete_settings():
+    """Removes all text from settings.ini so settings can be reverted to default"""
+    open("settings.ini", "w").close()
+    
