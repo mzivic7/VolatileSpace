@@ -1,39 +1,69 @@
 import tkinter as tk
 from tkinter import filedialog
 import numpy as np
+import os
 from configparser import ConfigParser
 
 settings = ConfigParser()   # load config class
 settings.read("settings.ini")   # load settings
+home_dir = os.path.expanduser("~")
 
-default_settings = {"first_run":"True", "resolution":[1366, 768], "fullscreen":"True", "vsync":"True", "curve_points":100, "grid_spacing_min":100, "grid_spacing_max":200, "mouse_wrap":"True", "antialiasing":"True", "stars_antialiasing":"False", "stars_num":500, "stars_new_color":"False", "extra_frame":1000, "stars_speed_mult":1, "stars_opacity":0.7, "cluster_enable":"True", "cluster_new":"False", "cluster_num":7, "cluster_star":[10, 40], "cluster_size_mult":[2, 4], "stars_radius":[0.6, 0.3, 0.1], "stars_speed":[0.5, 0.3, 0.2], "stars_zoom_min":0.5, "stars_zoom_max":2, "zoom_mult":5, "stars":"True"}
+efault_settings = {"first_run":"True", "resolution":[1366, 768], "fullscreen":"True", "vsync":"True", "curve_points":100, "grid_spacing_min":100, "grid_spacing_max":200, "mouse_wrap":"True", "antialiasing":"True", "stars_antialiasing":"False", "stars_num":500, "stars_new_color":"False", "extra_frame":1000, "stars_speed_mult":1, "stars_opacity":0.7, "cluster_enable":"True", "cluster_new":"False", "cluster_num":7, "cluster_star":[10, 40], "cluster_size_mult":[2, 4], "stars_radius":[0.6, 0.3, 0.1], "stars_speed":[0.5, 0.3, 0.2], "stars_zoom_min":0.5, "stars_zoom_max":2, "zoom_mult":5, "stars":"True"}
 
 
-def save_file(file_path):
+def save_file(file_name, filetype=[("All Files", "*.*")]):
     """save file with tkinter dialog"""
     root = tk.Tk()   # define tkinter root
     root.withdraw()   # make tkinter root invisible
-    if file_path == "":
-        file_path = "New_system.ini"
-    save_file = filedialog.asksaveasfile(mode='w', initialfile=file_path, defaultextension=".txt",
-                                         filetypes=[("All Files", "*.*"), ("Text Documents", "*.txt")])
+    if file_name == "":
+        file_name = "new map.ini"
+    save_file = filedialog.asksaveasfile(mode='w', initialfile=file_name, defaultextension=".ini",
+                                         initialdir=home_dir, filetypes=filetype)
     if save_file is None:   # asksaveasfile return "None" if dialog closed with "cancel"
         return ""
     file_path = save_file.name   # get path
     return file_path
 
 
-def load_file():
+def load_file(filetype=[("All Files", "*.*")]):
     """load file with tkinter dialog"""
     root = tk.Tk()   # define tkinter root
-    root.withdraw()   # make tkinter root invisible
-    file_path = filedialog.askopenfilename()   # open load file dialog and get path
+    root.withdraw()   # make tkinter root invisible 
+    file_path = filedialog.askopenfilename(initialdir=home_dir, filetypes=filetype)   # open load file dialog and get path
     try:   # just try to open file to see if it exists
         with open(file_path) as f:
             text = f.read()   # load all text from file
     except Exception:   # if cant open file
         file_path = ""
     return file_path
+
+
+def gen_map_list():
+    """Generaate list of maps in "Maps" dir. Name and edit date are read from file"""
+    if not os.path.exists("Maps"):   # if maps dir is deleted
+        os.mkdir("Maps")
+    files_list = os.listdir("Maps")   # generate list of files
+    
+    map_files = []
+    for file_name in files_list:
+        if file_name[-4:] == ".ini":   # filter only files with .ini extension
+            map_files.append(file_name)
+    
+    maps = np.empty((len(map_files), 3), dtype=object)
+    for num, map_file in enumerate(map_files):
+        map_save = ConfigParser()
+        map_save.read("Maps/" + map_file)
+        try:
+            name = map_save.get("config", "name").strip('"')
+            date = map_save.get("config", "date").strip('"')
+        except Exception:
+            name = "Unknown"
+            date = "-"
+        maps[num, :] = np.array([map_file, name, date])
+    
+    maps = maps[maps[:, 2].argsort()]   # sort by name then by date
+    maps = maps[maps[:, 1].argsort(kind='mergesort')]
+    return maps
 
 
 def load_system(path):
@@ -55,30 +85,65 @@ def load_system(path):
             velocity = np.vstack((velocity, list(map(float, system.get(body, "velocity").strip('][').split(', ')))))
             color = np.vstack((color, list(map(int, system.get(body, "color").strip('][').split(', ')))))
         if body == "config":
+            name = name = system.get("config", "name").strip('"')
             time = float(system.get(body, 'time'))   # read special section for config
     
-    return time, mass, density, position, velocity, color
+    return name, time, mass, density, position, velocity, color
 
 
-def save_system(path, time, mass, density, position, velocity, color):
+def save_system(path, name, date, time, mass, density, position, velocity, color):
     """Save system to file"""
-    config = ConfigParser()   # load config class
-    config.read(path)   # load system
+    if not os.path.exists("Maps"):
+        os.mkdir("Maps")
+    if os.path.exists(path):   # when overwriting, delete file
+        open(path, "w").close()
+    system = ConfigParser()   # load config class
+    system.read(path)   # load system
     
-    config.add_section("config")   # special section for config
-    config.set("config", "time", str(time))   # config parameters
+    system.add_section("config")   # special section for config
+    system.set("config", "name", name)
+    system.set("config", "date", date)
+    system.set("config", "time", str(time))
     
     for body, body_mass in enumerate(mass):   # for each body:
         body_name = "body" + str(body)   # generate new unique name
-        config.add_section(body_name)   # add body
-        config.set(body_name, "mass", str(body_mass))   # add body parameters
-        config.set(body_name, "density", str(density[body]))
-        config.set(body_name, "position", '[' + str(position[body, 0]) + ', ' + str(position[body, 1]) + ']')
-        config.set(body_name, "velocity", '[' + str(velocity[body, 0]) + ', ' + str(velocity[body, 1]) + ']')
-        config.set(body_name, "color", '[' + str(color[body, 0]) + ', ' + str(color[body, 1]) + ', ' + str(color[body, 2]) + ']')
+        system.add_section(body_name)   # add body
+        system.set(body_name, "mass", str(body_mass))   # add body parameters
+        system.set(body_name, "density", str(density[body]))
+        system.set(body_name, "position", '[' + str(position[body, 0]) + ', ' + str(position[body, 1]) + ']')
+        system.set(body_name, "velocity", '[' + str(velocity[body, 0]) + ', ' + str(velocity[body, 1]) + ']')
+        system.set(body_name, "color", '[' + str(color[body, 0]) + ', ' + str(color[body, 1]) + ', ' + str(color[body, 2]) + ']')
     
     with open(path, 'w') as f:
-        config.write(f)
+        system.write(f)
+
+
+def new_map(name, date):   # ### TODO ###
+    """Creates new map with initial body and saves to file."""
+    if not os.path.exists("Maps"):
+        os.mkdir("Maps")
+    path = "Maps/" + name + ".ini"
+    if os.path.exists(path):   # when overwriting, delete file
+        open(path, "w").close()
+    system = ConfigParser()   # load config class
+    system.read(name + ".ini")   # load system
+    
+    system.add_section("config")   # special section for config
+    system.set("config", "name", name)
+    system.set("config", "date", date)
+    system.set("config", "time", "0")
+    
+    system.add_section("body0")   # add body
+    system.set("body0", "mass", "10000.0")   # add body parameters
+    system.set("body0", "density", "1.0")
+    system.set("body0", "position", "[0.0, 0.0]")
+    system.set("body0", "velocity", "[0.0, 0.0]")
+    system.set("body0", "color", "[255, 255, 255]")
+    
+    with open(path, 'w') as f:
+        system.write(f)
+    
+    return path
 
 
 def save_settings(header, key, value):

@@ -1,3 +1,3 @@
-[0. Variables and constants](orbital-physics/0-variables-constants.txt)  
-[1. Basic stars](orbital-physics/1-basic-stars.txt)  
-[2. Black holes](orbital-physics/2-black-holes.txt)  
+[0. Variables and constants](stellar-physics/0-variables-constants.txt)  
+[1. Basic stars](stellar-physics/1-basic-stars.txt)  
+[2. Black holes](stellar-physics/2-black-holes.txt)  

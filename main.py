@@ -49,10 +49,23 @@ def main():
                 state = menu.input_mouse(e)
                 if state == 2:
                     editor.reload_settings()
-                    editor.load_system()
+                    selected_path = menu.selected_path
+                    if selected_path is not None:
+                        try:   # check if file exists
+                            with open(selected_path) as f:
+                                text = f.read()
+                        except Exception:
+                            state = 1
+                            menu.gen_map_list()
+                        if state == 2:
+                            editor.load_system(selected_path)
             elif state == 2:   # editor
                 editor.input_keys(e)
-                state = editor.input_mouse(e)
+                editor.input_mouse(e)
+                state = editor.ui_mouse(e)
+                if state == 1:
+                    menu.gen_map_list()
+                
                 editor.physics(e)
             elif state == 3:   # game
                 pass
@@ -67,8 +80,8 @@ def main():
         if state == 1:   # main menu
             menu.gui(screen, clock)
         elif state == 2:   # editor
-            editor.gui()
             editor.graphics(screen, clock)
+            editor.gui(screen, clock)
         elif state == 3:   # game
             pass
         

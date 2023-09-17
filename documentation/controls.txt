@@ -8,12 +8,16 @@ Rclick + scroll    Change new body mass
 ### KEYBOARD ###
 Space              Pause
 W/A/S/D            Add velocity, in that direction, to body
-. / ,              Time warp increase/decrease
+./,                Time warp increase/decrease
 /                  Stop time warp
 H                  Focus on Home (0, 0) coordinates 
 F                  Follow selected body
-L/K                Load/Save current game to file
 B                  Toggle background stars
 G                  Toggle background grid
 V                  Cycle grid modes (global, selected body, parent)
-Escape             Quit game
+Escape             Pause menu
+F1                 Screenshot
+F2                 Toggle UI visibility
+F3                 Toggle labels visibility
+F4                 Quicksave
+F5 (hold)          Load quicksave
