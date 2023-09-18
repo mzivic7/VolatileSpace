@@ -18,9 +18,9 @@ graphics = graphics.Graphics()
 bg_stars = bg_stars.Bg_Stars()
 
 
-buttons_pause_menu = ["Resume", "Save map", "Load map", "Settings - WIP", "Quit without saving", "Save and Quit"]
+buttons_pause_menu = ["Resume", "Save map", "Load map", "Settings", "Quit without saving", "Save and Quit"]
 buttons_save = ["Cancel", "Save", "New save"]
-buttons_load = ["Cancle", "Load"]
+buttons_load = ["Cancel", "Load"]
 
 
 class Editor():
@@ -432,8 +432,7 @@ class Editor():
                                 self.pause_menu = False
                                 self.gen_map_list()
                             elif num == 3:   # settings
-                                self.menu = 2
-                                self.pause_menu = False
+                                self.state = 4   # go directly to main menu settings, but be able to return here
                             elif num == 4:   # quit
                                 self.state = 1
                                 self.pause_menu = False

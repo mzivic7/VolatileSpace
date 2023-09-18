@@ -15,8 +15,8 @@ from volatilespace import textinput
 graphics = graphics.Graphics()
 textinput = textinput.Textinput()
 
-version = "0.1.6"
 
+version = "0.1.7"
 
 buttons_main = ["Play - WIP", "Multiplayer - WIP", "Map Editor", "Settings", "About", "Quit"]
 buttons_map_sel = ["Open in editor", "Rename - WIP", "Delete", "Export"]
@@ -133,11 +133,16 @@ class Menu():
     
     
     ###### --Keys-- ######
-    def input_keys(self, e):
+    def input_keys(self, e, from_game=False):
         if self.state != 1 and self.state != 0:   # when returning to main menu
-            self.state = 1   # update state
-        if e.type == pygame.KEYDOWN:   # if any key is pressed:
-            if e.key == pygame.K_ESCAPE:  # if "escape" key is pressed
+            if not from_game:
+                self.state = 1   # update state
+                self.menu = 0
+            else:
+                self.state = 4
+            
+        if e.type == pygame.KEYDOWN:
+            if e.key == pygame.K_ESCAPE:
                 if self.menu == 0:
                     self.state = 0   # close program
                 if self.are_you_sure is True:   # exit from ask window
@@ -145,12 +150,14 @@ class Menu():
                     self.disable_buttons = False
                 else:
                     self.menu = 0
+                    if from_game:
+                        self.state = 2
                 self.scrollbar_drag = False
     
     
     
     ###### --Mouse-- ######
-    def input_mouse(self, e):
+    def input_mouse(self, e, from_game=False):
         self.mouse = list(pygame.mouse.get_pos())   # get mouse position
         # left mouse button is clicked
         if e.type == pygame.MOUSEBUTTONDOWN and e.button == 1:
@@ -209,6 +216,7 @@ class Menu():
                                     self.selected_path = "Maps/" + self.maps[self.selected_item, 0]
                                     if self.first_click == num:   # detect double click
                                         self.state = 2
+                                        self.menu = 0   # return to main menu instead load menu
                                     self.first_click = num
                             y_pos += self.btn_h + self.space
                         
@@ -220,7 +228,7 @@ class Menu():
                                 if len(self.maps) != 0:
                                     if num == 0:   # open editor
                                         self.state = 2
-                                        self.menu = 1
+                                        self.menu = 0   # return to main menu instead load menu
                                     elif num == 1:   # rename
                                         pass   # ### TODO ###
                                     elif num == 2:   # delete
@@ -333,6 +341,8 @@ class Menu():
                             if num == 0 or num == 1:   # accept/apply
                                 if num == 0:
                                     self.menu = 0
+                                    if from_game:
+                                        self.state = 2
                                 fileops.save_settings("graphics", "fullscreen", self.fullscreen)
                                 fileops.save_settings("graphics", "resolution", list(self.avail_res[self.selected_res]))
                                 fileops.save_settings("graphics", "antialiasing", self.antial)
@@ -344,14 +354,12 @@ class Menu():
                                 fileops.save_settings("background", "stars_new_color", self.new_color)
                                 fileops.save_settings("background", "cluster_enable", self.cluster_enable)
                                 fileops.save_settings("background", "cluster_new", self.cluster_new)
-                                
                                 # change windowed/fullscreen
                                 if self.screen_change is True:
                                     pygame.display.toggle_fullscreen()
                                     self.set_screen()
                                     graphics.set_screen()
                                     self.screen_change = False
-                                
                                 # change resolution
                                 if self.res_change is True:
                                     if self.fullscreen is True:   # if previously in fullscreen, stay in fullscreen
@@ -365,6 +373,8 @@ class Menu():
                             elif num == 2:   # cancel
                                 self.reload_settings()
                                 self.menu = 0
+                                if from_game:
+                                    self.state = 2
                                 self.restart = False
                                 
                             elif num == 3:   # load default
@@ -427,9 +437,10 @@ class Menu():
     
     
     ###### --Graphics-- ######
-    def gui(self, screen, clock):
+    def gui(self, screen, clock, from_game=False):
         screen.fill((0, 0, 0))   # color screen black
-        
+        if from_game:
+            self.menu = 4
         
         # main menu
         if self.menu == 0:

@@ -5,7 +5,7 @@ Written in Python with PyGame.
 
 ## Building
 ### Linux
-1. Clone this repositiry: `git clone https://github.com/mzivic7/VolatileSpace.git`
+1. Clone this repository: `git clone https://github.com/mzivic7/VolatileSpace.git`
 2. `cd VolatileSpace`
 3. Install requirements: `pip install -r requirements.txt`
 4. run build script: `python build.py`

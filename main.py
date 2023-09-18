@@ -43,7 +43,6 @@ def main():
     run = True
     while run:
         for e in pygame.event.get():
-            ###### --Editor-- ######
             if state == 1:   # main menu
                 menu.input_keys(e)
                 state = menu.input_mouse(e)
@@ -69,6 +68,11 @@ def main():
                 editor.physics(e)
             elif state == 3:   # game
                 pass
+            elif state == 4:   # settings from game/editor
+                menu.input_keys(e, True)
+                state = menu.input_mouse(e, True)
+                if state == 2:
+                    editor.reload_settings()
             elif state == 0:   # quit
                 run = False
             
@@ -84,6 +88,8 @@ def main():
             editor.gui(screen, clock)
         elif state == 3:   # game
             pass
+        if state == 4:
+            menu.gui(screen, clock, True)
         
         pygame.display.flip()   # update screen
         clock.tick(update)   # screen update frequency
