@@ -1,6 +1,7 @@
 import pygame
 import webbrowser
 import os
+import sys
 import shutil
 import time
 from ast import literal_eval as leval
@@ -10,20 +11,21 @@ from volatilespace.graphics import rgb
 from volatilespace.graphics import graphics
 from volatilespace import editor
 from volatilespace import textinput
+from volatilespace.graphics import keybinding
 
 
 graphics = graphics.Graphics()
 textinput = textinput.Textinput()
 
 
-version = "0.1.7"
+version = "0.1.8"
 
 buttons_main = ["Play - WIP", "Multiplayer - WIP", "Map Editor", "Settings", "About", "Quit"]
 buttons_map_sel = ["Open in editor", "Rename - WIP", "Delete", "Export"]
 buttons_map_ui = ["Back", "New map", "Import map"]
 buttons_set_vid = ["Fullscreen", "Resolution", "Antialiasing", "Vsync", "Mouse wrap", "Background stars"]
-buttons_set_aud = ["Keybindings - WIP"]
-buttons_set_gam = ["WIP"]
+buttons_set_aud = ["WIP"]
+buttons_set_gam = ["Keybindings"]
 buttons_set_adv = ["Curve points", "Stars antialiasing", "New star color", "Star clusters", "New clusters"]
 buttons_set_ui = ["Accept", "Apply", "Cancel", "Load default"]
 buttons_about = ["Wiki", "Github", "Itch.io", "Report a bug", "Back"]
@@ -36,6 +38,7 @@ class Menu():
         self.click = False
         self.first_click = None
         self.click_timer = 0
+        self.mouse = [0, 0]
         self.scroll = 0
         self.scroll_sens = 10   # scroll sensitivity
         self.selected_item = 0   # when selecting from list
@@ -43,6 +46,7 @@ class Menu():
         self.are_you_sure = False
         self.disable_buttons = False
         self.scrollbar_drag = False
+        self.keybinding = False   # is keybinding menu active
         
         self.reload_settings()
         self.fonttl = pygame.font.Font("fonts/LiberationSans-Regular.ttf", 42)   # title text font
@@ -53,7 +57,8 @@ class Menu():
         self.btn_w = 250   # button width
         self.btn_w_h = 200   # for horizontal placement
         self.btn_w_l = 500   # for lists
-        self.btn_h = self.fontbt.get_height() + 15   # button height from font height
+        self.txt_y_margin = 8  # empty space between text and button edge
+        self.btn_h = self.fontbt.get_height() + self.txt_y_margin * 2   # button height from font height
         self.space = 10   # space between buttons
         self.bot_margin = 60
         self.top_margin = 60
@@ -134,13 +139,6 @@ class Menu():
     
     ###### --Keys-- ######
     def input_keys(self, e, from_game=False):
-        if self.state != 1 and self.state != 0:   # when returning to main menu
-            if not from_game:
-                self.state = 1   # update state
-                self.menu = 0
-            else:
-                self.state = 4
-            
         if e.type == pygame.KEYDOWN:
             if e.key == pygame.K_ESCAPE:
                 if self.menu == 0:
@@ -208,17 +206,18 @@ class Menu():
                     if self.disable_buttons is False:
                         
                         # maps list
-                        y_pos = self.top_margin - self.scroll
-                        for num, text in enumerate(self.maps[:, 1]):
-                            if y_pos >= self.top_margin - self.btn_h - self.space and y_pos <= self.top_margin + self.list_limit:    # don't detect outside list area
-                                if self.map_x_1 <= self.mouse[0]-1 <= self.map_x_1 + self.btn_w_l and y_pos <= self.mouse[1]-1 <= y_pos + self.btn_h:
-                                    self.selected_item = num
-                                    self.selected_path = "Maps/" + self.maps[self.selected_item, 0]
-                                    if self.first_click == num:   # detect double click
-                                        self.state = 2
-                                        self.menu = 0   # return to main menu instead load menu
-                                    self.first_click = num
-                            y_pos += self.btn_h + self.space
+                        if self.top_margin - self.space <= self.mouse[1]-1 <= self.top_margin + self.list_limit:
+                            y_pos = self.top_margin - self.scroll
+                            for num, text in enumerate(self.maps[:, 1]):
+                                if y_pos >= self.top_margin - self.btn_h - self.space and y_pos <= self.top_margin + self.list_limit:    # don't detect outside list area
+                                    if self.map_x_1 <= self.mouse[0]-1 <= self.map_x_1 + self.btn_w_l and y_pos <= self.mouse[1]-1 <= y_pos + self.btn_h:
+                                        self.selected_item = num
+                                        self.selected_path = "Maps/" + self.maps[self.selected_item, 0]
+                                        if self.first_click == num:   # detect double click
+                                            self.state = 2
+                                            self.menu = 0   # return to main menu instead load menu
+                                        self.first_click = num
+                                y_pos += self.btn_h + self.space
                         
                         
                         # selected menu
@@ -249,7 +248,8 @@ class Menu():
                                     self.scroll = 0
                                 elif num == 1:   # new map
                                     date = time.strftime("%d.%m.%Y %H:%M")
-                                    path = fileops.new_map("New Map", date)   # ### TODO ###
+                                    new_name = "New Map from " + date   # ### TODO ###
+                                    path = fileops.new_map(new_name, date)
                                     self.gen_map_list()
                                 elif num == 2:   # import map
                                     file_path = fileops.load_file([("Text Files", "*.ini")])
@@ -289,7 +289,7 @@ class Menu():
                         if x_pos <= self.mouse[0]-1 <= x_pos + self.btn_w and y_pos <= self.mouse[1]-1 <= y_pos + self.btn_h:
                             if num == 0:   # fullscreen
                                 self.fullscreen = not self.fullscreen
-                                self.screen_change = True
+                                self.screen_change = not self.screen_change
                             elif num == 1:   # resolution
                                 if x_pos <= self.mouse[0]-1 <= x_pos + 40:   # minus
                                     self.selected_res += 1   # +1 because avail_res is from largest to smallest
@@ -310,6 +310,24 @@ class Menu():
                                 self.mouse_wrap = not self.mouse_wrap
                             elif num == 5:   # background stars
                                 self.bg_stars_enable = not self.bg_stars_enable
+                        y_pos += self.btn_h + self.space
+                    
+                    # audio
+                    x_pos = self.set_x_2
+                    y_pos = self.top_margin
+                    for num, text in enumerate(buttons_set_aud):
+                        if x_pos <= self.mouse[0]-1 <= x_pos + self.btn_w and y_pos <= self.mouse[1]-1 <= y_pos + self.btn_h:
+                            if num == 0:
+                                pass
+                        y_pos += self.btn_h + self.space
+                    
+                    # game
+                    x_pos = self.set_x_3
+                    y_pos = self.top_margin
+                    for num, text in enumerate(buttons_set_gam):
+                        if x_pos <= self.mouse[0]-1 <= x_pos + self.btn_w and y_pos <= self.mouse[1]-1 <= y_pos + self.btn_h:
+                            if num == 0:   # Keybindings
+                                self.keybinding = True
                         y_pos += self.btn_h + self.space
                     
                     # advanced
@@ -356,6 +374,7 @@ class Menu():
                                 fileops.save_settings("background", "cluster_new", self.cluster_new)
                                 # change windowed/fullscreen
                                 if self.screen_change is True:
+                                    
                                     pygame.display.toggle_fullscreen()
                                     self.set_screen()
                                     graphics.set_screen()
@@ -432,15 +451,12 @@ class Menu():
                             self.scroll = max(0, self.map_list_size - self.list_limit)
         
         graphics.update_mouse(self.mouse, self.click, self.disable_buttons)
-        return self.state
     
     
     
     ###### --Graphics-- ######
-    def gui(self, screen, clock, from_game=False):
+    def gui(self, screen, clock):
         screen.fill((0, 0, 0))   # color screen black
-        if from_game:
-            self.menu = 4
         
         # main menu
         if self.menu == 0:
@@ -528,6 +544,11 @@ class Menu():
                 graphics.text(screen, rgb.red, self.fontmd, "Fullscreen mode may not work when in lower resolutions.", (self.screen_x/2, self.bot_y_ui-28), True)
             if self.restart is True:
                 graphics.text(screen, rgb.red, self.fontmd, "Restart is required for changes to take effect.", (self.screen_x/2, self.bot_y_ui-12), True)
+            
+            # keybinding:
+            if self.keybinding is True:
+                keybinding.main(screen, clock)
+                self.keybinding = False
         
         
         # about
@@ -540,3 +561,27 @@ class Menu():
         graphics.text(screen, rgb.gray, self.fontmd, "v" + version, (self.screen_x - 120, self.screen_y - 20))
         graphics.text(screen, rgb.gray, self.fontmd, str(self.mouse), (self.screen_x - 80, self.screen_y - 40))
         graphics.text(screen, rgb.gray, self.fontmd, "fps: " + str(int(clock.get_fps())), (self.screen_x - 60, self.screen_y - 20))
+    
+    
+    
+    def main(self, screen, clock, from_game=False):
+        run = True
+        if from_game is True:
+            self.menu = 4   # go directly to settings
+        while run:
+            for e in pygame.event.get():
+                self.input_keys(e, from_game)
+                self.input_mouse(e, from_game)
+                if self.state != 1:
+                    state = self.state
+                    self.state = 1   # this allows returning back to main menu
+                    if from_game is True:
+                        return 2   # go back to game
+                    return state
+                if e.type == pygame.QUIT:
+                    pygame.quit()
+                    sys.exit()
+            self.gui(screen, clock)
+            pygame.display.flip()
+            clock.tick(60)
+        return self.state

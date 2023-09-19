@@ -28,7 +28,8 @@ class Graphics():
         self.btn_w = 250   # button width
         self.btn_w_h = 200   # for horizontal placement
         self.btn_w_l = 500   # for lists
-        self.btn_h = self.fontbt.get_height() + 15   # button height from font height
+        self.txt_y_margin = 8  # empty space between text and button edge
+        self.btn_h = self.fontbt.get_height() + self.txt_y_margin * 2   # button height from font height
         self.space = 10
         self.click = False
         self.mouse = [0, 0]
@@ -331,11 +332,12 @@ class Graphics():
             if y >= pos[1] - self.btn_h - self.space:      # don't draw above list area
                 color = rgb.gray3
                 # mouse over button
-                if x <= self.mouse[0]-1 <= x + self.btn_w_l and y <= self.mouse[1]-1 <= y + self.btn_h and disable_buttons is False:
-                    color = rgb.gray2
-                    # click on button
-                    if self.click is True:
-                        color = rgb.gray1
+                if pos[1] - self.space <= self.mouse[1]-1 <= pos[1] + list_limit:   # only inside list area
+                    if x <= self.mouse[0]-1 <= x + self.btn_w_l and y <= self.mouse[1]-1 <= y + self.btn_h and disable_buttons is False:
+                        color = rgb.gray2
+                        # click on button
+                        if self.click is True:
+                            color = rgb.gray1
                 if num == selected:
                     color = rgb.gray1
                 pygame.draw.rect(screen, color, (x, y, self.btn_w_l, self.btn_h))
@@ -363,7 +365,54 @@ class Graphics():
         # list borders
         pygame.draw.rect(screen, rgb.white, (x - self.space, pos[1] - self.space, self.btn_w_l + 2*self.space, list_limit + self.space), 1)
         pygame.draw.rect(screen, rgb.white, (x - self.space, pos[1] - self.space, self.btn_w_l + 2*self.space + 16, list_limit + self.space), 1)
-        return
+    
+    
+    def buttons_list_2col(self, screen, left_txt, right_txt, pos, list_limit, scroll, selected, safe=False):
+        """Draws buttons in scrollable list with mouseover and self.click effect.
+        Text is printed on 2 columns snapped to left and right button side."""
+        (x, y) = pos
+        disable_buttons = False
+        if safe is False:
+            disable_buttons = self.disable_buttons
+        y -= scroll
+        for num, text in enumerate(left_txt):
+            if y >= pos[1] - self.btn_h - self.space:      # don't draw above list area
+                color = rgb.gray3
+                # mouse over button
+                if pos[1] - self.space <= self.mouse[1]-1 <= pos[1] + list_limit:   # only inside list area
+                    if x <= self.mouse[0]-1 <= x + self.btn_w_l and y <= self.mouse[1]-1 <= y + self.btn_h and disable_buttons is False:
+                        color = rgb.gray2
+                        # click on button
+                        if self.click is True:
+                            color = rgb.gray1
+                if num == selected:
+                    color = rgb.gray1
+                pygame.draw.rect(screen, color, (x, y, self.btn_w_l, self.btn_h))
+                pygame.draw.rect(screen, rgb.white, (x, y, self.btn_w_l, self.btn_h), 1)
+                self.text(screen, rgb.white, self.fontbt, text, (x + 10, y + self.txt_y_margin))
+                self.text(screen, rgb.white, self.fontbt, right_txt[num], (x + self.btn_w_l - 40, y + self.btn_h/2), True)
+            y += self.btn_h + self.space   # calculate position for next button
+            
+            if y > pos[1] + list_limit:   # don't draw bellow list area
+                break
+        
+        # hide buttons outside list area
+        pygame.draw.rect(screen, rgb.black, (x, pos[1] - self.btn_h - self.space, self.btn_w_l, self.btn_h))
+        pygame.draw.rect(screen, rgb.black, (x, pos[1] + list_limit, self.btn_w_l, self.btn_h))
+        
+        # scroll bar
+        list_size = len(left_txt) * self.btn_h + len(left_txt) * self.space
+        scrollable_len = max(0, list_size - list_limit)
+        scrollbar_limit = list_limit - 40 + 4
+        if scrollable_len != 0:
+            scrollbar_pos = scroll * scrollbar_limit / scrollable_len
+        else:
+            scrollbar_pos = 0
+        pygame.draw.rect(screen, rgb.gray1, (x+self.btn_w_l+self.space+2, pos[1] - self.space + 3 + scrollbar_pos, 11, 40))
+        
+        # list borders
+        pygame.draw.rect(screen, rgb.white, (x - self.space, pos[1] - self.space, self.btn_w_l + 2*self.space, list_limit + self.space), 1)
+        pygame.draw.rect(screen, rgb.white, (x - self.space, pos[1] - self.space, self.btn_w_l + 2*self.space + 16, list_limit + self.space), 1)
     
     
     def ask(self, screen, ask_txt, target, yes_txt, pos, red=False):

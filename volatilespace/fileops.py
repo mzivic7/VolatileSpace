@@ -4,11 +4,12 @@ import numpy as np
 import os
 from configparser import ConfigParser
 
-settings = ConfigParser()   # load config class
-settings.read("settings.ini")   # load settings
-home_dir = os.path.expanduser("~")
+from volatilespace import defaults
 
-default_settings = {"first_run":"True", "resolution":[1366, 768], "fullscreen":"True", "vsync":"True", "curve_points":100, "grid_spacing_min":100, "grid_spacing_max":200, "mouse_wrap":"True", "antialiasing":"True", "stars_antialiasing":"False", "stars_num":500, "stars_new_color":"False", "extra_frame":1000, "stars_speed_mult":1, "stars_opacity":0.7, "cluster_enable":"True", "cluster_new":"False", "cluster_num":7, "cluster_star":[10, 40], "cluster_size_mult":[2, 4], "stars_radius":[0.6, 0.3, 0.1], "stars_speed":[0.5, 0.3, 0.2], "stars_zoom_min":0.5, "stars_zoom_max":2, "zoom_mult":5, "stars":"True"}
+settings = ConfigParser()
+keybindings = ConfigParser()
+settings.read("settings.ini")
+home_dir = os.path.expanduser("~")
 
 
 def save_file(file_name, filetype=[("All Files", "*.*")]):
@@ -39,7 +40,7 @@ def load_file(filetype=[("All Files", "*.*")]):
 
 
 def gen_map_list():
-    """Generaate list of maps in "Maps" dir. Name and edit date are read from file"""
+    """Generate list of maps in "Maps" dir. Name and edit date are read from file"""
     if not os.path.exists("Maps"):   # if maps dir is deleted
         os.mkdir("Maps")
     files_list = os.listdir("Maps")   # generate list of files
@@ -149,16 +150,17 @@ def new_map(name, date):   # ### TODO ###
 def save_settings(header, key, value):
     """Saves value of specified setting to settings file"""
     try:
-        settings.set(header, key, str(value))   # config parameters
+        settings.set(header, key, str(value))
     except Exception:   # if section is invalid
-        settings.add_section(header)   # add this section
+        settings.add_section(header)
         settings.set(header, key, str(value))
     with open("settings.ini", "w") as f:
         settings.write(f)
 
 
 def load_settings(header, key):
-    """load one or multiple settings from same header in settings file, key must be str, tuple or list, if failed, create that header/setting"""
+    """load one or multiple settings from same header in settings file.
+    Key must be str, tuple or list. If loading failed, create that header/setting."""
     try:
         if type(key) is str:   # if key is string (there is only one key)
             setting = settings.get(header, key)   # get value for that key
@@ -176,7 +178,7 @@ def load_settings(header, key):
                         one_setting = list(map(int, one_setting))   # float to int
                 setting.append(one_setting)   # append value to setting list
     except Exception:   # if setting is missing
-        setting = default_settings.get(key)   # load default setting
+        setting = defaults.settings.get(key)   # load default setting
         save_settings(header, key, setting)   # save default setting to settings.ini
     return setting
 
@@ -184,4 +186,37 @@ def load_settings(header, key):
 def delete_settings():
     """Removes all text from settings.ini so settings can be reverted to default"""
     open("settings.ini", "w").close()
+
+
+def default_keybindings():
+    """ Restores default keybindings to keybindings.ini"""
+    keyb_dict = defaults.keybindings
+    keybindings["keybindings"] = keyb_dict
+    with open("keybindings.ini", "w") as f:
+        keybindings.write(f)
     
+
+def save_keybindings(keyb_dict):
+    """Saves all keybindings to keybindings.ini"""
+    keybindings["keybindings"] = keyb_dict
+    with open("keybindings.ini", "w") as f:
+        keybindings.write(f)
+
+
+def load_keybindings():
+    """Loads all keybindings from keybindings.ini"""
+    try:
+        keybindings.read("keybindings.ini")
+        keyb_dict = dict(keybindings["keybindings"])
+        # convert all dict values to int
+        keyb_dict = dict([key, int(value)] for key, value in keyb_dict.items())
+        if len(keyb_dict) != len(defaults.keybindings):
+            keyb_dict = defaults.keybindings
+            default_keybindings()
+    except Exception:
+        keyb_dict = defaults.keybindings
+        default_keybindings()
+    return keyb_dict
+
+
+load_keybindings()

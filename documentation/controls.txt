@@ -12,7 +12,6 @@ W/A/S/D            Add velocity, in that direction, to body
 /                  Stop time warp
 H                  Focus on Home (0, 0) coordinates 
 F                  Follow selected body
-B                  Toggle background stars
 G                  Toggle background grid
 V                  Cycle grid modes (global, selected body, parent)
 Escape             Pause menu
@@ -20,4 +19,4 @@ F1                 Screenshot
 F2                 Toggle UI visibility
 F3                 Toggle labels visibility
 F4                 Quicksave
-F5 (hold)          Load quicksave
+F5                 Load quicksave

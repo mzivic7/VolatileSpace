@@ -2,6 +2,7 @@ import pygame
 import math
 import numpy as np
 import os
+import sys
 import time
 import datetime
 from configparser import ConfigParser
@@ -37,6 +38,7 @@ class Editor():
         self.disable_gui = False
         self.disable_labels = False
         self.menu = None
+        self.click = False
         self.first_click = None
         self.click_timer = 0
         self.scroll = 0   # scroll for menus
@@ -51,7 +53,8 @@ class Editor():
         self.btn_w_l = 500   # for lists
         self.btn_w_h_3 = (self.btn_w_l + 16)/3   # fits 3 btn in width of list button
         self.btn_w_h_2 = (self.btn_w_l + 16)/2  # fits 2 btn in width of list button
-        self.btn_h = self.fontbt.get_height() + 15   # button height from font height
+        self.txt_y_margin = 8  # empty space between text and button edge
+        self.btn_h = self.fontbt.get_height() + self.txt_y_margin * 2   # button height from font height
         self.space = 10   # space between buttons
         self.file_path = ""   # path to currently active file
         self.selected_path = ""   # path to selected file
@@ -76,7 +79,6 @@ class Editor():
         self.direction = False   # keyboard buttons wasd
         self.follow = False   # follow selected body
         self.first = True   # is this first iterration
-        self.click = False
         self.mouse = [0, 0]   # mouse position in simulation
         self.mouse_raw = [0, 0]   # mouse position on screen
         self.mouse_raw_old = [0, 0]
@@ -165,6 +167,7 @@ class Editor():
         self.set_screen()   # resolution may have been changed
         bg_stars.set_screen()
         graphics.set_screen()
+        self.keys = fileops.load_keybindings()
     
     
     
@@ -238,76 +241,72 @@ class Editor():
                     self.pause = False
             
             if self.disable_input is False:
-                if e.key == pygame.K_SPACE:   # space key
+                if e.key == self.keys["interactive_pause"]:
                     if self.pause is False:
                         self.pause = True   # if it is not paused, pause it
                     else:
                         self.pause = False  # if it is paused, unpause it
                 
-                elif e.key == pygame.K_h:   # H key
+                elif e.key == self.keys["focus_home"]:
                     self.follow = False   # disable follow
                     self.focus_point([0, 0], 0.5)   # return to (0,0) coordinates
                     # self.zoom = 1   # reset zoom
                     # self.zoom_x, self.zoom_y = 0, 0   # reset zoom offset
                     
-                elif e.key == pygame.K_f:   # F key
+                elif e.key == self.keys["follow_selected_body"]:
                     self.follow = not self.follow   # toggle follow
                 
-                elif e.key == pygame.K_b:   # B key
-                    self.bg_stars_enable = not self.bg_stars_enable   # flip background stars state
-                    fileops.save_settings("background", "stars", self.bg_stars_enable)
-                
-                elif e.key == pygame.K_g:   # G key - background grid
+                elif e.key == self.keys["toggle_background_grid"]:
                     self.grid_enable = not self.grid_enable
                 
-                elif e.key == pygame.K_v:   # V key
+                elif e.key == self.keys["cycle_grid_modes"]:
                     if self.grid_enable is True:
                         self.grid_mode += 1   # cycle grid modes (0 - global, 1 - selected body, 2 - parent)
                         if self.grid_mode >= 3:
                             self.grid_mode = 0
                 
-                elif e.key == pygame.K_F1:   # F1 key - screenshot
+                elif e.key == self.keys["screenshot"]:
                     if not os.path.exists("Screenshots"):
                         os.mkdir("Screenshots")
                     self.screenshot = True
                 
-                elif e.key == pygame.K_F2:   # F2 key - disable gui
+                elif e.key == self.keys["toggle_ui_visibility"]:
                     self.disable_gui = not self.disable_gui
                 
-                elif e.key == pygame.K_F3:   # F3 key - disable labels
+                elif e.key == self.keys["toggle_labels_visibility"]:
                     self.disable_labels = not self.disable_labels
                 
-                elif e.key == pygame.K_F4:   # F4 key - quicksave
+                elif e.key == self.keys["quicksave"]:
                     self.pause = True
                     self.ask = "save"
                     self.disable_input = True
                 
-                elif e.key == pygame.K_F5:   # F5 key - load quicksave
+                elif e.key == self.keys["load_quicksave"]:
                     self.pause = True
                     self.ask = "load"
                     self.disable_input = True
                 
                 # time warp
-                if e.key == pygame.K_COMMA:   # decrease
+                if e.key == self.keys["decrease_time_warp"]:
                     if self.warp_index != 0:   # stop index from going out of range
                         self.warp_index -= 1   # decrease warp index
                     self.warp = self.warp_range[self.warp_index]   # update warp
-                if e.key == pygame.K_PERIOD:   # increase
+                if e.key == self.keys["increase_time_warp"]:
                     if self.warp_index != len(self.warp_range)-1:   # stop index from going out of range
                         self.warp_index += 1   # increase warp index
                     self.warp = self.warp_range[self.warp_index]   # update warp
-                if e.key == pygame.K_SLASH:   # default
+                if e.key == self.keys["stop_time_warp"]:
                     self.warp_index = 0   # reset warp index
                     self.warp = self.warp_range[self.warp_index]   # update warp
                 
                 if self.selected is not False:   # if there is selected body, allow changing its velocity with wasd
-                    if e.key == pygame.K_w:
+                    if e.key == self.keys["forward"]:
                         self.direction = "up"   # to what direction velocity is added
-                    if e.key == pygame.K_s:
+                    if e.key == self.keys["backward"]:
                         self.direction = "down"
-                    if e.key == pygame.K_a:
+                    if e.key == self.keys["left"]:
                         self.direction = "left"
-                    if e.key == pygame.K_d:
+                    if e.key == self.keys["right"]:
                         self.direction = "right"
         
         if e.type == pygame.KEYUP and (e.key == pygame.K_w or e.key == pygame.K_s or e.key == pygame.K_a or e.key == pygame.K_d):
@@ -405,16 +404,17 @@ class Editor():
                     scrollbar_pos = self.scroll * scrollbar_limit / scrollable_len
                 else:
                     scrollbar_pos = 0
-                
                 scrollbar_x = self.maps_x + self.btn_w_l + self.space + 2    # calculate scroll bar coords
                 scrollbar_y = self.maps_y - self.space + 3 + scrollbar_pos
                 if scrollbar_x <= self.mouse_raw[0]-1 <= scrollbar_x + 11 and scrollbar_y <= self.mouse_raw[1]-1 <= scrollbar_y + 40:
                     self.scrollbar_drag = True
                     self.scrollbar_drag_start = self.mouse[1]
                     self.ask = True   # dirty shortcut to disable safe buttons
+        
         if e.type == pygame.MOUSEBUTTONUP and e.button == 1:
             if self.click is True:
                 
+                # pause menu
                 if self.pause_menu:
                     y_pos = self.pause_y
                     for num, text in enumerate(buttons_pause_menu):
@@ -456,17 +456,17 @@ class Editor():
                 # save
                 elif self.menu == 0:
                     # maps list
-                    y_pos = self.maps_y - self.scroll
-                    for num, text in enumerate(self.maps[:, 1]):
-                        if y_pos >= self.maps_y - self.btn_h - self.space and y_pos <= self.maps_y + self.list_limit:    # don't detect outside list area
-                            if self.maps_x <= self.mouse_raw[0]-1 <= self.maps_x + self.btn_w_l and y_pos <= self.mouse_raw[1]-1 <= y_pos + self.btn_h:
-                                self.selected_item = num
-                                self.selected_path = "Maps/" + self.maps[self.selected_item, 0]
-                                if self.first_click == num:   # detect double click
-                                    self.ask = "save"
-                                self.first_click = num
-                        y_pos += self.btn_h + self.space
-                    
+                    if self.maps_y - self.space <= self.mouse_raw[1]-1 <= self.maps_y + self.list_limit:
+                        y_pos = self.maps_y - self.scroll
+                        for num, text in enumerate(self.maps[:, 1]):
+                            if y_pos >= self.maps_y - self.btn_h - self.space and y_pos <= self.maps_y + self.list_limit:    # don't detect outside list area
+                                if self.maps_x <= self.mouse_raw[0]-1 <= self.maps_x + self.btn_w_l and y_pos <= self.mouse_raw[1]-1 <= y_pos + self.btn_h:
+                                    self.selected_item = num
+                                    self.selected_path = "Maps/" + self.maps[self.selected_item, 0]
+                                    if self.first_click == num:   # detect double click
+                                        self.ask = "save"
+                                    self.first_click = num
+                            y_pos += self.btn_h + self.space
                     
                     x_pos = self.maps_x_ui
                     for num, text in enumerate(buttons_save):
@@ -478,26 +478,27 @@ class Editor():
                                 self.ask = "save"
                             elif num == 2:   # new save
                                 date = time.strftime("%d.%m.%Y %H:%M")
-                                path = fileops.new_map("New Map", date)   # ### TODO ###
+                                new_name = "New Map from " + date   # ### TODO ###
+                                path = fileops.new_map(new_name, date)
                                 base_color = physics.get_base_color()
-                                date = time.strftime("%d.%m.%Y %H:%M")
-                                fileops.save_system(path, self.sim_name, date, self.sim_time/self.ptps, self.mass, self.density, self.position, self.velocity, base_color)
+                                fileops.save_system(path, new_name, date, self.sim_time/self.ptps, self.mass, self.density, self.position, self.velocity, base_color)
                                 self.gen_map_list()
                         x_pos += self.btn_w_h_3 + self.space
                 
                 # load
                 elif self.menu == 1:
                     # maps list
-                    y_pos = self.maps_y - self.scroll
-                    for num, text in enumerate(self.maps[:, 1]):
-                        if y_pos >= self.maps_y - self.btn_h - self.space and y_pos <= self.maps_y + self.list_limit:    # don't detect outside list area
-                            if self.maps_x <= self.mouse_raw[0]-1 <= self.maps_x + self.btn_w_l and y_pos <= self.mouse_raw[1]-1 <= y_pos + self.btn_h:
-                                self.selected_item = num
-                                self.selected_path = "Maps/" + self.maps[self.selected_item, 0]
-                                if self.first_click == num:   # detect double click
-                                    self.ask = "load"
-                                self.first_click = num
-                        y_pos += self.btn_h + self.space
+                    if self.maps_y - self.space <= self.mouse_raw[1]-1 <= self.maps_y + self.list_limit:
+                        y_pos = self.maps_y - self.scroll
+                        for num, text in enumerate(self.maps[:, 1]):
+                            if y_pos >= self.maps_y - self.btn_h - self.space and y_pos <= self.maps_y + self.list_limit:    # don't detect outside list area
+                                if self.maps_x <= self.mouse_raw[0]-1 <= self.maps_x + self.btn_w_l and y_pos <= self.mouse_raw[1]-1 <= y_pos + self.btn_h:
+                                    self.selected_item = num
+                                    self.selected_path = "Maps/" + self.maps[self.selected_item, 0]
+                                    if self.first_click == num:   # detect double click
+                                        self.ask = "load"
+                                    self.first_click = num
+                            y_pos += self.btn_h + self.space
                     
                     x_pos = self.maps_x_ui
                     for num, text in enumerate(buttons_load):
@@ -792,10 +793,6 @@ class Editor():
             graphics.buttons_horizontal(screen, buttons_load, (self.maps_x - self.space, self.maps_y_ui), alt_width=self.btn_w_h_2, safe=not (bool(self.ask)))
             pygame.draw.rect(screen, rgb.white, border_rect, 1)
         
-        # settings
-        elif self.menu == 2:
-            pass
-        
         if not self.disable_gui:   # disabled menus
             pass
         
@@ -822,4 +819,26 @@ class Editor():
             if self.click_timer >= 0.5 * 60:
                 self.first_click = None
                 self.click_timer = 0
-        
+    
+    
+    
+    def main(self, screen, clock):
+        run = True
+        while run:
+            for e in pygame.event.get():
+                self.input_keys(e)
+                self.input_mouse(e)
+                self.ui_mouse(e)
+                if self.state != 2:
+                    state = self.state
+                    self.state = 2
+                    return state
+                if e.type == pygame.QUIT:
+                    pygame.quit()
+                    sys.exit()
+                self.physics(e)
+            self.graphics(screen, clock)
+            self.gui(screen, clock)
+            pygame.display.flip()
+            clock.tick(60)
+        return self.state

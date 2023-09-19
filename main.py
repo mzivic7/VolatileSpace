@@ -1,13 +1,9 @@
 import pygame
 from ast import literal_eval as leval
 
+from volatilespace import fileops
 
 def main():
-    ###### --Initiaization-- ######
-    update = 60   # screen update frequency
-    from volatilespace import fileops
-    
-    
     ###### --Start pygame-- ######
     pygame.init()
     pygame.display.set_caption('Volatile Space')
@@ -44,8 +40,7 @@ def main():
     while run:
         for e in pygame.event.get():
             if state == 1:   # main menu
-                menu.input_keys(e)
-                state = menu.input_mouse(e)
+                state = menu.main(screen, clock)
                 if state == 2:
                     editor.reload_settings()
                     selected_path = menu.selected_path
@@ -59,18 +54,11 @@ def main():
                         if state == 2:
                             editor.load_system(selected_path)
             elif state == 2:   # editor
-                editor.input_keys(e)
-                editor.input_mouse(e)
-                state = editor.ui_mouse(e)
-                if state == 1:
-                    menu.gen_map_list()
-                
-                editor.physics(e)
+                state = editor.main(screen, clock)
             elif state == 3:   # game
                 pass
             elif state == 4:   # settings from game/editor
-                menu.input_keys(e, True)
-                state = menu.input_mouse(e, True)
+                state = menu.main(screen, clock, True)
                 if state == 2:
                     editor.reload_settings()
             elif state == 0:   # quit
@@ -78,22 +66,7 @@ def main():
             
             if e.type == pygame.QUIT:
                 run = False   # if quit, break loop
-        
-        
-        ###### --Graphics-- ######
-        if state == 1:   # main menu
-            menu.gui(screen, clock)
-        elif state == 2:   # editor
-            editor.graphics(screen, clock)
-            editor.gui(screen, clock)
-        elif state == 3:   # game
-            pass
-        if state == 4:
-            menu.gui(screen, clock, True)
-        
-        pygame.display.flip()   # update screen
-        clock.tick(update)   # screen update frequency
-
+    
     pygame.quit()   # quit gently
 
 
