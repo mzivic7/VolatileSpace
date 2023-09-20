@@ -13,15 +13,19 @@ from volatilespace import physics_engine
 from volatilespace.graphics import rgb
 from volatilespace.graphics import graphics
 from volatilespace.graphics import bg_stars
+from volatilespace import textinput
+
 
 physics = physics_engine.Physics()
 graphics = graphics.Graphics()
 bg_stars = bg_stars.Bg_Stars()
+textinput = textinput.Textinput()
 
 
 buttons_pause_menu = ["Resume", "Save map", "Load map", "Settings", "Quit without saving", "Save and Quit"]
 buttons_save = ["Cancel", "Save", "New save"]
 buttons_load = ["Cancel", "Load"]
+buttons_new_map = ["Cancel", "Create"]
 
 
 class Editor():
@@ -35,9 +39,11 @@ class Editor():
         self.ask = None
         self.pause_menu = False
         self.disable_input = False
-        self.disable_gui = False
+        self.disable_ui = False
         self.disable_labels = False
         self.menu = None
+        self.new_map = False
+        self.text = ""
         self.click = False
         self.first_click = None
         self.click_timer = 0
@@ -69,7 +75,7 @@ class Editor():
         self.select_sens = 5   # how many pixels are tolerable for mouse to move while selecting body
         self.drag_sens = 0.02   # drag sensitivity when inserting body
         self.warp_range = [1, 2, 3, 4, 5, 10, 50, 100]   # all possible warps, by order
-        self.warp_index = 0   # current warp from warp_rang
+        self.warp_index = 0   # current warp from warp_range
         self.sim_time = 0   # simulation time
         self.pause = False   # program paused
         self.insert_body = False   # is body being inserted
@@ -78,7 +84,7 @@ class Editor():
         self.selected = False   # select mode
         self.direction = False   # keyboard buttons wasd
         self.follow = False   # follow selected body
-        self.first = True   # is this first iterration
+        self.first = True   # is this first iteration
         self.mouse = [0, 0]   # mouse position in simulation
         self.mouse_raw = [0, 0]   # mouse position on screen
         self.mouse_raw_old = [0, 0]
@@ -112,7 +118,6 @@ class Editor():
         self.ask_y = self.screen_y/2 + self.space
         self.pause_x = self.screen_x/2 - self.btn_w/2
         self.pause_y = self.screen_y/2 - (len(buttons_pause_menu) * self.btn_h + (len(buttons_pause_menu)-1) * self.space)/2
-        graphics.update_buttons(self.btn_w, self.btn_w_h, self.btn_w_l, self.btn_h)
         self.pause_max_y = self.btn_h*len(buttons_pause_menu) + self.space*(len(buttons_pause_menu)+1)
         self.maps_x = self.screen_x/2 - self.btn_w_l/2
         self.maps_max_y = self.screen_y - 200
@@ -154,7 +159,7 @@ class Editor():
         except Exception:   # fail-safe repair if resolution is invalid
             self.selected_res = 0   # use maximum resolution
             fileops.save_settings("graphics", "resolution", list(avail_res[0]))   # save it to file
-            if self.fullscreen is True:
+            if self.fullscreen:
                 pygame.display.set_mode((avail_res[0]), pygame.FULLSCREEN)
             else:
                 pygame.display.set_mode((avail_res[0]))
@@ -195,6 +200,24 @@ class Editor():
         # y_on_screen = y_on_screen - screen_y   move origin from bottom-left to up-left. This is implemented in above line
         return [x_in_sim, y_in_sim]
     
+    def ask_load(self):
+        """Loads system from "load" dialog."""
+        if os.path.exists(self.selected_path):
+            self.sim_name, self.sim_time, self.mass, self.density, self.position, self.velocity, self.color = fileops.load_system(self.selected_path)
+            self.sim_time *= self.ptps   # convert from seconds to userevent iterations
+            physics.load_system(self.mass, self.density, self.position, self.velocity, self.color)
+            self.mass, self.density, self.temp, self.position, self.velocity, self.colors, self.size, self.rad_sc = physics.get_bodies()
+            self.file_path = self.selected_path   # change currently active file
+            graphics.timed_text_init(rgb.gray, self.fontmd, "Map loaded successfully", (self.screen_x/2, self.screen_y-70), 2, True)
+        
+    def ask_save(self):
+        """Savess system from "save" dialog."""
+        base_color = physics.get_base_color()
+        date = time.strftime("%d.%m.%Y %H:%M")
+        fileops.save_system(self.selected_path, self.sim_name, date, self.sim_time/self.ptps, self.mass, self.density, self.position, self.velocity, base_color)
+        self.file_path = self.selected_path
+        graphics.timed_text_init(rgb.gray, self.fontmd, "Map saved successfully", (self.screen_x/2, self.screen_y-70), 2, True)
+    
     
     
     ###### --Load system-- ######
@@ -204,7 +227,7 @@ class Editor():
         physics.load_system(self.mass, self.density, self.position, self.velocity, self.color)   # add it to physics class
         self.file_path = system   # this path will be used for load/save
         self.disable_input = False
-        self.disable_gui = False
+        self.disable_ui = False
         self.disable_labels = False
         self.gen_map_list()
         
@@ -218,16 +241,57 @@ class Editor():
     def input_keys(self, e):
         if self.state != 2:   # when returning to editor menu
             self.state = 2   # update state
-        if e.type == pygame.KEYDOWN:   # if any key is pressed:
+        
+        if self.new_map:
+            self.text = textinput.input_keys(e)
+            if e.type == pygame.KEYDOWN:
+                if e.key == pygame.K_ESCAPE:
+                    self.new_map = False
+                    self.ask = None
+                elif e.key == pygame.K_RETURN:
+                    date = time.strftime("%d.%m.%Y %H:%M")
+                    path = fileops.new_map(self.text, date)
+                    base_color = physics.get_base_color()
+                    fileops.save_system(path, self.text, date, self.sim_time/self.ptps, self.mass, self.density, self.position, self.velocity, base_color)
+                    self.gen_map_list()
+                    self.new_map = False
+                    self.ask = None
+        
+        elif self.menu == 0 or self.menu == 1:
+            if e.type == pygame.KEYDOWN:
+                if e.key == pygame.K_ESCAPE:
+                    self.menu = None
+                    self.pause_menu = True
+                if e.key == pygame.K_RETURN:
+                    if self.ask:
+                        if self.ask == "load":
+                            self.ask_load()
+                        if self.ask == "save":
+                            self.ask_save()
+                        self.menu = None
+                        self.pause_menu = True
+                        self.ask = None
+                    if self.menu == 0:
+                        self.ask = "save"
+                    elif self.menu == 1:
+                        self.ask = "load"
+                if not self.ask:
+                    if e.key == pygame.K_DOWN:
+                        if self.selected_item < len(self.maps)-1:
+                            self.selected_item += 1
+                            self.selected_path = "Maps/" + self.maps[self.selected_item, 0]
+                    elif e.key == pygame.K_UP:
+                        if self.selected_item > 0:
+                            self.selected_item -= 1
+                            self.selected_path = "Maps/" + self.maps[self.selected_item, 0]
+        
+        elif e.type == pygame.KEYDOWN:   # if any key is pressed:
             if e.key == pygame.K_ESCAPE:
-                if self.scrollbar_drag is True:
+                if self.scrollbar_drag:
                     self.scrollbar_drag = False
                     self.ask = None
                 if self.ask is None:
-                    if self.menu is not None:
-                        self.menu = None
-                        self.pause_menu = True
-                    elif self.pause_menu is True:
+                    if self.pause_menu:
                         self.pause_menu = False
                         self.disable_input = False
                         self.pause = False
@@ -238,14 +302,13 @@ class Editor():
                 else:   # exit from ask window
                     self.ask = None
                     self.disable_input = False
-                    self.pause = False
             
             if self.disable_input is False:
                 if e.key == self.keys["interactive_pause"]:
                     if self.pause is False:
-                        self.pause = True   # if it is not paused, pause it
+                        self.pause = True   # if not paused, pause it
                     else:
-                        self.pause = False  # if it is paused, unpause it
+                        self.pause = False  # if paused, unpause it
                 
                 elif e.key == self.keys["focus_home"]:
                     self.follow = False   # disable follow
@@ -260,7 +323,7 @@ class Editor():
                     self.grid_enable = not self.grid_enable
                 
                 elif e.key == self.keys["cycle_grid_modes"]:
-                    if self.grid_enable is True:
+                    if self.grid_enable:
                         self.grid_mode += 1   # cycle grid modes (0 - global, 1 - selected body, 2 - parent)
                         if self.grid_mode >= 3:
                             self.grid_mode = 0
@@ -271,20 +334,10 @@ class Editor():
                     self.screenshot = True
                 
                 elif e.key == self.keys["toggle_ui_visibility"]:
-                    self.disable_gui = not self.disable_gui
+                    self.disable_ui = not self.disable_ui
                 
                 elif e.key == self.keys["toggle_labels_visibility"]:
                     self.disable_labels = not self.disable_labels
-                
-                elif e.key == self.keys["quicksave"]:
-                    self.pause = True
-                    self.ask = "save"
-                    self.disable_input = True
-                
-                elif e.key == self.keys["load_quicksave"]:
-                    self.pause = True
-                    self.ask = "load"
-                    self.disable_input = True
                 
                 # time warp
                 if e.key == self.keys["decrease_time_warp"]:
@@ -357,7 +410,7 @@ class Editor():
             if e.type == pygame.MOUSEBUTTONDOWN and e.button == 3:   # is clicked
                 self.insert_body = True   # start inserting body
                 self.new_position = self.sim_coords(self.mouse_raw)   # first position
-            if e.type == pygame.MOUSEBUTTONUP and e.button == 3 and self.insert_body is True:   # is released
+            if e.type == pygame.MOUSEBUTTONUP and e.button == 3 and self.insert_body:   # is released
                 self.insert_body = False   # end inserting body
                 drag_position = self.sim_coords(self.mouse_raw)   # second position
                 distance = math.dist(self.new_position, drag_position) * self.zoom   # distance
@@ -370,7 +423,7 @@ class Editor():
                 self.new_mass = self.new_mass_init   # reset initial new mass
             
             # mouse wheel
-            if e.type == pygame.MOUSEWHEEL and self.insert_body is True:
+            if e.type == pygame.MOUSEWHEEL and self.insert_body:
                 if self.new_mass > 1:   # keep mass positive
                     self.new_mass += e.y   # change mass
             if e.type == pygame.MOUSEWHEEL and self.insert_body is False:   # change zoom
@@ -412,7 +465,7 @@ class Editor():
                     self.ask = True   # dirty shortcut to disable safe buttons
         
         if e.type == pygame.MOUSEBUTTONUP and e.button == 1:
-            if self.click is True:
+            if self.click:
                 
                 # pause menu
                 if self.pause_menu:
@@ -449,41 +502,57 @@ class Editor():
                         y_pos += self.btn_h + self.space
                 
                 # disable scrollbar_drag when release click
-                elif self.scrollbar_drag is True:
+                elif self.scrollbar_drag:
                     self.scrollbar_drag = False
                     self.ask = None
                 
                 # save
                 elif self.menu == 0:
-                    # maps list
-                    if self.maps_y - self.space <= self.mouse_raw[1]-1 <= self.maps_y + self.list_limit:
-                        y_pos = self.maps_y - self.scroll
-                        for num, text in enumerate(self.maps[:, 1]):
-                            if y_pos >= self.maps_y - self.btn_h - self.space and y_pos <= self.maps_y + self.list_limit:    # don't detect outside list area
-                                if self.maps_x <= self.mouse_raw[0]-1 <= self.maps_x + self.btn_w_l and y_pos <= self.mouse_raw[1]-1 <= y_pos + self.btn_h:
-                                    self.selected_item = num
-                                    self.selected_path = "Maps/" + self.maps[self.selected_item, 0]
-                                    if self.first_click == num:   # detect double click
-                                        self.ask = "save"
-                                    self.first_click = num
-                            y_pos += self.btn_h + self.space
+                    # new map
+                    if self.new_map:
+                        x_pos = self.ask_x
+                        for num in [0, 1]:
+                            if x_pos <= self.mouse_raw[0]-1 <= x_pos+self.btn_w_h and self.ask_y+self.space <= self.mouse_raw[1]-1 <= self.ask_y+self.space+self.btn_h:
+                                if num == 0:   # cancel
+                                    pass
+                                elif num == 1:
+                                    date = time.strftime("%d.%m.%Y %H:%M")
+                                    path = fileops.new_map(self.text, date)
+                                    base_color = physics.get_base_color()
+                                    fileops.save_system(path, self.text, date, self.sim_time/self.ptps, self.mass, self.density, self.position, self.velocity, base_color)
+                                    self.gen_map_list()
+                                self.new_map = False
+                                self.ask = None
+                            x_pos += self.btn_w_h + self.space
                     
-                    x_pos = self.maps_x_ui
-                    for num, text in enumerate(buttons_save):
-                        if x_pos <= self.mouse_raw[0]-1 <= x_pos + self.btn_w_h_3 and self.maps_y_ui <= self.mouse_raw[1]-1 <= self.maps_y_ui + self.btn_h:
-                            if num == 0:   # cancel
-                                self.menu = None
-                                self.pause_menu = True
-                            elif num == 1:   # save
-                                self.ask = "save"
-                            elif num == 2:   # new save
-                                date = time.strftime("%d.%m.%Y %H:%M")
-                                new_name = "New Map from " + date   # ### TODO ###
-                                path = fileops.new_map(new_name, date)
-                                base_color = physics.get_base_color()
-                                fileops.save_system(path, new_name, date, self.sim_time/self.ptps, self.mass, self.density, self.position, self.velocity, base_color)
-                                self.gen_map_list()
-                        x_pos += self.btn_w_h_3 + self.space
+                    else:   # disable underlaying menu
+                        # maps list
+                        if self.maps_y - self.space <= self.mouse_raw[1]-1 <= self.maps_y + self.list_limit:
+                            y_pos = self.maps_y - self.scroll
+                            for num, text in enumerate(self.maps[:, 1]):
+                                if y_pos >= self.maps_y - self.btn_h - self.space and y_pos <= self.maps_y + self.list_limit:    # don't detect outside list area
+                                    if self.maps_x <= self.mouse_raw[0]-1 <= self.maps_x + self.btn_w_l and y_pos <= self.mouse_raw[1]-1 <= y_pos + self.btn_h:
+                                        self.selected_item = num
+                                        self.selected_path = "Maps/" + self.maps[self.selected_item, 0]
+                                        if self.first_click == num:   # detect double click
+                                            self.ask = "save"
+                                            self.click = False   # dont carry click to ask window
+                                        self.first_click = num
+                                y_pos += self.btn_h + self.space
+                        
+                        # ui
+                        x_pos = self.maps_x_ui
+                        for num, text in enumerate(buttons_save):
+                            if x_pos <= self.mouse_raw[0]-1 <= x_pos + self.btn_w_h_3 and self.maps_y_ui <= self.mouse_raw[1]-1 <= self.maps_y_ui + self.btn_h:
+                                if num == 0:   # cancel
+                                    self.menu = None
+                                    self.pause_menu = True
+                                elif num == 1:   # save
+                                    self.ask = "save"
+                                elif num == 2:   # new save
+                                    self.new_map = True
+                                    self.ask = True   # dirty shortcut to disable safe buttons
+                            x_pos += self.btn_w_h_3 + self.space
                 
                 # load
                 elif self.menu == 1:
@@ -497,6 +566,7 @@ class Editor():
                                     self.selected_path = "Maps/" + self.maps[self.selected_item, 0]
                                     if self.first_click == num:   # detect double click
                                         self.ask = "load"
+                                        self.click = False   # dont carry click to ask window
                                     self.first_click = num
                             y_pos += self.btn_h + self.space
                     
@@ -513,42 +583,29 @@ class Editor():
                 # settings
                 elif self.menu == 2:
                     pass
-                
-                # ask
+            
+            # ask
+            if self.click:
                 if self.ask is not None:
                     x_pos = self.ask_x
                     for num in [0, 1]:
                         if x_pos <= self.mouse_raw[0]-1 <= x_pos + self.btn_w_h and self.ask_y <= self.mouse_raw[1]-1 <= self.ask_y + self.btn_h:
                             if num == 0:   # cancel
                                 pass
-                            elif num == 1:   # delete
+                            elif num == 1:   # yes
                                 if self.ask == "load":
-                                    if os.path.exists(self.selected_path):
-                                        self.sim_name, self.sim_time, self.mass, self.density, self.position, self.velocity, self.color = fileops.load_system(self.selected_path)
-                                        self.sim_time *= self.ptps   # convert from seconds to userevent iterations
-                                        physics.load_system(self.mass, self.density, self.position, self.velocity, self.color)
-                                        self.mass, self.density, self.temp, self.position, self.velocity, self.colors, self.size, self.rad_sc = physics.get_bodies()
-                                        self.file_path = self.selected_path   # change currently active file
-                                        graphics.timed_text_init(rgb.gray, self.fontmd, "Map loaded successfully", (self.screen_x/2, self.screen_y-70), 2, True)
+                                    self.ask_load()
                                 if self.ask == "save":
-                                    base_color = physics.get_base_color()
-                                    date = time.strftime("%d.%m.%Y %H:%M")
-                                    fileops.save_system(self.selected_path, self.sim_name, date, self.sim_time/self.ptps, self.mass, self.density, self.position, self.velocity, base_color)
-                                    self.file_path = self.selected_path
-                                    graphics.timed_text_init(rgb.gray, self.fontmd, "Map saved successfully", (self.screen_x/2, self.screen_y-70), 2, True)
-                            if self.menu is not None:
-                                self.menu = None
-                                self.pause_menu = True
-                            else:
-                                self.disable_input = False
-                                self.pause = False
+                                    self.ask_save()
+                            self.menu = None
+                            self.pause_menu = True
                             self.ask = None
                         x_pos += self.btn_w_h + self.space
             self.click = False
         
         
         # moving scrollbar with cursor
-        if self.scrollbar_drag is True:
+        if self.scrollbar_drag:
             if self.menu == 0 or self.menu == 1:
                 # calculate scroll from scrollbar position
                 scrollbar_pos = self.mouse_raw[1] - self.maps_y
@@ -587,7 +644,7 @@ class Editor():
                     
                     self.sim_time += 1   # iterate sim_time
                     
-                    if self.first is True:   # this is run only once at userevent start
+                    if self.first:   # this is run only once at userevent start
                         self.first = False   # do not run it again
                         self.focus_point([0, 0], 0.5)   # initial zoom and point
                         self.selected = 0   # select body
@@ -605,17 +662,17 @@ class Editor():
         
         
         # follow body (this must be before drawing objects to prevent them from vibrating when moving)
-        if self.follow is True and self.selected is not False:   # if follow mode is enabled
+        if self.follow and self.selected is not False:   # if follow mode is enabled
             self.offset_x = - self.position[self.selected, 0] + self.screen_x / 2   # follow selected body
             self.offset_y = - self.position[self.selected, 1] + self.screen_y / 2
         
         
         # screen movement
-        if self.move is True:   # this is not in userevent to allow moving while paused
-            if self.mouse_fix_x is True:   # when mouse jumps from one edge to other:
+        if self.move:   # this is not in userevent to allow moving while paused
+            if self.mouse_fix_x:   # when mouse jumps from one edge to other:
                 self.mouse_old[0] = self.mouse[0]   # don't calculate that as mouse movement
                 self.mouse_fix_x = False
-            if self.mouse_fix_y is True:
+            if self.mouse_fix_y:
                 self.mouse_old[1] = self.mouse[1]
                 self.mouse_fix_y = False
             
@@ -624,12 +681,12 @@ class Editor():
             self.offset_y += self.mouse[1] - self.mouse_old[1]
             # save mouse position for next iteration to get movement
             # print position of view, here is not added zoom offset, this shows real position, y axis is inverted
-            if not self.disable_gui:
+            if not self.disable_ui:
                 graphics.text(screen, rgb.white, self.fontmd, "Pos: X:" + str(int(self.offset_x - self.screen_x / 2)) + "; Y:" + str(-int(self.offset_y - self.screen_y / 2)), (300, 2))
             if mouse_move > self.select_sens:   # stop following if mouse distance is more than n pixels
                 self.follow = False   # stop following selected body
             
-            if self.mouse_wrap is True:
+            if self.mouse_wrap:
                 if self.mouse_raw[0] >= self.screen_x-1:   # if mouse hits screen edge
                     pygame.mouse.set_pos(1, self.mouse_raw[1])   # move it to opposite edge ### BUG ###
                     self.mouse_fix_x = True   # in next itteration, dont calculate that as movement
@@ -647,7 +704,7 @@ class Editor():
         
         
         # background stars:
-        if self.bg_stars_enable is True:
+        if self.bg_stars_enable:
             offset_diff = self.offset_old - np.array([self.offset_x, self.offset_y])   # movement vector in one iterration
             offset_diff = offset_diff * min(self.zoom, 3)   # add zoom to speed calculation and limit zoom
             self.offset_old = np.array([self.offset_x, self.offset_y])
@@ -657,7 +714,7 @@ class Editor():
         
         
         # background lines grid
-        if self.grid_enable is True:
+        if self.grid_enable:
             if self.grid_mode == 0:   # grid mode: home
                 origin = self.screen_coords([0, 0])
             if self.selected is not False:
@@ -690,12 +747,12 @@ class Editor():
             
         
         # inserting new body
-        if self.insert_body is True:
+        if self.insert_body:
             # calculate distance to current mouse position
             current_position = [(self.mouse_raw[0]/self.zoom) - self.offset_x + self.zoom_x,
                                 - ((self.mouse_raw[1] - self.screen_y)/self.zoom) - self.offset_y + self.zoom_y]
             drag_distance = math.dist(self.new_position, current_position) * self.zoom
-            if not self.disable_gui:
+            if not self.disable_ui:
                 graphics.text(screen, rgb.white, self.fontmd, "Pos: X:" + str(round(self.new_position[0])) + "; Y:" + str(round(self.new_position[1])), (300, 2))
                 graphics.text(screen, rgb.white, self.fontmd, "Mass: " + str(round(self.new_mass)), (470, 2))
                 graphics.text(screen, rgb.white, self.fontmd, "Acc: " + str(round(drag_distance * self.drag_sens, 2)), (560, 2))
@@ -742,10 +799,10 @@ class Editor():
         
         
         # print basic data
-        if not self.disable_gui:
+        if not self.disable_ui:
             graphics.timed_text(screen, clock)   # timed text on screen
             graphics.text(screen, rgb.white, self.fontmd, str(datetime.timedelta(seconds=round(self.sim_time/self.ptps))), (2, 2))
-            if self.pause is True:   # if paused
+            if self.pause:   # if paused
                 graphics.text(screen, rgb.red1, self.fontmd, "PAUSED", (70, 2))
             else:
                 graphics.text(screen, rgb.white, self.fontmd, "Warp: x" + str(int(self.warp)), (70, 2))
@@ -765,10 +822,10 @@ class Editor():
     
     
     ###### --Menus-- ######
-    def gui(self, screen, clock):
+    def graphics_ui(self, screen, clock):
         
         # pause menu
-        if self.pause_menu is True:
+        if self.pause_menu:
             border_rect = [self.pause_x-self.space, self.pause_y-self.space, self.btn_w+2*self.space, self.pause_max_y]
             bg_rect = [sum(i) for i in zip(border_rect, [-10, -10, 20, 20])]
             pygame.draw.rect(screen, rgb.black, bg_rect)
@@ -780,8 +837,8 @@ class Editor():
             border_rect = [self.maps_x-2*self.space, self.maps_y-2*self.space, self.btn_w_l+4*self.space + 16, self.maps_max_y+3*self.space]
             bg_rect = [sum(i) for i in zip(border_rect, [-10, -10, 20, 20])]
             pygame.draw.rect(screen, rgb.black, bg_rect)
-            graphics.buttons_list(screen, self.maps[:, 1], (self.maps_x, self.maps_y), self.list_limit, self.scroll, self.selected_item, safe=not (bool(self.ask)))
-            graphics.buttons_horizontal(screen, buttons_save, (self.maps_x_ui, self.maps_y_ui), alt_width=self.btn_w_h_3, safe=not (bool(self.ask)))
+            graphics.buttons_list(screen, self.maps[:, 1], (self.maps_x, self.maps_y), self.list_limit, self.scroll, self.selected_item, safe=not bool(self.ask))
+            graphics.buttons_horizontal(screen, buttons_save, (self.maps_x_ui, self.maps_y_ui), alt_width=self.btn_w_h_3, safe=not bool(self.ask))
             pygame.draw.rect(screen, rgb.white, border_rect, 1)
         
         # load menu
@@ -793,26 +850,36 @@ class Editor():
             graphics.buttons_horizontal(screen, buttons_load, (self.maps_x - self.space, self.maps_y_ui), alt_width=self.btn_w_h_2, safe=not (bool(self.ask)))
             pygame.draw.rect(screen, rgb.white, border_rect, 1)
         
-        if not self.disable_gui:   # disabled menus
+        if not self.disable_ui:   # disabled menus
             pass
         
         # asking to load/save
         if self.ask == "load":
             ask_txt = "Loading will overwrite unsaved changes."
-            graphics.ask(screen, ask_txt, self.sim_name, "Load", (self.ask_x, self.ask_y))
+            graphics.ask(screen, ask_txt, self.maps[self.selected_item, 1], "Load", (self.ask_x, self.ask_y))
         elif self.ask == "save":
             ask_txt = "Are you sure you want to overwrite this save:"
-            graphics.ask(screen, ask_txt, self.sim_name, "Save", (self.ask_x, self.ask_y))
+            graphics.ask(screen, ask_txt, self.maps[self.selected_item, 1], "Save", (self.ask_x, self.ask_y))
         
         # screenshot
-        if self.screenshot is True:
+        if self.screenshot:
             date = time.strftime("%Y-%m-%d %H-%M-%S")
             screenshot_path = "Screenshots/Screenshot from " + date + ".png"
             pygame.image.save(screen, screenshot_path)
-            if not self.disable_gui:
+            if not self.disable_ui:
                 graphics.timed_text_init(rgb.gray, self.fontmd, "Screenshot saved at: " + screenshot_path, (self.screen_x/2, self.screen_y-70), 2, True)
             self.screenshot = False
         
+        # new map
+        if self.new_map:
+            border_rect = [self.ask_x-self.space, self.ask_y-40-self.btn_h, self.btn_w_h*2+3*self.space, self.btn_h+40+self.btn_h+2*self.space]
+            bg_rect = [sum(i) for i in zip(border_rect, [-10, -10, 20, 20])]
+            pygame.draw.rect(screen, rgb.black, bg_rect)
+            pygame.draw.rect(screen, rgb.white, border_rect, 1)
+            graphics.text(screen, rgb.white, self.fontbt, "New Map", (self.screen_x/2,  self.ask_y-20-self.btn_h), True)
+            textinput.graphics(screen, clock, (self.ask_x, self.ask_y-self.btn_h), (self.btn_w_h*2+self.space, self.btn_h))
+            graphics.buttons_horizontal(screen, buttons_new_map, (self.ask_x, self.ask_y+self.space), safe=True)
+    
         # double click counter   # not graphics related, but must be outside of input functions
         if self.first_click is not None:
             self.click_timer += clock.get_fps() / 60
@@ -838,7 +905,7 @@ class Editor():
                     sys.exit()
                 self.physics(e)
             self.graphics(screen, clock)
-            self.gui(screen, clock)
+            self.graphics_ui(screen, clock)
             pygame.display.flip()
             clock.tick(60)
         return self.state

@@ -44,7 +44,5 @@ keybindings = {"forward": pg.K_w,
                "cycle_grid_modes": pg.K_v,
                "screenshot": pg.K_F1,
                "toggle_ui_visibility": pg.K_F2,
-               "toggle_labels_visibility": pg.K_F3,
-               "quicksave": pg.K_F4,
-               "load_quicksave": pg.K_F5
+               "toggle_labels_visibility": pg.K_F3
                }

@@ -1,6 +1,8 @@
 # Project generated
 Maps/
 Screenshots/
+settings.ini
+keybindings.ini
 
 # Kdevelop
 *.kate-swp

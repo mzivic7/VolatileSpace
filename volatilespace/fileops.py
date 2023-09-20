@@ -72,6 +72,9 @@ def load_system(path):
     system = ConfigParser()   # load config class
     system.read(path)   # load system
     
+    name = system.get("config", "name").strip('"')
+    time = float(system.get("config", 'time'))
+    
     mass = np.array([])  # mass
     density = np.array([])  # density
     position = np.empty((0, 2), int)   # position
@@ -85,9 +88,6 @@ def load_system(path):
             position = np.vstack((position, list(map(float, system.get(body, "position").strip('][').split(', ')))))
             velocity = np.vstack((velocity, list(map(float, system.get(body, "velocity").strip('][').split(', ')))))
             color = np.vstack((color, list(map(int, system.get(body, "color").strip('][').split(', ')))))
-        if body == "config":
-            name = name = system.get("config", "name").strip('"')
-            time = float(system.get(body, 'time'))   # read special section for config
     
     return name, time, mass, density, position, velocity, color
 
@@ -119,7 +119,7 @@ def save_system(path, name, date, time, mass, density, position, velocity, color
         system.write(f)
 
 
-def new_map(name, date):   # ### TODO ###
+def new_map(name, date):
     """Creates new map with initial body and saves to file."""
     if not os.path.exists("Maps"):
         os.mkdir("Maps")
@@ -145,6 +145,15 @@ def new_map(name, date):   # ### TODO ###
         system.write(f)
     
     return path
+
+
+def rename_map(path, new_name):
+    system = ConfigParser()
+    system.read(path)
+    system.set("config", "name", new_name)
+    with open(path, 'w') as f:
+        system.write(f)
+    
 
 
 def save_settings(header, key, value):

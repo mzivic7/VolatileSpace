@@ -18,10 +18,10 @@ graphics = graphics.Graphics()
 textinput = textinput.Textinput()
 
 
-version = "0.1.8"
+version = "0.2.0"
 
 buttons_main = ["Play - WIP", "Multiplayer - WIP", "Map Editor", "Settings", "About", "Quit"]
-buttons_map_sel = ["Open in editor", "Rename - WIP", "Delete", "Export"]
+buttons_map_sel = ["Open in editor", "Rename", "Delete", "Export"]
 buttons_map_ui = ["Back", "New map", "Import map"]
 buttons_set_vid = ["Fullscreen", "Resolution", "Antialiasing", "Vsync", "Mouse wrap", "Background stars"]
 buttons_set_aud = ["WIP"]
@@ -29,6 +29,8 @@ buttons_set_gam = ["Keybindings"]
 buttons_set_adv = ["Curve points", "Stars antialiasing", "New star color", "Star clusters", "New clusters"]
 buttons_set_ui = ["Accept", "Apply", "Cancel", "Load default"]
 buttons_about = ["Wiki", "Github", "Itch.io", "Report a bug", "Back"]
+buttons_rename = ["Cancel", "Rename"]
+buttons_new_map = ["Cancel", "Create"]
 
 
 class Menu():
@@ -47,6 +49,8 @@ class Menu():
         self.disable_buttons = False
         self.scrollbar_drag = False
         self.keybinding = False   # is keybinding menu active
+        self.rename = False   # renaming menu
+        self.new_map = False   # new map menu
         
         self.reload_settings()
         self.fonttl = pygame.font.Font("fonts/LiberationSans-Regular.ttf", 42)   # title text font
@@ -93,7 +97,6 @@ class Menu():
         self.list_limit = self.bot_y_ui - self.top_margin - self.space
         self.ask_x = self.screen_x/2 - (2*self.btn_w_h + self.space)/2
         self.ask_y = self.screen_y/2 + self.space
-        graphics.update_buttons(self.btn_w, self.btn_w_h, self.btn_w_l, self.btn_h)
     
     
     def reload_settings(self):
@@ -139,11 +142,31 @@ class Menu():
     
     ###### --Keys-- ######
     def input_keys(self, e, from_game=False):
-        if e.type == pygame.KEYDOWN:
+        
+        if self.rename or self.new_map:
+            self.text = textinput.input_keys(e)
+            if e.type == pygame.KEYDOWN:
+                if e.key == pygame.K_ESCAPE:
+                    self.rename = False
+                    self.new_map = False
+                    self.disable_buttons = False
+                elif e.key == pygame.K_RETURN:
+                    if self.rename:
+                        self.rename = False
+                        fileops.rename_map(self.selected_path, self.text)
+                        self.gen_map_list()
+                    else:
+                        self.new_map = False
+                        date = time.strftime("%d.%m.%Y %H:%M")
+                        path = fileops.new_map(self.text, date)
+                        self.gen_map_list()
+                    self.disable_buttons = False
+        
+        elif e.type == pygame.KEYDOWN:
             if e.key == pygame.K_ESCAPE:
                 if self.menu == 0:
                     self.state = 0   # close program
-                if self.are_you_sure is True:   # exit from ask window
+                if self.are_you_sure:   # exit from ask window
                     self.are_you_sure = False
                     self.disable_buttons = False
                 else:
@@ -151,6 +174,34 @@ class Menu():
                     if from_game:
                         self.state = 2
                 self.scrollbar_drag = False
+            elif e.key == pygame.K_F2:
+                self.rename = True
+                self.disable_buttons = True
+                textinput.initial_text(self.maps[self.selected_item, 1])
+            
+            elif e.key == pygame.K_RETURN:
+                if self.menu == 3:
+                    self.state = 2
+                    self.menu = 0
+                if self.are_you_sure:
+                    try:
+                        os.remove(self.selected_path)
+                    except Exception:
+                        pass
+                    self.gen_map_list()
+                    self.are_you_sure = False
+                    self.disable_buttons = False
+            
+            # key arrows to move selection in list menu
+            elif self.menu == 3:
+                if e.key == pygame.K_DOWN:
+                    if self.selected_item < len(self.maps)-1:
+                        self.selected_item += 1
+                        self.selected_path = "Maps/" + self.maps[self.selected_item, 0]
+                elif e.key == pygame.K_UP:
+                    if self.selected_item > 0:
+                        self.selected_item -= 1
+                        self.selected_path = "Maps/" + self.maps[self.selected_item, 0]
     
     
     
@@ -229,7 +280,9 @@ class Menu():
                                         self.state = 2
                                         self.menu = 0   # return to main menu instead load menu
                                     elif num == 1:   # rename
-                                        pass   # ### TODO ###
+                                        self.rename = True
+                                        self.disable_buttons = True
+                                        textinput.initial_text(self.maps[self.selected_item, 1])
                                     elif num == 2:   # delete
                                         self.are_you_sure = True
                                         self.disable_buttons = True
@@ -247,15 +300,34 @@ class Menu():
                                     self.menu = 0
                                     self.scroll = 0
                                 elif num == 1:   # new map
-                                    date = time.strftime("%d.%m.%Y %H:%M")
-                                    new_name = "New Map from " + date   # ### TODO ###
-                                    path = fileops.new_map(new_name, date)
-                                    self.gen_map_list()
+                                    self.new_map = True
+                                    self.disable_buttons = True
+                                    textinput.initial_text("New Map")
                                 elif num == 2:   # import map
                                     file_path = fileops.load_file([("Text Files", "*.ini")])
                                     if file_path != "":
                                         shutil.copy2(file_path, "Maps")
                                         self.gen_map_list()
+                            x_pos += self.btn_w_h + self.space
+                        
+                    # rename and new map
+                    if self.rename or self.new_map:
+                        x_pos = self.ask_x
+                        for num in [0, 1]:
+                            if x_pos <= self.mouse[0]-1 <= x_pos+self.btn_w_h and self.ask_y+self.space <= self.mouse[1]-1 <= self.ask_y+self.space+self.btn_h:
+                                if num == 0:   # cancel
+                                    pass
+                                elif num == 1:
+                                    if self.rename:
+                                        fileops.rename_map(self.selected_path, self.text)
+                                        self.gen_map_list()
+                                    elif self.new_map:
+                                        date = time.strftime("%d.%m.%Y %H:%M")
+                                        path = fileops.new_map(self.text, date)
+                                        self.gen_map_list()
+                                self.new_map = False
+                                self.rename = False
+                                self.disable_buttons = False
                             x_pos += self.btn_w_h + self.space
                         
                     if self.scrollbar_drag is True:   # disable scrollbar_drag when release click
@@ -455,7 +527,7 @@ class Menu():
     
     
     ###### --Graphics-- ######
-    def gui(self, screen, clock):
+    def graphics_ui(self, screen, clock):
         screen.fill((0, 0, 0))   # color screen black
         
         # main menu
@@ -502,6 +574,22 @@ class Menu():
             if self.are_you_sure is True:
                 ask_del = "Are you sure you want to permanently delete:"
                 graphics.ask(screen, ask_del, self.maps[self.selected_item, 1], "Delete", (self.ask_x, self.ask_y), True)
+            
+            # rename
+            if self.rename or self.new_map:
+                border_rect = [self.ask_x-self.space, self.ask_y-40-self.btn_h, self.btn_w_h*2+3*self.space, self.btn_h+40+self.btn_h+2*self.space]
+                bg_rect = [sum(i) for i in zip(border_rect, [-10, -10, 20, 20])]
+                pygame.draw.rect(screen, rgb.black, bg_rect)
+                pygame.draw.rect(screen, rgb.white, border_rect, 1)
+                if self.rename:
+                    menu_title = "Rename"
+                    buttons = buttons_rename
+                else:
+                    menu_title = "New Map"
+                    buttons =buttons_new_map
+                graphics.text(screen, rgb.white, self.fontbt, menu_title, (self.screen_x/2,  self.ask_y-20-self.btn_h), True)
+                textinput.graphics(screen, clock, (self.ask_x, self.ask_y-self.btn_h), (self.btn_w_h*2+self.space, self.btn_h))
+                graphics.buttons_horizontal(screen, buttons, (self.ask_x, self.ask_y+self.space), safe=True)
             
             # double click counter   # not graphics related, but must be outside of input functions
             if self.first_click is not None:
@@ -581,7 +669,7 @@ class Menu():
                 if e.type == pygame.QUIT:
                     pygame.quit()
                     sys.exit()
-            self.gui(screen, clock)
+            self.graphics_ui(screen, clock)
             pygame.display.flip()
             clock.tick(60)
         return self.state

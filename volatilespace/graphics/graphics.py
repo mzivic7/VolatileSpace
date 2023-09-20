@@ -198,11 +198,6 @@ class Graphics():
                 self.text(screen, rgb.gray2, self.fontsm, str(sim_pos_y), (5, pos_y-5), False, rgb.black)
         
         
-    def update_buttons(self, btn_w, btn_w_h, btn_w_l, btn_h):
-        """Updates values used in button drawing."""
-        self.btn_w, self.btn_w_h, self.btn_w_l, self.btn_h = btn_w, btn_w_h, btn_w_l, btn_h
-        
-        
     def update_mouse(self, mouse, click, disable):
         """Updates dynamically changing values"""
         self.mouse, self.click, self.disable_buttons = mouse, click, disable
