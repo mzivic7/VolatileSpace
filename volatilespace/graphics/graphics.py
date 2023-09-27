@@ -30,6 +30,7 @@ class Graphics():
         self.btn_w_l = 500   # for lists
         self.txt_y_margin = 8  # empty space between text and button edge
         self.btn_h = self.fontbt.get_height() + self.txt_y_margin * 2   # button height from font height
+        self.btn_s = 36   # small square button
         self.space = 10
         self.click = False
         self.mouse = [0, 0]
@@ -69,7 +70,7 @@ class Graphics():
             if self.antial is True and radius < 1000:   # limit radius because of gfxdraw bug ### BUG ### 32767
                 # if circle is off screen dont draw it, because gfxdraw uses short integers for position and radius
                 if center[0]+radius > 0 and center[0]-radius < self.screen_x and center[1]+radius > 0 and center[1]-radius < self.screen_y:
-                    gfxdraw.aacircle(surface, int(center[0]), int(center[1]), int(radius), color)   # draw initial circle ### BUG ###
+                    gfxdraw.aacircle(surface, int(center[0]), int(center[1]), int(radius), color)   # draw initial circle
                     if thickness != 1:   # antialiased line has no thickness option ### BUG ###
                         for num in range(1, thickness):   # draw one more circle for each number of thickness
                             gfxdraw.aacircle(surface, int(center[0]), int(center[1]), int(radius)+num, color)
@@ -87,7 +88,7 @@ class Graphics():
             gfxdraw.pixel(surface, int(center[0]), int(center[1]), color)    # draw just that pixel
         else:   # if radius is more than 1px (radius-1 because 1px radius covers 4px total)
             if func_antial is True and radius < 1000:   # ### BUG ### 32767
-                if center[0] + radius > 0 and center[0] - radius < self.screen_x:
+                if center[0]+radius > 0 and center[0]-radius < self.screen_x and center[1]+radius > 0 and center[1]-radius < self.screen_y:
                     gfxdraw.aacircle(surface, int(center[0]), int(center[1]), int(radius - 1), color)
                     gfxdraw.filled_circle(surface, int(center[0]), int(center[1]), int(radius - 1), color)
             else:
@@ -187,15 +188,15 @@ class Graphics():
                 moved += line_num_y
             if line == 0 and moved == 0:
                 self.draw_line(screen, rgb.red2, (0, pos_y), (self.screen_x, pos_y), 2)
-                self.text(screen, rgb.red2, self.fontsm, "0", (10, pos_y-5), False, rgb.black)
+                self.text(screen, rgb.red2, self.fontsm, "0", (10+self.btn_s, pos_y-5), False, rgb.black)
             elif abs(line + moved) % 5 == 0:
                 self.draw_line(screen, rgb.gray1, (0, pos_y), (self.screen_x, pos_y), 1)
                 sim_pos_y = round(-((line + moved) * spacing) / zoom)
-                self.text(screen, rgb.gray1, self.fontsm, str(sim_pos_y), (5, pos_y-5), False, rgb.black)
+                self.text(screen, rgb.gray1, self.fontsm, str(sim_pos_y), (5+self.btn_s, pos_y-5), False, rgb.black)
             else:   # every other line
                 self.draw_line(screen, rgb.gray2, (0, pos_y), (self.screen_x, pos_y), 1)
                 sim_pos_y = round(-((line + moved) * spacing) / zoom)
-                self.text(screen, rgb.gray2, self.fontsm, str(sim_pos_y), (5, pos_y-5), False, rgb.black)
+                self.text(screen, rgb.gray2, self.fontsm, str(sim_pos_y), (5+self.btn_s, pos_y-5), False, rgb.black)
         
         
     def update_mouse(self, mouse, click, disable):
@@ -492,3 +493,96 @@ class Graphics():
         cover_bot_y = self.screen_y-bot_margin-self.btn_h/2 + self.space
         pygame.draw.rect(screen, rgb.black, (left_x - 2, 0, middle_x-left_x+4, y_1-self.space))
         pygame.draw.rect(screen, rgb.black, (left_x - 2, cover_bot_y, middle_x-left_x+4, self.screen_y-cover_bot_y))
+    
+    
+    def buttons_small(self, screen, imgs, pos, prop=None, selected=None):
+        """Draws small square buttons with icons.
+        Properties are passed as list with value for each button.
+        Values can be: None - no effect, 0 - disabled button, 1 - green color (ON)"""
+        (x, y) = pos
+        for num, img in enumerate(imgs):
+            if prop is not None and prop[num] == 1:
+                color = rgb.green_s1
+            else:
+                color = rgb.gray3
+            # mouse over button
+            if x <= self.mouse[0] <= x + self.btn_s and y <= self.mouse[1] <= y + self.btn_s and self.disable_buttons is False:
+                if prop is not None and prop[num] == 1:
+                    color = rgb.green_s2
+                else:
+                    color = rgb.gray2
+                # click on button
+                if self.click is True:
+                    if prop is not None and prop[num] == 1:
+                        color = rgb.green_s3
+                    else:
+                        color = rgb.gray1
+            if num == selected:
+                color = rgb.gray1
+            if prop is not None and prop[num] == 0:
+                color = rgb.black
+            
+            pygame.draw.rect(screen, color, (x, y, self.btn_s, self.btn_s))
+            screen.blit(img, (x, y))
+            y += self.btn_s + 1
+            pygame.draw.line(screen, rgb.white, (x, y-1), (x + self.btn_s, y-1), 1)
+    
+    
+    def text_list(self, screen, texts, pos, size, space, imgs=None, prop=None):
+        """Draws texts in list. Optionally with icons in front of text."""
+        (x, y) = pos
+        (w, h) = size
+        for num, text in enumerate(texts):
+            if prop is not None and prop[num] == 2:
+                x_pos = x + 58
+                for num in range(3):
+                    color = rgb.gray3
+                    if x_pos <= self.mouse[0]-1 <= x_pos + 53 and y <= self.mouse[1]-1 <= y + h:
+                        color = rgb.gray2
+                        if self.click is True:
+                            color = rgb.gray1
+                    pygame.draw.rect(screen, color, (x_pos, y, 53, h))
+                    x_pos += 59
+                self.text(screen, rgb.white, self.fontmd, "Color:   R: " + str(text[0]), (x+6, y+1))
+                self.text(screen, rgb.white, self.fontmd, "G: " + str(text[1]), (x+120, y+1))
+                self.text(screen, rgb.white, self.fontmd, "B: " + str(text[2]), (x+179, y+1))
+            else:
+                if prop is not None and prop[num] in [1, 3]:
+                    if prop[num] == 3:
+                        color = rgb.red3
+                        y += 12
+                    else:
+                        color = rgb.gray3
+                    if x <= self.mouse[0]-1 <= x + w and y <= self.mouse[1]-1 <= y + h:
+                        if prop[num] == 3:
+                            color = rgb.red_s2
+                        else:
+                            color = rgb.gray2
+                        if self.click is True:
+                            if prop[num] == 3:
+                                color = rgb.red_s3
+                            else:
+                                color = rgb.gray1
+                    pygame.draw.rect(screen, color, (x, y, w, h))
+                self.text(screen, rgb.white, self.fontmd, text, (x+6, y+1))
+            y += space
+    
+    
+    def text_list_select(self, screen, texts, pos, size, space, selected, imgs=None):
+        """Draws texts in selectable list. Optionally with icons in front of text."""
+        (x, y) = pos
+        (w, h) = size
+        for num, text in enumerate(texts):
+            color = rgb.black
+            if x <= self.mouse[0]-1 <= x + w and y <= self.mouse[1]-1 <= y + h:
+                color = rgb.gray2
+                if self.click is True:
+                    color = rgb.gray1
+            pygame.draw.rect(screen, color, (x, y, w, h))
+            if num == selected:
+                pygame.draw.rect(screen, rgb.gray1, (x, y, w, h))
+                pygame.draw.rect(screen, rgb.white, (x, y, w, h), 1)
+            if imgs:
+                screen.blit(imgs[num], (x, y))
+            self.text(screen, rgb.white, self.fontmd, text, (x+h+3, y+1))
+            y += space

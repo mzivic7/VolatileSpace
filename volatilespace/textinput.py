@@ -9,6 +9,7 @@ graphics = graphics.Graphics()
 class Textinput():
     def __init__(self):
         self.text = ""
+        self.static_text = None
         self.textindex = 0
         self.blinking_line = True
         self.timer_hold = 0
@@ -23,23 +24,25 @@ class Textinput():
         self.left = False
         self.right = False
         self.enable_repeat = False
-        
+        self.limit_len = None   # limit text length to n chars
         
         self.fontbt = pygame.font.Font("fonts/LiberationSans-Regular.ttf", 22)   # button text font
         self.btn_w = 250   # button width
         self.btn_w_h = 200   # for horizontal placement
         self.btn_w_l = 500   # for lists
         self.txt_y_margin = 8  # empty space between text and button edge
-        self.font_h = self.fontbt.get_height()
-        self.btn_h = self.font_h + self.txt_y_margin * 2   # button height from font height
         self.space = 10   # space between buttons
+        self.x_corr = 0   # x axis correction for text placement
     
     
-    def initial_text(self, text):
-        """Loads initial text."""
+    def initial_text(self, text, static_text=None, x_corr=0, limit_len=None):
+        """Loads initial text. Static text is text that cannot be deleted and is not returned as value."""
         self.text = text   # add text
         self.textindex = len(text)   # place index at end of text
         self.lineindex = 0
+        self.static_text = static_text
+        self.x_corr = x_corr
+        self.limit_len = limit_len
     
     
     def input_keys(self, e):
@@ -77,11 +80,9 @@ class Textinput():
         
         elif e.type == pygame.TEXTINPUT:
             # add char to split input buffer
-            # max_width = 300
-            # text_rect = self.fontbt.render(self.text, True, rgb.white).get_rect(center=(0, 0))
-            # if text_rect[2] < max_width-10:
-            self.text = self.text[:self.textindex] + e.text + self.text[self.textindex:]
-            self.textindex += 1   # move index one char right
+            if self.limit_len is None or len(self.text) < self.limit_len:   # limit length of text
+                self.text = self.text[:self.textindex] + e.text + self.text[self.textindex:]
+                self.textindex += 1   # move index one char right
         
         return self.text
     
@@ -96,32 +97,44 @@ class Textinput():
         pass
     
     
-    def graphics(self, screen, clock, pos, size):
+    def graphics(self, screen, clock, font, pos, size, center=True):
         (x, y) = pos
         (w, h) = size
         
         # draw border
-        pygame.draw.rect(screen, rgb.white, (x, y, w, self.btn_h), 1)
+        pygame.draw.rect(screen, rgb.white, (x, y, w, h), 1)
         
-        # draw text
         text_screen = self.text
         index_screen = self.textindex
-        text_rect = self.fontbt.render(text_screen, True, rgb.white).get_rect(center=(0, 0))
-        if text_rect[2] > w-10:   # if text is larger than input box
-            while text_rect[2] > w-10:
-                text_rect = self.fontbt.render(text_screen, True, rgb.white).get_rect(center=(0, 0))
-                text_rect_line = self.fontbt.render(text_screen[:index_screen], True, rgb.white).get_rect(center=(x + w/2, y + h/2))
-                if text_rect_line[2] > w-10:   # if cursor line is over right edge
-                    text_screen = text_screen[1:]   # remove 1 char from text start
-                    index_screen -= 1   # and move index left
-                else:   # if cursor line is inside input box
-                    text_screen = text_screen[:-1]   # remove 1 char from text end
-            text = self.fontbt.render(text_screen, True, rgb.white)
-            text_rect = text.get_rect(midright=(x+w-10, y+h/2))   # draw text from right edge
+        x += self.x_corr
+        
+        # add static text
+        if self.static_text:
+            text_screen = self.static_text + text_screen
+            index_screen += len(self.static_text)
+        
+        # draw centered text
+        if center:
+            text_rect = font.render(text_screen, True, rgb.white).get_rect(center=(0, 0))
+            if text_rect[2] > w-10:   # if text is larger than input box
+                while text_rect[2] > w-10:
+                    text_rect = font.render(text_screen, True, rgb.white).get_rect(center=(0, 0))
+                    text_rect_line = font.render((text_screen+"W")[:index_screen+1], True, rgb.white).get_rect(center=(x + w/2, y + h/2))
+                    if text_rect_line[2] > w-10:   # if cursor line is over right edge
+                        text_screen = text_screen[1:]   # remove 1 char from text start
+                        index_screen -= 1   # and move index left
+                    else:   # if cursor line is inside input box
+                        text_screen = text_screen[:-1]   # remove 1 char from text end
+                text = font.render(text_screen, True, rgb.white)
+                text_rect = text.get_rect(midright=(x+w-10, y+h/2))   # draw text from right edge
+            else:
+                text = font.render(text_screen, True, rgb.white)
+                text_rect = text.get_rect(center=(x + w/2, y + h/2))   # draw centered text
+            screen.blit(text, text_rect)
         else:
-            text = self.fontbt.render(text_screen, True, rgb.white)
-            text_rect = text.get_rect(center=(x + w/2, y + h/2))   # draw centered text
-        screen.blit(text, text_rect)
+            text = font.render(text_screen, True, rgb.white)
+            text_rect = text.get_rect(midleft=(x + 6, y + h/2))   # draw centered text
+            screen.blit(text, text_rect)
         
         # draw blinking line
         if self.disable_blinking_line:
@@ -137,10 +150,13 @@ class Textinput():
                 self.timer_blink = 0
             self.timer_blink += 1
         if self.blinking_line is True:
-            text_rect_line = self.fontbt.render(text_screen[:index_screen], True, rgb.white).get_rect(center=(x + w/2, y + h/2))
+            if center:
+                text_rect_line = font.render(text_screen[:index_screen], True, rgb.white).get_rect(center=(x + w/2, y + h/2))
+            else:
+                text_rect_line = font.render(text_screen[:index_screen], True, rgb.white).get_rect(midleft=(x + 6, y + h/2))
             line_x = text_rect[0] + text_rect_line[2]
-            line_y = y + h/2 - self.font_h/2 - 1
-            pygame.draw.line(screen, rgb.white, (line_x, line_y), (line_x, line_y + self.font_h - 1))
+            line_y = y + h/2 - font.get_height()/2 - 1
+            pygame.draw.line(screen, rgb.white, (line_x, line_y), (line_x, line_y + font.get_height() - 1))
         
         # holding keys
         if self.backspace or self.left or self.right:

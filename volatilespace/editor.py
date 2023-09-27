@@ -14,6 +14,7 @@ from volatilespace.graphics import rgb
 from volatilespace.graphics import graphics
 from volatilespace.graphics import bg_stars
 from volatilespace import textinput
+from volatilespace import metric
 
 
 physics = physics_engine.Physics()
@@ -26,6 +27,24 @@ buttons_pause_menu = ["Resume", "Save map", "Load map", "Settings", "Quit withou
 buttons_save = ["Cancel", "Save", "New save"]
 buttons_load = ["Cancel", "Load"]
 buttons_new_map = ["Cancel", "Create"]
+body_types = ["Moon", "Solid planet", "Gas planet", "Star", "Black Hole"]
+text_edit_orb = ["Selected body: ", "Parent body: ", "Periapsis: ", "Apoapsis: ", "Eccentricity: ", "Argument of Pe: ", "Mean anomaly: ", "True anomaly: ", "Direction: ", "Distance: ", "Orbital Period: ", "Orbital Speed: ", "Horizontal Speed: ", "Vertical Speed: "]
+text_edit_body = ["Body name: ", "Type:", "Mass: ", "Density: ", "Radius: ", "COI altitude: "]
+text_edit_planet = ["(Rotation period): ", "Color: ", "(Atmosphere amount): ", "(Atmosphere height): ", "(surface gravity): "]
+text_edit_star = ["(Surface temp): ", "(Luminosity): ", "Color: ", "(H/He ratio): "]
+text_edit_bh = ["Schwarzschild radius: "]
+text_edit_delete = "Delete body"
+prop_edit_orb = [0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0]
+prop_edit_body = [1, 0, 1, 1, 0, 0]
+prop_edit_planet = [1, 2, 0, 0, 0]
+prop_edit_star = [0, 0, 0, 1]
+prop_edit_bh = [0]
+
+new_name = "New body"   # initial name for new body
+new_mass_init = 5   # initial mass for new body
+new_density_init = 1   # initial density for new body
+new_density = new_density_init   # set initial density for new body
+new_color = (100, 100, 100)   # set initial color for new body
 
 
 class Editor():
@@ -39,9 +58,11 @@ class Editor():
         self.ask = None
         self.pause_menu = False
         self.disable_input = False
+        self.allow_keys = False   # allow keys when disable_input is True
         self.disable_ui = False
         self.disable_labels = False
         self.menu = None
+        self.right_menu = None
         self.new_map = False
         self.text = ""
         self.click = False
@@ -61,9 +82,12 @@ class Editor():
         self.btn_w_h_2 = (self.btn_w_l + 16)/2  # fits 2 btn in width of list button
         self.txt_y_margin = 8  # empty space between text and button edge
         self.btn_h = self.fontbt.get_height() + self.txt_y_margin * 2   # button height from font height
+        self.btn_s = 36   # small square button
         self.space = 10   # space between buttons
         self.file_path = ""   # path to currently active file
         self.selected_path = ""   # path to selected file
+        self.input_value = None   # which value is being text-inputed
+        self.new_value_raw = ""   # when inputting new value
         self.gen_map_list()
         self.reload_settings()
         graphics.antial = self.antial
@@ -81,7 +105,7 @@ class Editor():
         self.insert_body = False   # is body being inserted
         self.move = False    # move view mode
         self.body_del = False   # which body will be deleted
-        self.selected = False   # select mode
+        self.selected = False   # seleced body
         self.direction = False   # keyboard buttons wasd
         self.follow = False   # follow selected body
         self.first = True   # is this first iteration
@@ -95,17 +119,29 @@ class Editor():
         self.mouse_fix_y = False
         self.zoom_step = 0.05   # initial zoom step
         self.warp = self.warp_range[self.warp_index]   # load current warp
-
+        self.orbit_data = []   # additional data for right_menu when body is selected
         
-        self.new_mass_init = 5   # initial mass for custom spawned objects
-        self.new_density_init = 1   # initial density for custom spawned objects
-        self.new_mass = self.new_mass_init   # set initial mass for custom spawned objects
-        self.new_density = self.new_density_init   # set initial density for custom spawned objects
-        self.new_color = (100, 100, 100)   # set initial color for custom spawned objects
+        self.new_mass = new_mass_init   # set initial mass for new body ### REMOVE ###
         
         self.offset_old = np.array([self.offset_x, self.offset_y])
         self.grid_enable = False   # background grid
         self.grid_mode = 0   # grid mode: 0 - global, 1 - selected body, 2 - parent
+        
+        # icons
+        menu_img = pygame.image.load("img/menu.png")
+        body_list_img = pygame.image.load("img/body_list.png")
+        insert_img = pygame.image.load("img/insert.png")
+        orbit_img = pygame.image.load("img/orbit.png")
+        body_img = pygame.image.load("img/body.png")
+        settings_img = pygame.image.load("img/settings.png")
+        self.ui_imgs = [menu_img, body_list_img, insert_img, orbit_img, body_img, settings_img]
+        body_moon = pygame.image.load("img/moon.png")
+        body_planet_solid = pygame.image.load("img/planet_solid.png")
+        body_planet_gas = pygame.image.load("img/planet_gas.png")
+        body_star = pygame.image.load("img/star.png")
+        body_bh = pygame.image.load("img/bh.png")
+        self.body_imgs = [body_moon, body_planet_solid, body_planet_gas, body_star, body_bh]
+        
         
         bg_stars.set_screen()   # load pygame stuff in classes after pygame init has finished
         graphics.set_screen()
@@ -126,6 +162,9 @@ class Editor():
         self.maps_x_ui = self.maps_x - self.space
         self.maps_y_ui = self.maps_y + self.list_limit + self.space
         self.map_list_size = len(self.maps) * self.btn_h + len(self.maps) * self.space
+        self.right_menu_x = self.screen_x - 300
+        self.r_menu_limit = self.screen_y - 38 - self.space
+        self.r_menu_x_btn = self.right_menu_x + self.space
         
     
     def gen_map_list(self):
@@ -203,10 +242,10 @@ class Editor():
     def ask_load(self):
         """Loads system from "load" dialog."""
         if os.path.exists(self.selected_path):
-            self.sim_name, self.sim_time, self.mass, self.density, self.position, self.velocity, self.color = fileops.load_system(self.selected_path)
+            self.sim_name, self.sim_time, self.names, self.mass, self.density, self.position, self.velocity, self.color = fileops.load_system(self.selected_path)
             self.sim_time *= self.ptps   # convert from seconds to userevent iterations
-            physics.load_system(self.mass, self.density, self.position, self.velocity, self.color)
-            self.mass, self.density, self.temp, self.position, self.velocity, self.colors, self.size, self.rad_sc = physics.get_bodies()
+            physics.load_system(self.names, self.mass, self.density, self.position, self.velocity, self.color)
+            self.names, self.types, self.mass, self.density, self.temp, self.position, self.velocity, self.colors, self.size, self.rad_sc = physics.get_bodies()
             self.file_path = self.selected_path   # change currently active file
             graphics.timed_text_init(rgb.gray, self.fontmd, "Map loaded successfully", (self.screen_x/2, self.screen_y-70), 2, True)
         
@@ -214,7 +253,7 @@ class Editor():
         """Savess system from "save" dialog."""
         base_color = physics.get_base_color()
         date = time.strftime("%d.%m.%Y %H:%M")
-        fileops.save_system(self.selected_path, self.sim_name, date, self.sim_time/self.ptps, self.mass, self.density, self.position, self.velocity, base_color)
+        fileops.save_system(self.selected_path, self.sim_name, date, self.sim_time/self.ptps, self.names, self.mass, self.density, self.position, self.velocity, base_color)
         self.file_path = self.selected_path
         graphics.timed_text_init(rgb.gray, self.fontmd, "Map saved successfully", (self.screen_x/2, self.screen_y-70), 2, True)
     
@@ -222,9 +261,9 @@ class Editor():
     
     ###### --Load system-- ######
     def load_system(self, system):
-        self.sim_name, self.sim_time, self.mass, self.density, self.position, self.velocity, self.color = fileops.load_system(system)
+        self.sim_name, self.sim_time, self.names, self.mass, self.density, self.position, self.velocity, self.color = fileops.load_system(system)
         self.sim_time *= self.ptps   # convert from seconds to userevent iterations
-        physics.load_system(self.mass, self.density, self.position, self.velocity, self.color)   # add it to physics class
+        physics.load_system(self.names, self.mass, self.density, self.position, self.velocity, self.color)   # add it to physics class
         self.file_path = system   # this path will be used for load/save
         self.disable_input = False
         self.disable_ui = False
@@ -232,7 +271,7 @@ class Editor():
         self.gen_map_list()
         
         # userevent may not been run in first iteration, but this values are needed in graphics section:
-        self.mass, self.density, self.temp, self.position, self.velocity, self.colors, self.size, self.rad_sc = physics.get_bodies()   # get body information
+        self.names, self.types, self.mass, self.density, self.temp, self.position, self.velocity, self.colors, self.size, self.rad_sc = physics.get_bodies()
         self.first = True
     
     
@@ -242,6 +281,7 @@ class Editor():
         if self.state != 2:   # when returning to editor menu
             self.state = 2   # update state
         
+        # new map menu
         if self.new_map:
             self.text = textinput.input_keys(e)
             if e.type == pygame.KEYDOWN:
@@ -252,16 +292,22 @@ class Editor():
                     date = time.strftime("%d.%m.%Y %H:%M")
                     path = fileops.new_map(self.text, date)
                     base_color = physics.get_base_color()
-                    fileops.save_system(path, self.text, date, self.sim_time/self.ptps, self.mass, self.density, self.position, self.velocity, base_color)
+                    fileops.save_system(path, self.text, date, self.sim_time/self.ptps, self.names, self.mass, self.density, self.position, self.velocity, base_color)
                     self.gen_map_list()
                     self.new_map = False
                     self.ask = None
         
+        # save and load menu
         elif self.menu == 0 or self.menu == 1:
             if e.type == pygame.KEYDOWN:
                 if e.key == pygame.K_ESCAPE:
-                    self.menu = None
-                    self.pause_menu = True
+                    if self.scrollbar_drag:
+                        self.scrollbar_drag = False
+                    elif self.ask:
+                        self.ask = None
+                    else:
+                        self.menu = None
+                        self.pause_menu = True
                 if e.key == pygame.K_RETURN:
                     if self.ask:
                         if self.ask == "load":
@@ -285,11 +331,67 @@ class Editor():
                             self.selected_item -= 1
                             self.selected_path = "Maps/" + self.maps[self.selected_item, 0]
         
-        elif e.type == pygame.KEYDOWN:   # if any key is pressed:
+        # input in right ui
+        elif self.input_value is not None:
+            self.new_value_raw = textinput.input_keys(e)
+            if e.type == pygame.KEYDOWN:
+                if e.key == pygame.K_ESCAPE:
+                    self.input_value = None
+                if e.key == pygame.K_RETURN:
+                    new_value = metric.parse_si(self.new_value_raw)
+                    if new_value is not None:   # if input is valid:
+                        if self.right_menu == 3:   # edit orbit
+                            pe_d = self.orbit_data[0]
+                            ap_d = self.orbit_data[1]
+                            ecc = self.orbit_data[2]
+                            omega_deg = self.orbit_data[3]
+                            mean_anomaly = self.orbit_data[4]
+                            true_anomaly = self.orbit_data[5]
+                            direction = self.orbit_data[6]
+                            if self.input_value == 2:   # pe
+                                pe_d = new_value
+                            if self.input_value == 3:   # ap
+                                ap_d = new_value
+                            if self.input_value == 4:   # ecc
+                                ecc = new_value
+                            if self.input_value == 5:   # pe_arg
+                                omega_deg = new_value
+                            if self.input_value == 6:   # Ma
+                                mean_anomaly = new_value
+                            if self.input_value == 7:   # Ta
+                                true_anomaly = new_value
+                            physics.kepler_inverse(self.selected, ecc, omega_deg, pe_d, mean_anomaly, true_anomaly, ap_d, direction)
+                        elif self.right_menu == 4:   # edit body
+                            # replace original values
+                            if type(self.input_value) is int:
+                                if self.input_value == 0:   # body name
+                                    physics.set_body_name(self.selected, new_value)
+                                elif self.input_value == 2:   # mass
+                                    physics.set_body_mass(self.selected, new_value)
+                                elif self.input_value == 3:   # density
+                                    physics.set_body_den(self.selected, new_value)
+                                elif int(self.types[self.selected]) in [0, 1, 2]:   # planet, moon
+                                    if self.input_value == 6:   # rotation period
+                                        pass
+                                elif int(self.types[self.selected]) == 3:   # star
+                                    if self.input_value == 9:   # H/He ratio
+                                        pass
+                            else:   # if input value is string (for color)
+                                color = self.colors[self.selected]
+                                if self.input_value[-1] == "a":   # R
+                                    color[0] = new_value
+                                elif self.input_value[-1] == "b":   # G
+                                    color[1] = new_value
+                                else:   # B
+                                    color[2] = new_value
+                                physics.set_body_color(self.selected, color)
+                    else:
+                        graphics.timed_text_init(rgb.red, self.fontmd, "Entered value is invalid", (self.screen_x/2, self.screen_y-70), 2, True)
+                    self.input_value = None
+        
+        # in game
+        elif e.type == pygame.KEYDOWN:
             if e.key == pygame.K_ESCAPE:
-                if self.scrollbar_drag:
-                    self.scrollbar_drag = False
-                    self.ask = None
                 if self.ask is None:
                     if self.pause_menu:
                         self.pause_menu = False
@@ -303,7 +405,7 @@ class Editor():
                     self.ask = None
                     self.disable_input = False
             
-            if self.disable_input is False:
+            if not self.disable_input or self.allow_keys:
                 if e.key == self.keys["interactive_pause"]:
                     if self.pause is False:
                         self.pause = True   # if not paused, pause it
@@ -362,11 +464,12 @@ class Editor():
                     if e.key == self.keys["right"]:
                         self.direction = "right"
         
-        if e.type == pygame.KEYUP and (e.key == pygame.K_w or e.key == pygame.K_s or e.key == pygame.K_a or e.key == pygame.K_d):
+        if e.type == pygame.KEYUP and e.key in [pygame.K_w, pygame.K_s, pygame.K_a, pygame.K_d]:
             self.direction = False   # when wasd key is released, clear direction to which velocity is added
         
-        if self.direction is not False:   # add velocity to specific direction
-            mass, density, temp, position, velocity, colors, size, rad_sc = physics.get_bodies()   # get body velocity to be increased
+        # add velocity to specific direction
+        if self.direction is not False:
+            name, types, mass, density, temp, position, velocity, colors, size, rad_sc = physics.get_bodies()   # get body velocity to be increased
             if self.direction == "up":   # new_velocity = old_velocity + key_sensitivity
                 physics.set_body_vel(self.selected, [velocity[self.selected, 0], velocity[self.selected, 1] + self.key_sens])   # set new velocity
             if self.direction == "down":
@@ -384,10 +487,25 @@ class Editor():
         self.mouse = list((self.mouse_raw[0]/self.zoom, -(self.mouse_raw[1] - self.screen_y)/self.zoom))   # mouse position on zoomed screen
         # y coordinate in self.mouse is negative for easier applying in formula to check if mouse is inside circle
         
+        # disable input when mouse is over ui
+        if self.disable_ui is False:
+            if not self.pause_menu and self.menu is None:
+                if e.type == pygame.MOUSEBUTTONDOWN:
+                    if self.mouse_raw[0] <= self.btn_s or self.mouse_raw[1] <= 22:
+                        self.disable_input = True
+                        self.allow_keys = True
+                    else:
+                        self.disable_input = False
+                        self.allow_keys = False
+                    if self.right_menu is not None:
+                        if self.mouse_raw[0] >= self.right_menu_x:
+                            self.disable_input = True
+                            self.allow_keys = True
+        
         # left mouse button: move, select
-        if self.disable_input is False:
+        if not self.disable_input:
             if e.type == pygame.MOUSEBUTTONDOWN and e.button == 1:   # is clicked
-                self.mass, self.density, self.temp, self.position, self.velocity, self.colors, self.size, self.rad_sc = physics.get_bodies()
+                self.names, self.types, self.mass, self.density, self.temp, self.position, self.velocity, self.colors, self.size, self.rad_sc = physics.get_bodies()
                 self.move = True   # enable view move
                 self.mouse_old = self.mouse   # initial mouse position for movement
                 self.mouse_raw_old = self.mouse_raw   # initial mouse position for movement
@@ -402,11 +520,12 @@ class Editor():
                         if sum(np.square(self.body_pos - self.sim_coords(self.mouse_raw))) < (self.size[self.body])**2:
                             self.selected = self.body  # this body is selected
                             self.select_toggle = True   # do not exit select mode
-                    if self.select_toggle is False:   # if inside select mode
+                    if self.select_toggle is False and self.right_menu not in [3, 4]:   # if inside select mode and not in edit right menus
                         self.selected = False   # exit select mode
+                        if self.right_menu in [3, 4]:
+                            self.right_menu = None   # disable orbit and body edit
         
-        if self.disable_input is False:
-            # right mouse button: insert
+        if not self.disable_input:
             if e.type == pygame.MOUSEBUTTONDOWN and e.button == 3:   # is clicked
                 self.insert_body = True   # start inserting body
                 self.new_position = self.sim_coords(self.mouse_raw)   # first position
@@ -419,13 +538,15 @@ class Editor():
                 new_acc_x = new_acc * math.cos(angle)   # separate acceleration components by axes
                 new_acc_y = new_acc * math.sin(angle)
                 new_velocity = [new_acc_x, new_acc_y]   # new velocity
-                physics.add_body(self.new_mass, self.new_density, self.new_position, new_velocity, self.new_color)   # add new body to class
-                self.new_mass = self.new_mass_init   # reset initial new mass
+                physics.add_body(new_name, self.new_mass, new_density, self.new_position, new_velocity, new_color)   # add new body to class
+                self.new_mass = new_mass_init   # reset initial new mass
             
-            # mouse wheel
+            
             if e.type == pygame.MOUSEWHEEL and self.insert_body:
                 if self.new_mass > 1:   # keep mass positive
                     self.new_mass += e.y   # change mass
+            
+            # mouse wheel: change zoom
             if e.type == pygame.MOUSEWHEEL and self.insert_body is False:   # change zoom
                 if self.zoom > self.zoom_step or e.y == 1:   # prevent zooming below zoom_step, zoom can't be 0, but allow zoom to increase
                     self.zoom_step = self.zoom / 10   # calculate zoom_step from current zoom
@@ -433,22 +554,16 @@ class Editor():
                     self.zoom_x += (self.screen_x / 2 / (self.zoom - e.y * self.zoom_step)) - (self.screen_x / (self.zoom * 2))   # zoom translation to center
                     self.zoom_y += (self.screen_y / 2 / (self.zoom - e.y * self.zoom_step)) - (self.screen_y / (self.zoom * 2))
                     # these values are added only to displayed objects, traces... But not to real position
-        
-        if e.type == pygame.MOUSEWHEEL and (self.menu == 0 or self.menu == 1):
-            if self.scrollbar_drag is False:
-                # scrolling inside list area
-                if self.maps_x-self.space <= self.mouse_raw[0]-1 <= self.maps_x+self.btn_w_l+self.space+16 and self.maps_y-self.space <= self.mouse_raw[1]-1 <= self.maps_y+self.list_limit:
-                    self.scroll -= e.y * self.scroll_sens
-                    if self.scroll < 0:
-                        self.scroll = 0
-                    elif self.scroll > max(0, self.map_list_size - self.list_limit):
-                        self.scroll = max(0, self.map_list_size - self.list_limit)
     
     
     def ui_mouse(self, e):
-        graphics.update_mouse(self.mouse_raw, self.click, self.disable_input)
+        btn_disable_input = False
+        if self.disable_input and not self.allow_keys:
+            btn_disable_input = True
+        graphics.update_mouse(self.mouse_raw, self.click, btn_disable_input)
         if e.type == pygame.MOUSEBUTTONDOWN and e.button == 1:
             self.click = True
+            
             # scroll bar
             if self.menu == 0 or self.menu == 1:
                 scrollable_len = max(0, self.map_list_size - self.list_limit)
@@ -494,7 +609,7 @@ class Editor():
                             elif num == 5:   # save and quit
                                 base_color = physics.get_base_color()
                                 date = time.strftime("%d.%m.%Y %H:%M")
-                                fileops.save_system(self.file_path, self.sim_name, date, self.sim_time/self.ptps, self.mass, self.density, self.position, self.velocity, base_color)
+                                fileops.save_system(self.file_path, self.sim_name, date, self.sim_time/self.ptps, self.names, self.mass, self.density, self.position, self.velocity, base_color)
                                 self.state = 1
                                 self.pause_menu = False
                                 self.disable_input = False
@@ -519,7 +634,7 @@ class Editor():
                                     date = time.strftime("%d.%m.%Y %H:%M")
                                     path = fileops.new_map(self.text, date)
                                     base_color = physics.get_base_color()
-                                    fileops.save_system(path, self.text, date, self.sim_time/self.ptps, self.mass, self.density, self.position, self.velocity, base_color)
+                                    fileops.save_system(path, self.text, date, self.sim_time/self.ptps, self.names, self.mass, self.density, self.position, self.velocity, base_color)
                                     self.gen_map_list()
                                 self.new_map = False
                                 self.ask = None
@@ -601,8 +716,195 @@ class Editor():
                             self.pause_menu = True
                             self.ask = None
                         x_pos += self.btn_w_h + self.space
+            
+            
+            if not self.disable_ui:
+                # left ui
+                y_pos = 23
+                for num, img in enumerate(self.ui_imgs):
+                    if 0 <= self.mouse_raw[0] <= 0 + self.btn_s and y_pos <= self.mouse_raw[1] <= y_pos + self.btn_s:
+                        if num == 0:   # menu
+                            self.pause_menu = True
+                            self.disable_input = True
+                            self.pause = True
+                            self.right_menu = None
+                        else:
+                            if self.right_menu == num:
+                                self.right_menu = None
+                            else:
+                                if num in [3, 4]:
+                                    if self.selected is not False:
+                                        if num == 3 and self.selected == self.parents[self.selected]:   # don't display orbit edit for root body
+                                            pass
+                                        else:
+                                            self.right_menu = num
+                                else:
+                                    self.right_menu = num
+                    y_pos += self.btn_s + 1
+                
+                # right ui
+                if self.right_menu == 1:   # body list
+                    y_pos = 38
+                    for num, name in enumerate(self.names):
+                        if self.r_menu_x_btn <= self.mouse_raw[0]-1 <= self.r_menu_x_btn + 280 and y_pos <= self.mouse_raw[1]-1 <= y_pos + 19:
+                            self.selected = num
+                            self.follow = True
+                        y_pos += 26
+                if self.right_menu == 2:   # insert
+                    pass
+                if self.right_menu == 3:   # edit orbit
+                    y_pos = 38
+                    for num, editable in enumerate(prop_edit_orb):
+                        if self.r_menu_x_btn <= self.mouse_raw[0]-1 <= self.r_menu_x_btn + 280 and y_pos <= self.mouse_raw[1]-1 <= y_pos + 19:
+                            if editable == 1:
+                                self.input_value = num
+                                if num < 2:
+                                    if num == 0:
+                                        init_value = self.names[self.selected]
+                                elif num == 8:   # change orbit direction button
+                                    pe_d = self.orbit_data[0]
+                                    ap_d = self.orbit_data[1]
+                                    ecc = self.orbit_data[2]
+                                    omega_deg = self.orbit_data[3]
+                                    mean_anomaly = self.orbit_data[4]
+                                    true_anomaly = self.orbit_data[5]
+                                    direction = self.orbit_data[6]
+                                    direction = -direction
+                                    physics.kepler_inverse(self.selected, ecc, omega_deg, pe_d, mean_anomaly, true_anomaly, ap_d, direction)
+                                    break
+                                else:
+                                    init_value = metric.format_si(self.orbit_data[num - 2], 3)
+                                textinput.initial_text(init_value, text_edit_orb[num])
+                                self.click = False
+                        y_pos += 26
+                if self.right_menu == 4:   # edit body
+                    y_pos = 38
+                    prop_merged = prop_edit_body
+                    text_merged = text_edit_body
+                    if int(self.types[self.selected]) in [0, 1, 2]:   # planet, moon
+                        prop_merged = prop_edit_body + prop_edit_planet
+                        text_merged = text_edit_body + text_edit_planet
+                    elif int(self.types[self.selected]) == 3:   # star
+                        prop_merged = prop_edit_body + prop_edit_star
+                        text_merged = text_edit_body + text_edit_star
+                    break_flag = False
+                    prop_merged.append(3)
+                    for num, editable in enumerate(prop_merged):
+                        if self.r_menu_x_btn <= self.mouse_raw[0]-1 <= self.r_menu_x_btn + 280 and y_pos <= self.mouse_raw[1]-1 <= y_pos + 19:
+                            if editable in [1, 2]:
+                                init_values = [self.names[self.selected],
+                                               None,
+                                               metric.format_si(self.mass[self.selected], 3),
+                                               metric.format_si(self.density[self.selected], 3),
+                                               metric.format_si(self.size[self.selected], 3),
+                                               metric.format_si(self.coi[self.selected], 3)]
+                                if num >= len(prop_edit_body):
+                                    if int(self.types[self.selected]) in [0, 1]:   # planet, moon
+                                        init_values += ["WIP", "WIP", "WIP", "WIP", "WIP"]
+                                        if num == 7:   # color
+                                            x_pos = self.r_menu_x_btn + 58
+                                            for num in range(3):
+                                                if x_pos <= self.mouse_raw[0]-1 <= x_pos + 53 and 220 <= self.mouse_raw[1]-1 <= 220 + 21:
+                                                    if num == 0:
+                                                        self.input_value = "7a"
+                                                        fixed_init_text = "R: "
+                                                        color_componet = self.colors[self.selected, 0]
+                                                    elif num == 1:
+                                                        self.input_value = "7b"
+                                                        fixed_init_text = "G: "
+                                                        color_componet = self.colors[self.selected, 1]
+                                                    elif num == 2:
+                                                        self.input_value = "7c"
+                                                        fixed_init_text = "B: "
+                                                        color_componet = self.colors[self.selected, 2]
+                                                    textinput.initial_text(str(color_componet), fixed_init_text, x_corr=-3, limit_len=3)
+                                                    self.click = False
+                                                    break_flag = True   # don't run code after this
+                                                    break
+                                                x_pos += 59
+                                    if break_flag:
+                                        break
+                                    elif int(self.types[self.selected]) == 3:   # star
+                                        init_values += ["WIP", "WIP", "WIP", "WIP"]
+                                self.input_value = num
+                                textinput.initial_text(init_values[num], text_merged[num])
+                                self.click = False
+                        if editable == 3:
+                            y_pos += 12
+                            if self.r_menu_x_btn <= self.mouse_raw[0]-1 <= self.r_menu_x_btn + 280 and y_pos <= self.mouse_raw[1]-1 <= y_pos + 19:
+                                physics.del_body(self.selected)
+                                self.names, self.types, self.mass, self.density, self.temp, self.position, self.velocity, self.colors, self.size, self.rad_sc = physics.get_bodies()
+                                self.selected = False
+                                self.right_menu = None
+                        y_pos += 26
+                if self.right_menu == 5:   # sim config
+                    pass
+            
+            # on click, disable text input:
+            if self.click and self.input_value is not None:
+                new_value = metric.parse_si(self.new_value_raw)
+                if new_value is not None:   # if value is valid
+                    if self.right_menu == 3:   # edit orbit
+                        pe_d = self.orbit_data[0]
+                        ap_d = self.orbit_data[1]
+                        ecc = self.orbit_data[2]
+                        omega_deg = self.orbit_data[3]
+                        mean_anomaly = self.orbit_data[4]
+                        true_anomaly = self.orbit_data[5]
+                        direction = self.orbit_data[6]
+                        if self.input_value == 2:   # pe
+                            pe_d = new_value
+                        if self.input_value == 3:   # ap
+                            ap_d = new_value
+                        if self.input_value == 4:   # ecc
+                            ecc = new_value
+                        if self.input_value == 5:   # pe_arg
+                            omega_deg = new_value
+                        if self.input_value == 6:   # Ma
+                            mean_anomaly = new_value
+                        if self.input_value == 7:   # Ta
+                            true_anomaly = new_value
+                        physics.kepler_inverse(self.selected, ecc, omega_deg, pe_d, mean_anomaly, true_anomaly, ap_d, direction)
+                    elif self.right_menu == 4:   # edit body
+                        # replace original values
+                        if type(self.input_value) is int:
+                            if self.input_value == 0:   # body name
+                                physics.set_body_name(self.selected, new_value)
+                            elif self.input_value == 2:   # mass
+                                physics.set_body_mass(self.selected, new_value)
+                            elif self.input_value == 3:   # density
+                                physics.set_body_den(self.selected, new_value)
+                                print(self.selected, new_value)
+                            elif int(self.types[self.selected]) in [0, 1, 2]:   # planet, moon
+                                if self.input_value == 6:   # rotation period
+                                    pass
+                            elif int(self.types[self.selected]) == 3:   # star
+                                if self.input_value == 9:   # H/He ratio
+                                    pass
+                        else:   # if input value is string (for color)
+                            color = self.colors[self.selected]
+                            if self.input_value[-1] == "a":   # R
+                                color[0] = new_value
+                            elif self.input_value[-1] == "b":   # G
+                                color[1] = new_value
+                            else:   # B
+                                color[2] = new_value
+                            physics.set_body_color(self.selected, color)
+                    self.input_value = None
+                else:
+                    self.input_value = None
+            
+            if e.type == pygame.MOUSEWHEEL and (self.menu == 0 or self.menu == 1):
+                if self.scrollbar_drag is False:
+                    # scrolling inside list area
+                    if self.maps_x-self.space <= self.mouse_raw[0]-1 <= self.maps_x+self.btn_w_l+self.space+16 and self.maps_y-self.space <= self.mouse_raw[1]-1 <= self.maps_y+self.list_limit:
+                        self.scroll -= e.y * self.scroll_sens
+                        if self.scroll < 0:
+                            self.scroll = 0
+                        elif self.scroll > max(0, self.map_list_size - self.list_limit):
+                            self.scroll = max(0, self.map_list_size - self.list_limit)
+            
             self.click = False
-        
         
         # moving scrollbar with cursor
         if self.scrollbar_drag:
@@ -631,11 +933,11 @@ class Editor():
                     physics.body_temp()   # calculate bodies temperature
                     physics.black_hole()   # check for black holes
                     # get bodies information
-                    self.mass, self.density, self.temp, self.position, self.velocity, self.colors, self.size, self.rad_sc = physics.get_bodies()
+                    self.names, self.types, self.mass, self.density, self.temp, self.position, self.velocity, self.colors, self.size, self.rad_sc = physics.get_bodies()
                     
                     body_del = physics.inelastic_collision()   # collisions
                     if body_del is not False:   # if there is collision
-                        self.mass, self.density, self.temp, self.position, self.velocity, self.colors, self.size, self.rad_sc = physics.get_bodies()  # get bodies information after deletion
+                        self.names, self.types, self.mass, self.density, self.temp, self.position, self.velocity, self.colors, self.size, self.rad_sc = physics.get_bodies()
                         if body_del == self.selected:   # if selected body is deleted:
                             self.selected = False   # exit from select mode
                         if body_del < self.selected:   # if body before selected one is deleted
@@ -653,6 +955,7 @@ class Editor():
         physics.kepler_basic()   # calculate basic keplerian elements
         self.semi_major, self.semi_minor, self.coi, self.parents = physics.get_body_orbits()   # get basic keplerian elements
         self.colors = physics.body_color()   # calculate colors from temperature
+        physics.classify()   # classify bodies
     
     
     
@@ -680,9 +983,6 @@ class Editor():
             self.offset_x += self.mouse[0] - self.mouse_old[0]   # add mouse movement to offset
             self.offset_y += self.mouse[1] - self.mouse_old[1]
             # save mouse position for next iteration to get movement
-            # print position of view, here is not added zoom offset, this shows real position, y axis is inverted
-            if not self.disable_ui:
-                graphics.text(screen, rgb.white, self.fontmd, "Pos: X:" + str(int(self.offset_x - self.screen_x / 2)) + "; Y:" + str(-int(self.offset_y - self.screen_y / 2)), (300, 2))
             if mouse_move > self.select_sens:   # stop following if mouse distance is more than n pixels
                 self.follow = False   # stop following selected body
             
@@ -733,7 +1033,7 @@ class Editor():
         # draw orbit curve lines
         curve_x, curve_y = physics.curve()   # calculate all curves
         for body in range(len(self.mass)):   # for each body:
-            if body != 0:   # skip most massive body
+            if body != 0:   # skip root
                 curve = np.column_stack(self.screen_coords(np.stack([curve_x[body], curve_y[body]])))   # get line coords on screen
                 line_color = np.where(self.colors[body] > 255, 255, self.colors[body])   # get line color and limit values to top 255
                 graphics.draw_lines(screen, tuple(line_color), curve, 2)   # draw that line
@@ -748,18 +1048,10 @@ class Editor():
         
         # inserting new body
         if self.insert_body:
-            # calculate distance to current mouse position
-            current_position = [(self.mouse_raw[0]/self.zoom) - self.offset_x + self.zoom_x,
-                                - ((self.mouse_raw[1] - self.screen_y)/self.zoom) - self.offset_y + self.zoom_y]
-            drag_distance = math.dist(self.new_position, current_position) * self.zoom
-            if not self.disable_ui:
-                graphics.text(screen, rgb.white, self.fontmd, "Pos: X:" + str(round(self.new_position[0])) + "; Y:" + str(round(self.new_position[1])), (300, 2))
-                graphics.text(screen, rgb.white, self.fontmd, "Mass: " + str(round(self.new_mass)), (470, 2))
-                graphics.text(screen, rgb.white, self.fontmd, "Acc: " + str(round(drag_distance * self.drag_sens, 2)), (560, 2))
-            new_volume = self.new_mass / self.new_density   # get size of new body from mass
-            new_size = (3 * new_volume / (4 * 3.14))**(1/3)   # calculate radius from volume
+            new_volume = self.new_mass / new_density   # get size of new body from mass
+            new_size = 10 * np.cbrt(3 * new_volume / (4 * np.pi))   # calculate radius from volume
             # draw new body before released
-            graphics.draw_circle_fill(screen, self.new_color, self.screen_coords(self.new_position), new_size * self.zoom)
+            graphics.draw_circle_fill(screen, new_color, self.screen_coords(self.new_position), new_size * self.zoom)
             # draw line connecting body and release point
             graphics.draw_line(screen, rgb.red, self.screen_coords(self.new_position), (self.mouse_raw[0], self.mouse_raw[1]), 1)
         
@@ -768,56 +1060,35 @@ class Editor():
         if self.selected is not False:
             parent = self.parents[self.selected]      # get selected body parent
             body_pos = self.position[self.selected, :]      # get selected body position
-            ecc, periapsis, apoapsis, pe_d, ap_d, distance, period, pe_t, ap_t, orb_angle, speed_orb, speed_hor, speed_vert = physics.kepler_advanced(self.selected)   # get advanced kepler parameters for selected body
+            ecc, periapsis, pe_d, pe_t, apoapsis, ap_d, ap_t, pe_arg, ma, ta, direction, distance, period, speed_orb, speed_hor, speed_vert = physics.kepler_advanced(self.selected)   # get advanced kepler parameters for selected body
+            if self.right_menu == 3:
+                self.orbit_data = [pe_d, ap_d, ecc, pe_arg, ma, ta, direction, distance, period, speed_orb, speed_hor, speed_vert]
             
             # circles
             if not self.disable_labels:
                 graphics.draw_circle(screen, rgb.cyan, self.screen_coords(body_pos), self.size[self.selected] * self.zoom + 4, 2)   # selection circle
-            if self.size[self.selected] < self.coi[self.selected]:   # if there is circle of influence, draw it
-                graphics.draw_circle(screen, rgb.gray1, self.screen_coords(body_pos), self.coi[self.selected] * self.zoom + 4, 1)
-            if self.selected != 0:   # skip most massive body, draw parent circle
-                graphics.draw_circle(screen, rgb.red1, self.screen_coords(self.position[parent]), self.size[parent] * self.zoom + 4, 1)
-                if parent != 0:   # if parent is not most massive body, draw parent circle of influence
-                    graphics.draw_circle(screen, rgb.red1, self.screen_coords(self.position[parent]), self.coi[parent] * self.zoom + 4, 1)
-            
-            # ap and pe
-            if not self.disable_labels:
-                if not ecc > 1:   # if orbit is not parabola or hyperbola
-                    if ecc != 0:   # if orbit is not circle
-                        # periapsis location marker, text: distance and time to it
-                        pe_scr = self.screen_coords(periapsis)   # periapsis screen coords
-                        graphics.draw_circle_fill(screen, rgb.lime1, pe_scr, 3)   # periapsis marker
-                        graphics.text(screen, rgb.lime1, self.fontsm, "Periapsis: " + str(round(pe_d, 1)), (pe_scr[0], pe_scr[1] + 7), True)
-                        graphics.text(screen, rgb.lime1, self.fontsm, "T - " + str(datetime.timedelta(seconds=round(pe_t/self.ptps))), (pe_scr[0], pe_scr[1] + 17), True)
+                if self.size[self.selected] < self.coi[self.selected]:   # if there is circle of influence, draw it
+                    graphics.draw_circle(screen, rgb.gray1, self.screen_coords(body_pos), self.coi[self.selected] * self.zoom + 4, 1)
+                if self.selected != 0:   # skip root, draw parent circle
+                    graphics.draw_circle(screen, rgb.red1, self.screen_coords(self.position[parent]), self.size[parent] * self.zoom + 4, 1)
+                    if parent != 0:   # if parent is not root, draw parent circle of influence
+                        graphics.draw_circle(screen, rgb.red1, self.screen_coords(self.position[parent]), self.coi[parent] * self.zoom + 4, 1)
                     
-                    if ecc < 1:   # if orbit is ellipse
-                        # apoapsis location marker, text: distance and time to it
-                        ap_scr = self.screen_coords(apoapsis)   # apoapsis with zoom and offset
-                        graphics.draw_circle_fill(screen, rgb.lime1, ap_scr, 3)   # apoapsis marker
-                        graphics.text(screen, rgb.lime1, self.fontsm, "Apoapsis: " + str(round(ap_d, 1)), (ap_scr[0], ap_scr[1] + 7), True)
-                        graphics.text(screen, rgb.lime1, self.fontsm, "T - " + str(datetime.timedelta(seconds=round(ap_t/self.ptps))), (ap_scr[0], ap_scr[1] + 17), True)
-        
-        
-        # print basic data
-        if not self.disable_ui:
-            graphics.timed_text(screen, clock)   # timed text on screen
-            graphics.text(screen, rgb.white, self.fontmd, str(datetime.timedelta(seconds=round(self.sim_time/self.ptps))), (2, 2))
-            if self.pause:   # if paused
-                graphics.text(screen, rgb.red1, self.fontmd, "PAUSED", (70, 2))
-            else:
-                graphics.text(screen, rgb.white, self.fontmd, "Warp: x" + str(int(self.warp)), (70, 2))
-            if self.zoom < 10:   # rounding zoom to use max 4 chars (dot included)
-                zoom_round = round(self.zoom, 2)
-            elif self.zoom < 100:
-                zoom_round = round(self.zoom, 1)
-            elif self.zoom < 1000:
-                zoom_round = int(self.zoom)
-            else:
-                zoom_round = "999+"
-            graphics.text(screen, rgb.white, self.fontmd, "Zoom: x" + str(zoom_round), (160, 2))
-            graphics.text(screen, rgb.gray, self.fontmd, str(self.mouse_raw), (self.screen_x - 100, self.screen_y - 60))
-            graphics.text(screen, rgb.gray, self.fontmd, "(" + str(int(self.sim_coords(self.mouse_raw)[0])) + ", " + str(int(self.sim_coords(self.mouse_raw)[1])) + ")", (self.screen_x - 100, self.screen_y - 40))
-            graphics.text(screen, rgb.gray, self.fontmd, "fps: " + str(int(clock.get_fps())), (self.screen_x - 60, self.screen_y - 20))
+                    # ap and pe
+                    if not ecc > 1:   # if orbit is not parabola or hyperbola
+                        if ecc != 0:   # if orbit is not circle
+                            # periapsis location marker, text: distance and time to it
+                            pe_scr = self.screen_coords(periapsis)   # periapsis screen coords
+                            graphics.draw_circle_fill(screen, rgb.lime1, pe_scr, 3)   # periapsis marker
+                            graphics.text(screen, rgb.lime1, self.fontsm, "Periapsis: " + str(round(pe_d, 1)), (pe_scr[0], pe_scr[1] + 7), True)
+                            graphics.text(screen, rgb.lime1, self.fontsm, "T - " + str(datetime.timedelta(seconds=round(pe_t/self.ptps))), (pe_scr[0], pe_scr[1] + 17), True)
+                        
+                        if ecc < 1:   # if orbit is ellipse
+                            # apoapsis location marker, text: distance and time to it
+                            ap_scr = self.screen_coords(apoapsis)   # apoapsis with zoom and offset
+                            graphics.draw_circle_fill(screen, rgb.lime1, ap_scr, 3)   # apoapsis marker
+                            graphics.text(screen, rgb.lime1, self.fontsm, "Apoapsis: " + str(round(ap_d, 1)), (ap_scr[0], ap_scr[1] + 7), True)
+                            graphics.text(screen, rgb.lime1, self.fontsm, "T - " + str(datetime.timedelta(seconds=round(ap_t/self.ptps))), (ap_scr[0], ap_scr[1] + 17), True)
     
     
     
@@ -850,9 +1121,6 @@ class Editor():
             graphics.buttons_horizontal(screen, buttons_load, (self.maps_x - self.space, self.maps_y_ui), alt_width=self.btn_w_h_2, safe=not (bool(self.ask)))
             pygame.draw.rect(screen, rgb.white, border_rect, 1)
         
-        if not self.disable_ui:   # disabled menus
-            pass
-        
         # asking to load/save
         if self.ask == "load":
             ask_txt = "Loading will overwrite unsaved changes."
@@ -877,7 +1145,7 @@ class Editor():
             pygame.draw.rect(screen, rgb.black, bg_rect)
             pygame.draw.rect(screen, rgb.white, border_rect, 1)
             graphics.text(screen, rgb.white, self.fontbt, "New Map", (self.screen_x/2,  self.ask_y-20-self.btn_h), True)
-            textinput.graphics(screen, clock, (self.ask_x, self.ask_y-self.btn_h), (self.btn_w_h*2+self.space, self.btn_h))
+            textinput.graphics(screen, clock, self.fontbt, (self.ask_x, self.ask_y-self.btn_h), (self.btn_w_h*2+self.space, self.btn_h))
             graphics.buttons_horizontal(screen, buttons_new_map, (self.ask_x, self.ask_y+self.space), safe=True)
     
         # double click counter   # not graphics related, but must be outside of input functions
@@ -886,6 +1154,162 @@ class Editor():
             if self.click_timer >= 0.5 * 60:
                 self.first_click = None
                 self.click_timer = 0
+        
+        
+        if not self.disable_ui:
+            graphics.timed_text(screen, clock)   # timed text on screen
+            
+            # left ui
+            pygame.draw.rect(screen, rgb.black, (0, 0, self.btn_s, self.screen_y))
+            if self.selected is not False:
+                prop_l = None
+                if self.selected == self.parents[self.selected]:
+                    prop_l = [None, None, None, 0, None, None]
+            else:
+                prop_l = [None, None, None, 0, 0, None]
+            graphics.buttons_small(screen, self.ui_imgs, (0, 23), prop=prop_l, selected=self.right_menu)
+            pygame.draw.line(screen, rgb.white, (self.btn_s, 0), (self.btn_s, self.screen_y), 1)
+            
+            # right ui
+            if self.right_menu is not None:
+                pygame.draw.rect(screen, rgb.black, (self.right_menu_x, 0, 300, self.screen_y))
+                pygame.draw.line(screen, rgb.white, (self.right_menu_x, 0), (self.right_menu_x, self.screen_y))
+            
+            if self.right_menu == 1:   # body list
+                imgs = []
+                names_screen = []
+                for num, name in enumerate(self.names):
+                    name = graphics.limit_text(name, self.fontbt, 280)   # limit names length to display on screen
+                    if num == 0:
+                        names_screen.append("Root: " + name)
+                    else:
+                        parent = self.names[self.parents[num]]
+                        names_screen.append(name + "    @ " + parent)
+                    imgs.append(self.body_imgs[int(self.types[num])])
+                graphics.text_list_select(screen, names_screen, (self.r_menu_x_btn, 38), (280, 21), 26, self.selected, imgs)
+            
+            elif self.right_menu == 2:   # insert
+                pass
+            
+            elif self.right_menu == 3 and self.selected is not False:   # edit orbit
+                texts = text_edit_orb[:]
+                for num, text in enumerate(text_edit_orb):
+                    if num == 0:
+                        texts[0] = texts[0] + self.names[self.selected]
+                    elif num == 1:
+                        texts[1] = texts[1] + self.names[self.parents[self.selected]]
+                    elif num == 8:
+                        if self.orbit_data[6] == 1:
+                            texts[8] = texts[8] + "Clockwise"
+                        else:
+                            texts[8] = texts[8] + "Counter-clockwise"
+                    elif num == 10:
+                        texts[10] = texts[10] + str(datetime.timedelta(seconds=round(self.orbit_data[8]/self.ptps)))
+                    else:
+                        texts[num] = texts[num] + metric.format_si(self.orbit_data[num-2], 3)
+                graphics.text_list(screen, texts, (self.r_menu_x_btn, 38), (280, 21), 26, prop=prop_edit_orb)
+                
+            elif self.right_menu == 4 and self.selected is not False:   # edit body
+                values_body = [self.names[self.selected],
+                               body_types[int(self.types[self.selected])],
+                               metric.format_si(self.mass[self.selected], 3),
+                               metric.format_si(self.density[self.selected], 3),
+                               metric.format_si(self.size[self.selected], 3),
+                               metric.format_si(self.coi[self.selected], 3)]
+                texts_body = []
+                for i in range(len(text_edit_body)):
+                    texts_body.append(text_edit_body[i] + values_body[i])
+                prop_merged = prop_edit_body
+                texts_merged = texts_body[:]
+                if int(self.types[self.selected]) in [0, 1, 2]:   # planet, moon
+                    prop_merged = prop_edit_body + prop_edit_planet
+                    values_planet = ["WIP",
+                                     self.colors[self.selected],
+                                     "WIP",
+                                     "WIP",
+                                     "WIP"]
+                    texts_planet = []
+                    for i in range(len(text_edit_planet)):
+                        if type(values_planet[i]) is str:
+                            texts_planet.append(text_edit_planet[i] + values_planet[i])
+                        else:
+                            texts_planet.append(values_planet[i])
+                    texts_merged += texts_planet
+                elif int(self.types[self.selected]) == 3:   # star
+                    prop_merged = prop_edit_body + prop_edit_star
+                    values_star = ["WIP",
+                                   "WIP",
+                                   "WIP",
+                                   "WIP"]
+                    texts_star = []
+                    for i in range(len(text_edit_star)):
+                        texts_star.append(text_edit_star[i] + values_star[i])
+                    texts_merged += texts_star
+                elif int(self.types[self.selected]) == 4:   # for bh
+                    prop_merged = prop_edit_body + prop_edit_bh
+                    values_bh = [metric.format_si(self.rad_sc[self.selected], 3)]
+                    texts_bh = []
+                    for i in range(len(text_edit_bh)):
+                        texts_star.append(text_edit_bh[i] + values_bh[i])
+                    texts_merged += texts_bh
+                texts_merged.append(text_edit_delete)
+                prop_merged.append(3)
+                graphics.text_list(screen, texts_merged, (self.r_menu_x_btn, 38), (280, 21), 26, prop=prop_merged)
+            
+            elif self.right_menu == 5:   # sim config
+                pass
+            
+            # input value to right ui
+            if self.input_value is not None:
+                if type(self.input_value) is int:
+                    y_pos = 38 + self.input_value * 26
+                    pygame.draw.rect(screen, rgb.gray2, (self.r_menu_x_btn, y_pos, 280, 21))
+                    textinput.graphics(screen, clock, self.fontmd, (self.r_menu_x_btn, y_pos), (280, 21), center=False)
+                else:   # if input value is string (for color)
+                    y_pos = 38 + int(self.input_value[:-1]) * 26
+                    if self.input_value[-1] == "a":
+                        x_pos = self.r_menu_x_btn + 58
+                    elif self.input_value[-1] == "b":
+                        x_pos = self.r_menu_x_btn + 58 + 59
+                    else:
+                        x_pos = self.r_menu_x_btn + 58 + 2*59
+                    pygame.draw.rect(screen, rgb.gray2, (x_pos, y_pos, 53, 21))
+                    textinput.graphics(screen, clock, self.fontmd, (x_pos, y_pos), (53, 21), center=False)
+                
+            
+            # top ui
+            pygame.draw.rect(screen, rgb.black, (0, 0, self.screen_x, 22))
+            pygame.draw.line(screen, rgb.white, (0, 22), (self.screen_x, 22), 1)
+            graphics.text(screen, rgb.white, self.fontmd, str(datetime.timedelta(seconds=round(self.sim_time/self.ptps))), (2, 2))
+            if self.pause:   # if paused
+                graphics.text(screen, rgb.red1, self.fontmd, "PAUSED", (70, 2))
+            else:
+                graphics.text(screen, rgb.white, self.fontmd, "Warp: x" + str(int(self.warp)), (70, 2))
+            if self.zoom < 10:   # rounding zoom to use max 4 chars (dot included)
+                zoom_round = round(self.zoom, 2)
+            elif self.zoom < 100:
+                zoom_round = round(self.zoom, 1)
+            elif self.zoom < 1000:
+                zoom_round = int(self.zoom)
+            else:
+                zoom_round = "999+"
+            graphics.text(screen, rgb.white, self.fontmd, "Zoom: x" + str(zoom_round), (160, 2))
+            if self.move:
+                # print position of view, here is not added zoom offset, this shows real position, y axis is inverted
+                graphics.text(screen, rgb.white, self.fontmd, "Pos: X:" + str(int(self.offset_x - self.screen_x / 2)) + "; Y:" + str(-int(self.offset_y - self.screen_y / 2)), (270, 2))
+            if self.insert_body:
+                # calculate distance to current mouse position
+                current_position = [(self.mouse_raw[0]/self.zoom) - self.offset_x + self.zoom_x,
+                                    - ((self.mouse_raw[1] - self.screen_y)/self.zoom) - self.offset_y + self.zoom_y]
+                drag_distance = math.dist(self.new_position, current_position) * self.zoom
+                graphics.text(screen, rgb.white, self.fontmd, "Pos: X:" + str(round(self.new_position[0])) + "; Y:" + str(round(self.new_position[1])), (270, 2))
+                graphics.text(screen, rgb.white, self.fontmd, "Mass: " + str(round(self.new_mass)), (440, 2))
+                graphics.text(screen, rgb.white, self.fontmd, "Acc: " + str(round(drag_distance * self.drag_sens, 2)), (530, 2))
+            
+            # debug
+            graphics.text(screen, rgb.gray1, self.fontmd, str(self.mouse_raw), (self.screen_x - 260, 2))
+            graphics.text(screen, rgb.gray1, self.fontmd, "[" + str(int(self.sim_coords(self.mouse_raw)[0])) + ", " + str(int(self.sim_coords(self.mouse_raw)[1])) + "]", (self.screen_x - 170, 2))
+            graphics.text(screen, rgb.gray1, self.fontmd, "fps: " + str(int(clock.get_fps())), (self.screen_x - 50, 2))
     
     
     

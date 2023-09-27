@@ -18,7 +18,7 @@ graphics = graphics.Graphics()
 textinput = textinput.Textinput()
 
 
-version = "0.2.0"
+version = "0.2.1"
 
 buttons_main = ["Play - WIP", "Multiplayer - WIP", "Map Editor", "Settings", "About", "Quit"]
 buttons_map_sel = ["Open in editor", "Rename", "Delete", "Export"]
@@ -173,7 +173,9 @@ class Menu():
                     self.menu = 0
                     if from_game:
                         self.state = 2
-                self.scrollbar_drag = False
+                if self.scrollbar_drag:
+                    self.scrollbar_drag = False
+                    self.disable_buttons = False
             elif e.key == pygame.K_F2:
                 self.rename = True
                 self.disable_buttons = True
@@ -365,14 +367,14 @@ class Menu():
                             elif num == 1:   # resolution
                                 if x_pos <= self.mouse[0]-1 <= x_pos + 40:   # minus
                                     self.selected_res += 1   # +1 because avail_res is from largest to smallest
-                                    if self.selected_res < 0:   # if selected res is negative
-                                        self.selected_res = len(self.avail_res) - 1   # return it to min res
                                     self.res_change = True
                                 elif x_pos+self.btn_w-40 <= self.mouse[0]-1 <= x_pos + self.btn_w:   # plus
                                     self.selected_res -= 1
-                                    if self.selected_res > len(self.avail_res) - 1:   # if selected res is out of range
-                                        self.selected_res = 0   # return it to max res
                                     self.res_change = True
+                                if self.selected_res < 0:   # if selected res is negative
+                                    self.selected_res = len(self.avail_res) - 1   # return it to min res
+                                if self.selected_res > len(self.avail_res) - 1:   # if selected res is out of range
+                                    self.selected_res = 0   # return it to max res
                             elif num == 2:   # antialiasing
                                 self.antial = not self.antial
                             elif num == 3:   # vsync
@@ -588,7 +590,7 @@ class Menu():
                     menu_title = "New Map"
                     buttons =buttons_new_map
                 graphics.text(screen, rgb.white, self.fontbt, menu_title, (self.screen_x/2,  self.ask_y-20-self.btn_h), True)
-                textinput.graphics(screen, clock, (self.ask_x, self.ask_y-self.btn_h), (self.btn_w_h*2+self.space, self.btn_h))
+                textinput.graphics(screen, clock, self.fontbt, (self.ask_x, self.ask_y-self.btn_h), (self.btn_w_h*2+self.space, self.btn_h))
                 graphics.buttons_horizontal(screen, buttons, (self.ask_x, self.ask_y+self.space), safe=True)
             
             # double click counter   # not graphics related, but must be outside of input functions
@@ -646,9 +648,8 @@ class Menu():
             graphics.buttons_vertical(screen, buttons_about, (self.about_x, self.about_y), [2, 2, 2, 2, None])
         
         
-        graphics.text(screen, rgb.gray, self.fontmd, "v" + version, (self.screen_x - 120, self.screen_y - 20))
-        graphics.text(screen, rgb.gray, self.fontmd, str(self.mouse), (self.screen_x - 80, self.screen_y - 40))
-        graphics.text(screen, rgb.gray, self.fontmd, "fps: " + str(int(clock.get_fps())), (self.screen_x - 60, self.screen_y - 20))
+        graphics.text(screen, rgb.gray, self.fontmd, "v" + version, (self.screen_x - 110, self.screen_y - 20))
+        graphics.text(screen, rgb.gray, self.fontmd, "fps: " + str(int(clock.get_fps())), (self.screen_x - 50, self.screen_y - 20))
     
     
     
@@ -673,3 +674,4 @@ class Menu():
             pygame.display.flip()
             clock.tick(60)
         return self.state
+

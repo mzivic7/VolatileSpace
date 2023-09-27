@@ -11,4 +11,3 @@ os.remove('VolatileSpace.spec')
 shutil.rmtree('build')
 shutil.copytree('dist/', './', dirs_exist_ok=True)
 shutil.rmtree('dist')
-

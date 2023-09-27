@@ -75,6 +75,7 @@ def load_system(path):
     name = system.get("config", "name").strip('"')
     time = float(system.get("config", 'time'))
     
+    body_name = np.array([])
     mass = np.array([])  # mass
     density = np.array([])  # density
     position = np.empty((0, 2), int)   # position
@@ -83,16 +84,17 @@ def load_system(path):
     
     for body in system.sections():   # for each body:
         if body != "config":
-            mass = np.append(mass, float(system.get(body, "mass")))   # load all body parameters into separate arrays
+            body_name = np.append(body_name, body)   # load all body parameters into separate arrays
+            mass = np.append(mass, float(system.get(body, "mass")))
             density = np.append(density, float(system.get(body, "density")))
             position = np.vstack((position, list(map(float, system.get(body, "position").strip('][').split(', ')))))
             velocity = np.vstack((velocity, list(map(float, system.get(body, "velocity").strip('][').split(', ')))))
             color = np.vstack((color, list(map(int, system.get(body, "color").strip('][').split(', ')))))
     
-    return name, time, mass, density, position, velocity, color
+    return name, time, body_name, mass, density, position, velocity, color
 
 
-def save_system(path, name, date, time, mass, density, position, velocity, color):
+def save_system(path, name, date, time, body_names, mass, density, position, velocity, color):
     """Save system to file"""
     if not os.path.exists("Maps"):
         os.mkdir("Maps")
@@ -107,7 +109,7 @@ def save_system(path, name, date, time, mass, density, position, velocity, color
     system.set("config", "time", str(time))
     
     for body, body_mass in enumerate(mass):   # for each body:
-        body_name = "body" + str(body)   # generate new unique name
+        body_name = body_names[body]
         system.add_section(body_name)   # add body
         system.set(body_name, "mass", str(body_mass))   # add body parameters
         system.set(body_name, "density", str(density[body]))
@@ -134,12 +136,12 @@ def new_map(name, date):
     system.set("config", "date", date)
     system.set("config", "time", "0")
     
-    system.add_section("body0")   # add body
-    system.set("body0", "mass", "10000.0")   # add body parameters
-    system.set("body0", "density", "1.0")
-    system.set("body0", "position", "[0.0, 0.0]")
-    system.set("body0", "velocity", "[0.0, 0.0]")
-    system.set("body0", "color", "[255, 255, 255]")
+    system.add_section("root")   # add body
+    system.set("root", "mass", "10000.0")   # add body parameters
+    system.set("root", "density", "1.0")
+    system.set("root", "position", "[0.0, 0.0]")
+    system.set("root", "velocity", "[0.0, 0.0]")
+    system.set("root", "color", "[255, 255, 255]")
     
     with open(path, 'w') as f:
         system.write(f)
@@ -226,6 +228,3 @@ def load_keybindings():
         keyb_dict = defaults.keybindings
         default_keybindings()
     return keyb_dict
-
-
-load_keybindings()
