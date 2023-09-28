@@ -18,7 +18,7 @@ graphics = graphics.Graphics()
 textinput = textinput.Textinput()
 
 
-version = "0.2.1"
+version = "0.2.2"
 
 buttons_main = ["Play - WIP", "Multiplayer - WIP", "Map Editor", "Settings", "About", "Quit"]
 buttons_map_sel = ["Open in editor", "Rename", "Delete", "Export"]

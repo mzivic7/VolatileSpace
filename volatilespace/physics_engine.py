@@ -96,7 +96,6 @@ class Physics():
         self.ecc_v = np.empty((0, 2), int)   # curve eccentricity vector
         self.reload_settings()
     
-    
     def reload_settings(self):
         self.curve_points = int(fileops.load_settings("graphics", "curve_points"))   # number of points from which curve is drawn
         # parameters
@@ -105,7 +104,6 @@ class Physics():
         hyp_t_1 = np.linspace(- np.pi, - np.pi/2 - 0.1, int(self.curve_points/2))   # (-pi, -pi/2]
         hyp_t_2 = np.linspace(np.pi/2 + 0.1, np.pi, int(self.curve_points/2))   # [pi/2, pi)
         self.hyp_t = np.concatenate([hyp_t_2, hyp_t_1])   # hyperbola parameter [pi/2, pi) U (-pi, -pi/2]
-    
     
     def load_system(self, names, mass, density, position, velocity, color):
         """Load new system."""
@@ -204,6 +202,14 @@ class Physics():
         self.find_parents()   # find parents for all bodies
         self.largest = 0
     
+    def move_parent(self, body, position):
+        """Moves body with all bodies orbiting it, if any."""
+        movement = position - self.pos[body]
+        self.pos[body] = position
+        children = np.where(self.parents == body)[0]   # find all bodies orbiting this
+        for child in children:   # update their position by movement
+            self.pos[child] += movement
+        
     
     def simplified_orbit_coi(self):
         """Calculate COI for simplified gravity model. Root has COI=0."""
@@ -310,7 +316,7 @@ class Physics():
         moment = np.cross(rel_pos, rel_vel)   # rotation moment
         direction = -1 * int(math.copysign(1, moment))   # if moment is negative, rotation is clockwise (-1)
         if direction == -1:   # if direction is clockwise
-            true_anomaly = 2*np.pi - true_anomaly   # invert Ta to be calculated in opposite direction
+            true_anomaly = 2*np.pi - true_anomaly   # invert Ta to be calculated in opposite directio
         speed_vert = (rel_vel[0] * math.cos(true_anomaly) + rel_vel[1] * math.sin(true_anomaly))   # vertical speed
         speed_hor = abs(rel_vel[0] * math.sin(true_anomaly) - rel_vel[1] * math.cos(true_anomaly))   # horizontal speed
         
@@ -348,26 +354,34 @@ class Physics():
         return ecc, periapsis, pe_d, pe_t, apoapsis, ap_d, ap_t, omega_deg, ma_deg, ta_deg, direction, distance, period, speed_orb, speed_hor, speed_vert
     
     
-    def kepler_inverse(self, body, ecc, omega_deg, pe_d, mean_anomaly, true_anomaly, ap_d, direction):
+    def kepler_inverse(self, body, ecc, omega_deg, pe_d, mean_anomaly_deg, true_anomaly_deg, ap_d, direction):
         """Inverse kepler equations."""
         parent = self.parents[body]  # get parent body
         u = gc * self.mass[parent]   # standard gravitational parameter
         omega = omega_deg * np.pi / 180   # periapsis argument from deg to rad
-        a = - pe_d / (ecc - 1)   # semi-major axis from periapsis
+        mean_anomaly = mean_anomaly_deg * np.pi / 180
+        if ecc == 0:   # to avoid division by zero
+            ecc = 0.00001
+        if ecc >= 1:   # ### TODO ### for now limited on ecc < 1
+            ecc = 0.95
+        
         if ap_d:   # if there is value for appapsis distance:
+            a = (pe_d + ap_d) / 2   # semi-major axis from periapsis and apoapsis
             ecc = (ap_d / a) - 1   # eccentricity from apoapsis
+        else:
+            a = - pe_d / (ecc - 1)   # semi-major axis from periapsis
         b = a * math.sqrt(1 - ecc**2)   # semi minor axis
         f = math.sqrt(a**2 - b**2)   # focus distance from center of ellipse
         f_rot = [f * math.cos(omega), f * math.sin(omega)]   # focus rotated by omega
-        if true_anomaly:   # if there is value for ta
-            ta = true_anomaly   # use it
+        if true_anomaly_deg:   # if there is value for ta
+            ta = true_anomaly_deg * np.pi / 180   # use it
         else:
             ea = newton_root(keplers_eq, keplers_eq_derivative, 0.0, {'Ma': mean_anomaly, 'e': ecc})   # newton root for keplers equation
             ta = 2 * math.atan(math.sqrt((1+ecc) / (1-ecc)) * math.tan(ea/2)) % (2*np.pi)   # true anomaly from eccentric anomaly
         
         k = math.tan(ta)   # line at angle Ta (y = kx + n)
         n = -(k * f)   # line at angle Ta containing focus point
-        # Solve system for this line and orbit ellipse to get intercet points:
+        # Solve system for this line and orbit ellipse to get intercept points:
         d = math.sqrt(a**2 * k**2 + b**2 - n**2)   # discriminant
         if ta < np.pi/2 or ta > 3*np.pi/2:   # there are 2 points, pick one at correct angle Ta
             pr_x = (-a**2 * k * n + a * b * d) / (a**2 * k**2 + b**2) - f   # intersect point coordinates of line and ellipse
@@ -398,11 +412,16 @@ class Physics():
         prm = mag(pr)   # relative position vector magnitude
         vrm = -direction * math.sqrt((2 * a * u - prm * u) / (a * prm))   # velocity vector from semi-major axis equation
         
-        vr_x = 50 * vrm * math.cos(vr_angle)   # eccentricity vector from angle of velocity
-        vr_y = 50 * vrm * math.sin(vr_angle)
+        vr_x = vrm * math.cos(vr_angle)   # eccentricity vector from angle of velocity
+        vr_y = vrm * math.sin(vr_angle)
         vr = [vr_x, vr_y]
-        self.pos[body] = self.pos[parent] + pr   # update absolute position vector
+        abs_pos = self.pos[parent] + pr
+        self.move_parent(body, self.pos[parent] + pr)   # move thiss body and all bodies orbiting it
         self.rel_vel[body] = vr   # update relative velocity vector
+        # this is copied from simplified_orbit_coi end, to allow changes to take effect smoothly, in this iteration, even if paused
+        bodies_sorted = np.argsort(self.mass)[-1::-1]
+        for body in bodies_sorted[1:]:
+            self.vel[body] = self.rel_vel[body] + self.vel[self.parents[body]]
     
     
     def curve(self):

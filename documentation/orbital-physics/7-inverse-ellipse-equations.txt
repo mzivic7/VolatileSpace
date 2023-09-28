@@ -12,6 +12,11 @@ omega = omega_deg * pi / 180   # periapsis argument from deg to rad
 if e = 0:   # if eccentricity is set to 0 (it is circle):
     omega = 0   # disable omega input
 
+Note:
+When changing direction, mean anomaly must change sign.
+This is so orbiting body doesnt change position.
+Because anomalies are positive in orbiting direction.
+
 Get Ea from Ma using Newtons method for finding equation roots [3]. Plug this in Newton root solver:
 0 = Ea - e * sin(Ea) - Ma   # Keplers equation
 d(f(E))/dE = 1.0 - e * np.cos(E)   # derivative from Keplers equation
@@ -74,8 +79,11 @@ vr_y = |vr| * sin(vr_a)
 vr = [vr_x, vr_y]
 
 
+# -Outputs- #
+P = Pp + Pr   # absolute position vector (Pp is parent pos)
+mov = P_old - P   # calculate movement
+# if this body has bodies orbiting it, their position is updated with mov:
+Pn += mov
+v = vr + v_p   # absolute vel from relative vel and parents absolute vel
 
-P2 = P1 + Pr   # absolute position vector (P1 is parent pos)
-# P2 in simplified orbit model is updated with this P2
-# vr in simplified orbit model is updated with this vr
 

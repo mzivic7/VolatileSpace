@@ -1,5 +1,5 @@
 ### TIMELINE ###
-1. multi-threading, solar system
+1. multiprocessing, solar system
 2. advanced orbital parameters - parabola, hyperbola
 3. inverse functions - parabola, hyperbola
 4. more advanced orbital parameters

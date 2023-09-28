@@ -212,6 +212,7 @@ class Editor():
         bg_stars.set_screen()
         graphics.set_screen()
         self.keys = fileops.load_keybindings()
+        self.right_menu = None
     
     
     
@@ -342,11 +343,11 @@ class Editor():
                     if new_value is not None:   # if input is valid:
                         if self.right_menu == 3:   # edit orbit
                             pe_d = self.orbit_data[0]
-                            ap_d = self.orbit_data[1]
+                            ap_d = None
                             ecc = self.orbit_data[2]
                             omega_deg = self.orbit_data[3]
                             mean_anomaly = self.orbit_data[4]
-                            true_anomaly = self.orbit_data[5]
+                            true_anomaly = None
                             direction = self.orbit_data[6]
                             if self.input_value == 2:   # pe
                                 pe_d = new_value
@@ -763,13 +764,14 @@ class Editor():
                                         init_value = self.names[self.selected]
                                 elif num == 8:   # change orbit direction button
                                     pe_d = self.orbit_data[0]
-                                    ap_d = self.orbit_data[1]
+                                    ap_d = None
                                     ecc = self.orbit_data[2]
                                     omega_deg = self.orbit_data[3]
-                                    mean_anomaly = self.orbit_data[4]
-                                    true_anomaly = self.orbit_data[5]
+                                    mean_anomaly = -self.orbit_data[4]   # inverted
+                                    true_anomaly = None
                                     direction = self.orbit_data[6]
                                     direction = -direction
+                                    self.input_value = None
                                     physics.kepler_inverse(self.selected, ecc, omega_deg, pe_d, mean_anomaly, true_anomaly, ap_d, direction)
                                     break
                                 else:
@@ -846,11 +848,11 @@ class Editor():
                 if new_value is not None:   # if value is valid
                     if self.right_menu == 3:   # edit orbit
                         pe_d = self.orbit_data[0]
-                        ap_d = self.orbit_data[1]
+                        ap_d = None
                         ecc = self.orbit_data[2]
                         omega_deg = self.orbit_data[3]
                         mean_anomaly = self.orbit_data[4]
-                        true_anomaly = self.orbit_data[5]
+                        true_anomaly = None
                         direction = self.orbit_data[6]
                         if self.input_value == 2:   # pe
                             pe_d = new_value
@@ -1009,6 +1011,8 @@ class Editor():
             offset_diff = offset_diff * min(self.zoom, 3)   # add zoom to speed calculation and limit zoom
             self.offset_old = np.array([self.offset_x, self.offset_y])
             speed = math.sqrt(offset_diff.dot(offset_diff))/3   # speed as movement vector magnitude
+            while speed > 300:   # limits speed when view is jumping (focus home, distant body...)
+                speed = math.sqrt(speed)
             direction = math.atan2(offset_diff[1], offset_diff[0])   # movement vector angle from atan2
             bg_stars.draw_bg(screen, speed, direction, self.zoom)
         
