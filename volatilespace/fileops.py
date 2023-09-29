@@ -72,8 +72,18 @@ def load_system(path):
     system = ConfigParser()   # load config class
     system.read(path)   # load system
     
+    # read config section
     name = system.get("config", "name").strip('"')
-    time = float(system.get("config", 'time'))
+    time = float(system.get("config", "time"))
+    
+    # physics related config
+    try:
+        config = defaults.sim_config.copy()
+        for key in defaults.sim_config.keys():   # physics related config
+            value = float(system.get("config", key))
+            config[key] = value
+    except Exception:
+        config = defaults.sim_config
     
     body_name = np.array([])
     mass = np.array([])  # mass
@@ -87,14 +97,14 @@ def load_system(path):
             body_name = np.append(body_name, body)   # load all body parameters into separate arrays
             mass = np.append(mass, float(system.get(body, "mass")))
             density = np.append(density, float(system.get(body, "density")))
-            position = np.vstack((position, list(map(float, system.get(body, "position").strip('][').split(', ')))))
-            velocity = np.vstack((velocity, list(map(float, system.get(body, "velocity").strip('][').split(', ')))))
-            color = np.vstack((color, list(map(int, system.get(body, "color").strip('][').split(', ')))))
+            position = np.vstack((position, list(map(float, system.get(body, "position").strip("][").split(", ")))))
+            velocity = np.vstack((velocity, list(map(float, system.get(body, "velocity").strip("][").split(", ")))))
+            color = np.vstack((color, list(map(int, system.get(body, "color").strip("][").split(", ")))))
     
-    return name, time, body_name, mass, density, position, velocity, color
+    return name, time, config, body_name, mass, density, position, velocity, color
 
 
-def save_system(path, name, date, time, body_names, mass, density, position, velocity, color):
+def save_system(path, name, date, conf, time, body_names, mass, density, position, velocity, color):
     """Save system to file"""
     if not os.path.exists("Maps"):
         os.mkdir("Maps")
@@ -107,15 +117,18 @@ def save_system(path, name, date, time, body_names, mass, density, position, vel
     system.set("config", "name", name)
     system.set("config", "date", date)
     system.set("config", "time", str(time))
+    for key in conf.keys():   # physics related config
+        value = str(conf[key])
+        system.set("config", key, value)
     
     for body, body_mass in enumerate(mass):   # for each body:
         body_name = body_names[body]
         system.add_section(body_name)   # add body
         system.set(body_name, "mass", str(body_mass))   # add body parameters
         system.set(body_name, "density", str(density[body]))
-        system.set(body_name, "position", '[' + str(position[body, 0]) + ', ' + str(position[body, 1]) + ']')
-        system.set(body_name, "velocity", '[' + str(velocity[body, 0]) + ', ' + str(velocity[body, 1]) + ']')
-        system.set(body_name, "color", '[' + str(color[body, 0]) + ', ' + str(color[body, 1]) + ', ' + str(color[body, 2]) + ']')
+        system.set(body_name, "position", "[" + str(position[body, 0]) + ", " + str(position[body, 1]) + "]")
+        system.set(body_name, "velocity", "[" + str(velocity[body, 0]) + ", " + str(velocity[body, 1]) + "]")
+        system.set(body_name, "color", "[" + str(color[body, 0]) + ", " + str(color[body, 1]) + ", " + str(color[body, 2]) + "]")
     
     with open(path, 'w') as f:
         system.write(f)
@@ -135,6 +148,10 @@ def new_map(name, date):
     system.set("config", "name", name)
     system.set("config", "date", date)
     system.set("config", "time", "0")
+    
+    for key in defaults.sim_config.keys():   # physics related config
+        value = str(defaults.sim_config[key])
+        system.set("config", key, value)
     
     system.add_section("root")   # add body
     system.set("root", "mass", "10000.0")   # add body parameters
@@ -176,7 +193,7 @@ def load_settings(header, key):
         if type(key) is str:   # if key is string (there is only one key)
             setting = settings.get(header, key)   # get value for that key
             if "[" in setting and "]" in setting:   # if returned value is list
-                setting = list(map(float, setting.strip('][').split(', ')))   # str to list of float
+                setting = list(map(float, setting.strip("][").split(", ")))   # str to list of float
                 if all(x.is_integer() for x in setting):   # if all values are whole number
                     setting = list(map(int, setting))   # float to int
         else:   # if it is nost string, it should be tuple or list
@@ -184,7 +201,7 @@ def load_settings(header, key):
             for one_key in key:   # for one key in keys
                 one_setting = settings.get(header, one_key)   # get value for that key
                 if "[" in one_setting and "]" in one_setting:   # if returned value is list
-                    one_setting = list(map(float, one_setting.strip('][').split(', ')))   # str to list of float
+                    one_setting = list(map(float, one_setting.strip("][").split(", ")))   # str to list of float
                     if all(x.is_integer() for x in one_setting):   # if all values are whole number
                         one_setting = list(map(int, one_setting))   # float to int
                 setting.append(one_setting)   # append value to setting list

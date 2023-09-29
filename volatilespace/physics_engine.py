@@ -2,18 +2,17 @@ import numpy as np
 import math
 
 from volatilespace import fileops
+from volatilespace import defaults
 
 
 ###### --Constants-- ######
 c = 299792458   # speed of light in vacuum
 k = 1.381 * 10**-23   # boltzman constant
-gc = 1   # newtonian constant of gravitation
 m_h = 1.674 * 10**-27    # hydrogen atom mass in kg
 m_he = 6.646 * 10**-27   # helimum atom mass in kg
 mp = (m_h * 99 + m_he * 1) / 100   # average particle mass   # depends on star age
-mass_sim_mult = 10**24  # mass simulation multiplyer, since real values are needed in core temperature equation
-rad_sim_mult = 10**6   # radius sim multiplyer
-rad_mult = 10   # radius multiplyer to make bodies larger
+mass_sim_mult = 10**24  # mass simulation multiplier, since real values are needed in core temperature equation
+rad_sim_mult = 10**6   # radius sim multiplier
 
 
 ###### --Functions-- ######
@@ -94,6 +93,8 @@ class Physics():
         self.semi_minor = np.array([])   # ellipse semi minor axis
         self.periapsis_arg = np.array([])   # curve periapsis argument
         self.ecc_v = np.empty((0, 2), int)   # curve eccentricity vector
+        self.gc = defaults.sim_config["gc"]   # newtonian constant of gravitation
+        self.rad_mult = defaults.sim_config["rad_mult"]
         self.reload_settings()
     
     def reload_settings(self):
@@ -105,8 +106,14 @@ class Physics():
         hyp_t_2 = np.linspace(np.pi/2 + 0.1, np.pi, int(self.curve_points/2))   # [pi/2, pi)
         self.hyp_t = np.concatenate([hyp_t_2, hyp_t_1])   # hyperbola parameter [pi/2, pi) U (-pi, -pi/2]
     
-    def load_system(self, names, mass, density, position, velocity, color):
+    def load_conf(self, conf):
+        """Loads physics related config."""
+        self.gc = conf["gc"]
+        self.rad_mult = conf["rad_mult"]
+    
+    def load_system(self, conf, names, mass, density, position, velocity, color):
         """Load new system."""
+        self.load_conf(conf)
         self.names = names
         self.mass = mass
         self.den = density
@@ -114,7 +121,7 @@ class Physics():
         self.color = np.zeros((len(color), 3), int)
         self.base_color = color
         volume = self.mass / self.den   # volume from mass and density
-        self.rad = rad_mult * np.cbrt(3 * volume / (4 * np.pi))   # calculate radius from volume
+        self.rad = self.rad_mult * np.cbrt(3 * volume / (4 * np.pi))   # calculate radius from volume
         self.rad_sc = np.array([])
         self.types = np.array([])
         self.pos = position
@@ -140,7 +147,7 @@ class Physics():
         self.color = np.vstack((self.color, (0, 0, 0)))
         self.base_color = np.vstack((self.base_color, color))
         volume = self.mass / self.den   # volume from mass and density
-        self.rad = rad_mult * np.cbrt(3 * volume / (4 * np.pi))   # calculate radius from volume
+        self.rad = self.rad_mult * np.cbrt(3 * volume / (4 * np.pi))   # calculate radius from volume
         self.pos = np.vstack((self.pos, position))
         self.vel = np.vstack((self.vel, [0, 0]))   # just add placeholder as [0, 0], since vel is calculated later in gravity()
         self.parents = np.append(self.parents, 0)
@@ -229,7 +236,7 @@ class Physics():
                     # loop continues until smallest parent body is found
             rel_pos = self.pos[parent] - self.pos[body]   # relative position
             rel_vel = self.vel[parent] - self.vel[body]   # relative velocity
-            u = gc * self.mass[parent]   # standard gravitational parameter
+            u = self.gc * self.mass[parent]   # standard gravitational parameter
             semi_major = -1 * u / (2*(rel_vel.dot(rel_vel) / 2 - u / mag(rel_pos)))   # semi-major axis
             self.coi[body] = semi_major * (body_mass / self.mass[parent])**(2/5)   # calculate its COI and save to index
     
@@ -260,7 +267,7 @@ class Physics():
             if self.coi[body] != 0:   # skip root
                 parent = self.parents[body]   # get parent for this body
                 distance = math.dist((self.pos[body, 0], self.pos[body, 1]), (self.pos[parent, 0], self.pos[parent, 1]))
-                force = gc * mass * self.mass[parent] / distance**2   # Newton's law of universal gravitation
+                force = self.gc * mass * self.mass[parent] / distance**2   # Newton's law of universal gravitation
                 # calculate angle between 2 bodies and horizon
                 angle = math.atan2(self.pos[parent, 1] - self.pos[body, 1], self.pos[parent, 0] - self.pos[body, 0])
                 acc = force / mass   # calculate acceleration
@@ -285,7 +292,7 @@ class Physics():
                 # calculate basic keplerian orbit physics
                 rel_pos = self.pos[body] - self.pos[parent]   # relative position
                 rel_vel = self.vel[body] - self.vel[parent]   # relative velocity
-                u = gc * self.mass[parent]   # standard gravitational parameter
+                u = self.gc * self.mass[parent]   # standard gravitational parameter
                 semi_major = -1 * u / (2*(rel_vel.dot(rel_vel) / 2 - u / mag(rel_pos)))   # semi-major axis
                 momentum = np.cross(rel_pos, rel_vel)   # orbital momentum, since this is 2d, momentum is scalar
                 # since this is 2d and momentum is scalar, cross product is not needed, so just multiply, swap axes and -y:
@@ -309,7 +316,7 @@ class Physics():
         semi_major = self.semi_major[selected]   # get semi-major axis of selected body
         periapsis_arg = self.periapsis_arg[selected]   # get periapsis argument of selected body
         ecc = mag(self.ecc_v[selected])   # eccentricity
-        u = gc * self.mass[parent]   # standard gravitational parameter
+        u = self.gc * self.mass[parent]   # standard gravitational parameter
         distance = mag(rel_pos)   # distance to parent
         speed_orb = mag(rel_vel)   # orbit speed
         true_anomaly = (periapsis_arg - (math.atan2(rel_pos[1], rel_pos[0]) - np.pi)) % (2*np.pi)  # true anomaly from relative position
@@ -357,7 +364,7 @@ class Physics():
     def kepler_inverse(self, body, ecc, omega_deg, pe_d, mean_anomaly_deg, true_anomaly_deg, ap_d, direction):
         """Inverse kepler equations."""
         parent = self.parents[body]  # get parent body
-        u = gc * self.mass[parent]   # standard gravitational parameter
+        u = self.gc * self.mass[parent]   # standard gravitational parameter
         omega = omega_deg * np.pi / 180   # periapsis argument from deg to rad
         mean_anomaly = mean_anomaly_deg * np.pi / 180
         if ecc == 0:   # to avoid division by zero
@@ -492,12 +499,12 @@ class Physics():
     def body_size(self):
         """Calculate bodies size from mass and density."""
         volume = self.mass / self.den   # volume from mass and density
-        self.rad = rad_mult * np.cbrt(3 * volume / (4 * np.pi))   # calculate radius from volume
+        self.rad = self.rad_mult * np.cbrt(3 * volume / (4 * np.pi))   # calculate radius from volume
     
     
     def body_temp(self):
         """Thermal calculations."""
-        core_temp = (gc * mp * self.mass * mass_sim_mult) / ((3/2) * k * self.rad * rad_sim_mult)   # core temperature
+        core_temp = (self.gc * mp * self.mass * mass_sim_mult) / ((3/2) * k * self.rad * rad_sim_mult)   # core temperature
         self.temp = 0 / core_temp   # surface temperature # ### temporarily ###
     
     
@@ -522,7 +529,7 @@ class Physics():
     
     def black_hole(self):
         """Define black hole bodies."""
-        self.rad_sc = 2 * self.mass * mass_sim_mult * gc / c**2   # Schwarzschild radius
+        self.rad_sc = 2 * self.mass * mass_sim_mult * self.gc / c**2   # Schwarzschild radius
     
     
     def classify(self):
@@ -531,7 +538,7 @@ class Physics():
         self.types = np.where(self.mass > 200, 1, self.types)    # if it has high enough mass: it is solid planet
         self.types = np.where(self.den < 1, 2, self.types)    # if it is not dense enough: it is gas planet
         self.types = np.where(self.mass > 5000, 3, self.types)   # ### temporarily ###
-        # elf.types = np.where(self.temp > 1000, 3, self.types)    # if temperature is over 1000 degrees: it is a star
+        # self.types = np.where(self.temp > 1000, 3, self.types)    # if temperature is over 1000 degrees: it is a star
         # self.types = np.where(self.rad_sc > self.rad, 4, self.types)   # if schwarzschild radius is greater than radius: it is black hole
     
     

@@ -18,7 +18,7 @@ graphics = graphics.Graphics()
 textinput = textinput.Textinput()
 
 
-version = "0.2.2"
+version = "0.2.3"
 
 buttons_main = ["Play - WIP", "Multiplayer - WIP", "Map Editor", "Settings", "About", "Quit"]
 buttons_map_sel = ["Open in editor", "Rename", "Delete", "Export"]
@@ -345,6 +345,7 @@ class Menu():
                                 elif num == 1:   # delete
                                     try:
                                         os.remove(self.selected_path)
+                                        self.selected_item -= 1
                                     except Exception:
                                         pass
                                     self.gen_map_list()

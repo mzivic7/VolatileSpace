@@ -15,6 +15,7 @@ from volatilespace.graphics import graphics
 from volatilespace.graphics import bg_stars
 from volatilespace import textinput
 from volatilespace import metric
+from volatilespace import defaults
 
 
 physics = physics_engine.Physics()
@@ -34,6 +35,7 @@ text_edit_planet = ["(Rotation period): ", "Color: ", "(Atmosphere amount): ", "
 text_edit_star = ["(Surface temp): ", "(Luminosity): ", "Color: ", "(H/He ratio): "]
 text_edit_bh = ["Schwarzschild radius: "]
 text_edit_delete = "Delete body"
+text_load_default = "Load default values"
 prop_edit_orb = [0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0]
 prop_edit_body = [1, 0, 1, 1, 0, 0]
 prop_edit_planet = [1, 2, 0, 0, 0]
@@ -120,6 +122,7 @@ class Editor():
         self.zoom_step = 0.05   # initial zoom step
         self.warp = self.warp_range[self.warp_index]   # load current warp
         self.orbit_data = []   # additional data for right_menu when body is selected
+        self.sim_conf = {}   # simulation related config loaded from save file
         
         self.new_mass = new_mass_init   # set initial mass for new body ### REMOVE ###
         
@@ -142,10 +145,9 @@ class Editor():
         body_bh = pygame.image.load("img/bh.png")
         self.body_imgs = [body_moon, body_planet_solid, body_planet_gas, body_star, body_bh]
         
-        
         bg_stars.set_screen()   # load pygame stuff in classes after pygame init has finished
         graphics.set_screen()
-        
+    
     
     def set_screen(self):
         """Load pygame-related variables, this should be run after pygame has initialised or resolution has changed"""
@@ -165,29 +167,8 @@ class Editor():
         self.right_menu_x = self.screen_x - 300
         self.r_menu_limit = self.screen_y - 38 - self.space
         self.r_menu_x_btn = self.right_menu_x + self.space
-        
     
-    def gen_map_list(self):
-        self.maps = fileops.gen_map_list()
-        self.map_list_size = len(self.maps) * self.btn_h + len(self.maps) * self.space
-        if len(self.maps) != 0:
-            self.selected_path = "Maps/" + self.maps[self.selected_item, 0]
-        
-        # limit text size
-        for num, text in enumerate(self.maps[:, 1]):
-            new_text = graphics.limit_text(text, self.fontbt, self.btn_w_l)
-            if new_text != text:
-                self.maps[num, 1] = new_text
-        
-        # find selected item based on currently active file
-        selected_item = np.where(self.maps[:, 0] == self.file_path.strip("Maps/"))[0]
-        if len(selected_item) == 0:
-            self.selected_item = 0
-        else:
-            self.selected_item = selected_item[0]
     
-
-    ###### --Reload settings-- ######
     def reload_settings(self):
         """Reload all settings for editor and graphics, should be run every time editor is entered"""
         self.fullscreen = leval(fileops.load_settings("graphics", "fullscreen"))
@@ -213,6 +194,41 @@ class Editor():
         graphics.set_screen()
         self.keys = fileops.load_keybindings()
         self.right_menu = None
+    
+    
+    def gen_map_list(self):
+        self.maps = fileops.gen_map_list()
+        self.map_list_size = len(self.maps) * self.btn_h + len(self.maps) * self.space
+        if len(self.maps) != 0:
+            self.selected_path = "Maps/" + self.maps[self.selected_item, 0]
+        
+        # limit text size
+        for num, text in enumerate(self.maps[:, 1]):
+            new_text = graphics.limit_text(text, self.fontbt, self.btn_w_l)
+            if new_text != text:
+                self.maps[num, 1] = new_text
+        
+        # find selected item based on currently active file
+        selected_item = np.where(self.maps[:, 0] == self.file_path.strip("Maps/"))[0]
+        if len(selected_item) == 0:
+            self.selected_item = 0
+        else:
+            self.selected_item = selected_item[0]
+    
+    
+    def load_system(self, system):
+        self.sim_name, self.sim_time, self.sim_conf, self.names, self.mass, self.density, self.position, self.velocity, self.color = fileops.load_system(system)
+        self.sim_time *= self.ptps   # convert from seconds to userevent iterations
+        physics.load_system(self.sim_conf, self.names, self.mass, self.density, self.position, self.velocity, self.color)   # add it to physics class
+        self.file_path = system   # this path will be used for load/save
+        self.disable_input = False
+        self.disable_ui = False
+        self.disable_labels = False
+        self.gen_map_list()
+        
+        # userevent may not been run in first iteration, but this values are needed in graphics section:
+        self.names, self.types, self.mass, self.density, self.temp, self.position, self.velocity, self.colors, self.size, self.rad_sc = physics.get_bodies()
+        self.first = True
     
     
     
@@ -243,37 +259,20 @@ class Editor():
     def ask_load(self):
         """Loads system from "load" dialog."""
         if os.path.exists(self.selected_path):
-            self.sim_name, self.sim_time, self.names, self.mass, self.density, self.position, self.velocity, self.color = fileops.load_system(self.selected_path)
+            self.sim_name, self.sim_time, self.sim_conf, self.names, self.mass, self.density, self.position, self.velocity, self.color = fileops.load_system(self.selected_path)
             self.sim_time *= self.ptps   # convert from seconds to userevent iterations
-            physics.load_system(self.names, self.mass, self.density, self.position, self.velocity, self.color)
+            physics.load_system(self.sim_conf, self.names, self.mass, self.density, self.position, self.velocity, self.color)
             self.names, self.types, self.mass, self.density, self.temp, self.position, self.velocity, self.colors, self.size, self.rad_sc = physics.get_bodies()
             self.file_path = self.selected_path   # change currently active file
             graphics.timed_text_init(rgb.gray, self.fontmd, "Map loaded successfully", (self.screen_x/2, self.screen_y-70), 2, True)
-        
+    
     def ask_save(self):
         """Savess system from "save" dialog."""
         base_color = physics.get_base_color()
         date = time.strftime("%d.%m.%Y %H:%M")
-        fileops.save_system(self.selected_path, self.sim_name, date, self.sim_time/self.ptps, self.names, self.mass, self.density, self.position, self.velocity, base_color)
+        fileops.save_system(self.selected_path, self.sim_name, date, self.sim_conf, self.sim_time/self.ptps, self.names, self.mass, self.density, self.position, self.velocity, base_color)
         self.file_path = self.selected_path
         graphics.timed_text_init(rgb.gray, self.fontmd, "Map saved successfully", (self.screen_x/2, self.screen_y-70), 2, True)
-    
-    
-    
-    ###### --Load system-- ######
-    def load_system(self, system):
-        self.sim_name, self.sim_time, self.names, self.mass, self.density, self.position, self.velocity, self.color = fileops.load_system(system)
-        self.sim_time *= self.ptps   # convert from seconds to userevent iterations
-        physics.load_system(self.names, self.mass, self.density, self.position, self.velocity, self.color)   # add it to physics class
-        self.file_path = system   # this path will be used for load/save
-        self.disable_input = False
-        self.disable_ui = False
-        self.disable_labels = False
-        self.gen_map_list()
-        
-        # userevent may not been run in first iteration, but this values are needed in graphics section:
-        self.names, self.types, self.mass, self.density, self.temp, self.position, self.velocity, self.colors, self.size, self.rad_sc = physics.get_bodies()
-        self.first = True
     
     
     
@@ -293,7 +292,7 @@ class Editor():
                     date = time.strftime("%d.%m.%Y %H:%M")
                     path = fileops.new_map(self.text, date)
                     base_color = physics.get_base_color()
-                    fileops.save_system(path, self.text, date, self.sim_time/self.ptps, self.names, self.mass, self.density, self.position, self.velocity, base_color)
+                    fileops.save_system(path, self.text, date, self.sim_conf, self.sim_time/self.ptps, self.names, self.mass, self.density, self.position, self.velocity, base_color)
                     self.gen_map_list()
                     self.new_map = False
                     self.ask = None
@@ -386,6 +385,9 @@ class Editor():
                                 else:   # B
                                     color[2] = new_value
                                 physics.set_body_color(self.selected, color)
+                        elif self.right_menu == 5:   # sim config
+                            self.sim_conf[list(self.sim_conf.keys())[self.input_value]] = new_value
+                            physics.load_conf(self.sim_conf)
                     else:
                         graphics.timed_text_init(rgb.red, self.fontmd, "Entered value is invalid", (self.screen_x/2, self.screen_y-70), 2, True)
                     self.input_value = None
@@ -610,7 +612,7 @@ class Editor():
                             elif num == 5:   # save and quit
                                 base_color = physics.get_base_color()
                                 date = time.strftime("%d.%m.%Y %H:%M")
-                                fileops.save_system(self.file_path, self.sim_name, date, self.sim_time/self.ptps, self.names, self.mass, self.density, self.position, self.velocity, base_color)
+                                fileops.save_system(self.file_path, self.sim_name, date, self.sim_conf, self.sim_time/self.ptps, self.names, self.mass, self.density, self.position, self.velocity, base_color)
                                 self.state = 1
                                 self.pause_menu = False
                                 self.disable_input = False
@@ -635,7 +637,7 @@ class Editor():
                                     date = time.strftime("%d.%m.%Y %H:%M")
                                     path = fileops.new_map(self.text, date)
                                     base_color = physics.get_base_color()
-                                    fileops.save_system(path, self.text, date, self.sim_time/self.ptps, self.names, self.mass, self.density, self.position, self.velocity, base_color)
+                                    fileops.save_system(path, self.text, date, self.sim_conf, self.sim_time/self.ptps, self.names, self.mass, self.density, self.position, self.velocity, base_color)
                                     self.gen_map_list()
                                 self.new_map = False
                                 self.ask = None
@@ -840,7 +842,18 @@ class Editor():
                                 self.right_menu = None
                         y_pos += 26
                 if self.right_menu == 5:   # sim config
-                    pass
+                    y_pos = 38
+                    for num, item in enumerate(self.sim_conf.items()):
+                        if self.r_menu_x_btn <= self.mouse_raw[0]-1 <= self.r_menu_x_btn + 280 and y_pos <= self.mouse_raw[1]-1 <= y_pos + 19:
+                            self.input_value = num
+                            textinput.initial_text(str(item[1]), item[0] + ": ")
+                            self.click = False
+                        y_pos += 26
+                    y_pos += 12
+                    if self.r_menu_x_btn <= self.mouse_raw[0]-1 <= self.r_menu_x_btn + 280 and y_pos <= self.mouse_raw[1]-1 <= y_pos + 19:
+                        self.sim_conf = defaults.sim_config.copy()
+                        physics.load_conf(self.sim_conf)
+                    
             
             # on click, disable text input:
             if self.click and self.input_value is not None:
@@ -876,7 +889,6 @@ class Editor():
                                 physics.set_body_mass(self.selected, new_value)
                             elif self.input_value == 3:   # density
                                 physics.set_body_den(self.selected, new_value)
-                                print(self.selected, new_value)
                             elif int(self.types[self.selected]) in [0, 1, 2]:   # planet, moon
                                 if self.input_value == 6:   # rotation period
                                     pass
@@ -892,6 +904,9 @@ class Editor():
                             else:   # B
                                 color[2] = new_value
                             physics.set_body_color(self.selected, color)
+                    elif self.right_menu == 5:
+                        self.sim_conf[list(self.sim_conf.keys())[self.input_value]] = new_value
+                        physics.load_conf(self.sim_conf)
                     self.input_value = None
                 else:
                     self.input_value = None
@@ -1261,7 +1276,14 @@ class Editor():
                 graphics.text_list(screen, texts_merged, (self.r_menu_x_btn, 38), (280, 21), 26, prop=prop_merged)
             
             elif self.right_menu == 5:   # sim config
-                pass
+                texts = []
+                for item in self.sim_conf.items():
+                    text = str(item[0]) + ": " + str(item[1])
+                    texts.append(text)
+                prop = [1]*len(texts)
+                texts.append(text_load_default)
+                prop.append(3)
+                graphics.text_list(screen, texts, (self.r_menu_x_btn, 38), (280, 21), 26, prop=prop)
             
             # input value to right ui
             if self.input_value is not None:

@@ -46,3 +46,8 @@ keybindings = {"forward": pg.K_w,
                "toggle_ui_visibility": pg.K_F2,
                "toggle_labels_visibility": pg.K_F3
                }
+
+
+sim_config = {"gc": 1.0,
+              "rad_mult": 10.0
+              }
