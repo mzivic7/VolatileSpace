@@ -473,6 +473,7 @@ class Graphics():
         
         y_pos = y_1
         y_pos -= scroll
+        selected_item_pos = y_pos
         for num, text in enumerate(maps):
             if num == selected_item:
                 selected_item_pos = y_pos
@@ -528,8 +529,13 @@ class Graphics():
             pygame.draw.line(screen, rgb.white, (x, y-1), (x + self.btn_s, y-1), 1)
     
     
-    def text_list(self, screen, texts, pos, size, space, imgs=None, prop=None):
-        """Draws texts in list. Optionally with icons in front of text."""
+    def text_list(self, screen, texts, pos, size, space, imgs=None, prop=None, selected=0):
+        """Draws texts in list. Optionally with icons in front of text.
+        Properties are passed as list with value for each button.
+        Values can be: 0 - Just print text, 1 - Editable text, 2 - 3 input values (for RGB),
+        3 - Red button with larger space, 4 - green button with larger space,
+        5 - icon buttons (icons passed in imgs variable, and selected button in selected variable),"""
+        
         (x, y) = pos
         (w, h) = size
         for num, text in enumerate(texts):
@@ -546,24 +552,47 @@ class Graphics():
                 self.text(screen, rgb.white, self.fontmd, "Color:   R: " + str(text[0]), (x+6, y+1))
                 self.text(screen, rgb.white, self.fontmd, "G: " + str(text[1]), (x+120, y+1))
                 self.text(screen, rgb.white, self.fontmd, "B: " + str(text[2]), (x+179, y+1))
-            else:
-                if prop is not None and prop[num] in [1, 3]:
+            elif prop is not None and prop[num] in [1, 3, 4]:
+                if prop[num] == 3:
+                    color = rgb.red3
+                    y += 12
+                elif prop[num] == 4:
+                    color = rgb.green3
+                    y += 12
+                else:
+                    color = rgb.gray3
+                if x <= self.mouse[0]-1 <= x + w and y <= self.mouse[1]-1 <= y + h:
                     if prop[num] == 3:
-                        color = rgb.red3
-                        y += 12
+                        color = rgb.red_s2
+                    elif prop[num] == 4:
+                        color = rgb.green_s2
                     else:
-                        color = rgb.gray3
-                    if x <= self.mouse[0]-1 <= x + w and y <= self.mouse[1]-1 <= y + h:
+                        color = rgb.gray2
+                    if self.click is True:
                         if prop[num] == 3:
-                            color = rgb.red_s2
+                            color = rgb.red_s3
+                        elif prop[num] == 4:
+                            color = rgb.green_s3
                         else:
-                            color = rgb.gray2
+                            color = rgb.gray1
+                pygame.draw.rect(screen, color, (x, y, w, h))
+                self.text(screen, rgb.white, self.fontmd, text, (x+6, y+1))
+            elif prop is not None and prop[num] == 5:
+                x_pos = x
+                w_short = (w + 10) / len(imgs) - 10
+                for num, img in enumerate(imgs):
+                    color = rgb.gray3
+                    if x_pos <= self.mouse[0]-1 <= x_pos + w_short and y <= self.mouse[1]-1 <= y + h:
+                        color = rgb.gray2
                         if self.click is True:
-                            if prop[num] == 3:
-                                color = rgb.red_s3
-                            else:
-                                color = rgb.gray1
-                    pygame.draw.rect(screen, color, (x, y, w, h))
+                            color = rgb.gray1
+                    pygame.draw.rect(screen, color, (x_pos, y, w_short, h))
+                    if selected == num:
+                        pygame.draw.rect(screen, rgb.gray1, (x_pos, y, w_short, h))
+                        pygame.draw.rect(screen, rgb.white, (x_pos, y, w_short, h), 1)
+                    screen.blit(imgs[num], (x_pos + w_short/2 - 10, y))
+                    x_pos += w_short + 10
+            else:
                 self.text(screen, rgb.white, self.fontmd, text, (x+6, y+1))
             y += space
     

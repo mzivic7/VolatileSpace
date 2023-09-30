@@ -138,27 +138,38 @@ class Physics():
         self.body_size()   # re-calculate body size
         self.black_hole()  # re-calculate black holes
     
-    def add_body(self, name, mass, density, position, velocity, color):
+    def add_body(self, data):
         """Add body to simulation."""
-        self.names = np.append(self.names, name)
-        self.mass = np.append(self.mass, mass)
-        self.den = np.append(self.den, density)
+        old_largest = int(self.largest)
+        self.names = np.append(self.names, data["name"])
+        self.mass = np.append(self.mass, data["mass"])
+        self.den = np.append(self.den, data["density"])
         self.temp = np.append(self.temp, 0)
         self.color = np.vstack((self.color, (0, 0, 0)))
-        self.base_color = np.vstack((self.base_color, color))
+        self.base_color = np.vstack((self.base_color, data["color"]))
         volume = self.mass / self.den   # volume from mass and density
         self.rad = self.rad_mult * np.cbrt(3 * volume / (4 * np.pi))   # calculate radius from volume
-        self.pos = np.vstack((self.pos, position))
+        self.pos = np.vstack((self.pos, data["position"]))
         self.vel = np.vstack((self.vel, [0, 0]))   # just add placeholder as [0, 0], since vel is calculated later in gravity()
         self.parents = np.append(self.parents, 0)
         self.simplified_orbit_coi()   # re-calculate COIs
         self.find_parents()   # find parents for all bodies
-        self.rel_vel = np.vstack((self.rel_vel, velocity))   # add new body velocity as relative velocyty
+        self.rel_vel = np.vstack((self.rel_vel, data["velocity"]))   # add new body velocity as relative velocyty
         self.focus = np.append(self.focus, 0)
         self.semi_major = np.append(self.semi_major, 0)
         self.semi_minor = np.append(self.semi_minor, 0)
         self.periapsis_arg = np.append(self.periapsis_arg, 0)
         self.ecc_v = np.vstack((self.ecc_v, [0, 0]))
+        # if this body is new root
+        if data["mass"] > self.mass[old_largest]:
+            self.largest = len(self.mass) - 1
+            diff = list(self.pos[self.largest])
+            for body in range(len(self.mass)):
+                self.pos[body] -= diff
+            self.rel_vel[old_largest] = self.rel_vel[self.largest] * -1
+            self.vel[self.largest] = [0, 0]
+            if self.largest != 0:   # make sure largest body is first
+                self.set_root(self.largest)
     
     def del_body(self, delete):
         """Remove body from simulation."""

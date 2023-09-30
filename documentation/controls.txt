@@ -1,9 +1,7 @@
 ### MOUSE ###
 Lclick on body     Select body
-Lclick + drag      Move view
+Lclick + drag      Move view / Insert new body (in insert mode)
 Mouse_wheel        Zoom in / Zoom out
-Rclick + drag      Insert new body
-Rclick + scroll    Change new body mass
 
 ### KEYBOARD ###
 Space              Pause

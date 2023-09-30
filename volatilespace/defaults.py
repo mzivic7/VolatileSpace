@@ -51,3 +51,49 @@ keybindings = {"forward": pg.K_w,
 sim_config = {"gc": 1.0,
               "rad_mult": 10.0
               }
+
+
+new_body_moon = {"name": "New moon",
+                 "type": 0,
+                 "mass": 10.0,
+                 "density": 1.0,
+                 "position": [0, 0],
+                 "velocity": [0, 0],
+                 "color": [255, 255, 255]
+                 }
+
+new_body_planet = {"name": "New planet",
+                   "type": 1,
+                   "mass": 300.0,
+                   "density": 1.0,
+                   "position": [0, 0],
+                   "velocity": [0, 0],
+                   "color": [255, 255, 255]
+                   }
+
+new_body_gas = {"name": "New gas planet",
+                "type": 2,
+                "mass": 1000.0,
+                "density": 0.3,
+                "position": [0, 0],
+                "velocity": [0, 0],
+                "color": [255, 255, 255]
+                }
+
+new_body_star = {"name": "New star",
+                 "type": 3,
+                 "mass": 6000.0,
+                 "density": 1.0,
+                 "position": [0, 0],
+                 "velocity": [0, 0],
+                 "color": [255, 255, 255]
+                 }
+
+new_body_bh = {"name": "New black hole",
+               "type": 4,
+               "mass": 500000.0,
+               "density": 100.0,
+               "position": [0, 0],
+               "velocity": [0, 0],
+               "color": [50, 50, 50]
+               }

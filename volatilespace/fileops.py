@@ -50,17 +50,16 @@ def gen_map_list():
         if file_name[-4:] == ".ini":   # filter only files with .ini extension
             map_files.append(file_name)
     
-    maps = np.empty((len(map_files), 3), dtype=object)
+    maps = np.empty((0, 3), dtype=object)
     for num, map_file in enumerate(map_files):
         map_save = ConfigParser()
         map_save.read("Maps/" + map_file)
         try:
             name = map_save.get("config", "name").strip('"')
             date = map_save.get("config", "date").strip('"')
+            maps = np.vstack((maps, [map_file, name, date]))
         except Exception:
-            name = "Unknown"
-            date = "-"
-        maps[num, :] = np.array([map_file, name, date])
+            pass
     
     maps = maps[maps[:, 2].argsort()]   # sort by name then by date
     maps = maps[maps[:, 1].argsort(kind='mergesort')]
@@ -123,6 +122,10 @@ def save_system(path, name, date, conf, time, body_names, mass, density, positio
     
     for body, body_mass in enumerate(mass):   # for each body:
         body_name = body_names[body]
+        num = 1
+        while body_name in system.sections():   # if this body already exists
+            body_name = body_names[body] + " " + str(num)
+            num += 1
         system.add_section(body_name)   # add body
         system.set(body_name, "mass", str(body_mass))   # add body parameters
         system.set(body_name, "density", str(density[body]))
