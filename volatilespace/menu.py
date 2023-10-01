@@ -18,7 +18,7 @@ graphics = graphics.Graphics()
 textinput = textinput.Textinput()
 
 
-version = "0.2.4"
+version = "0.3.0"
 
 buttons_main = ["Play - WIP", "Multiplayer - WIP", "Map Editor", "Settings", "About", "Quit"]
 buttons_map_sel = ["Open in editor", "Rename", "Delete", "Export"]
@@ -144,7 +144,7 @@ class Menu():
     def input_keys(self, e, from_game=False):
         
         if self.rename or self.new_map:
-            self.text = textinput.input_keys(e)
+            self.text = textinput.input(e)
             if e.type == pygame.KEYDOWN:
                 if e.key == pygame.K_ESCAPE:
                     self.rename = False
@@ -179,7 +179,7 @@ class Menu():
             elif e.key == pygame.K_F2:
                 self.rename = True
                 self.disable_buttons = True
-                textinput.initial_text(self.maps[self.selected_item, 1])
+                textinput.initial_text(self.maps[self.selected_item, 1], selected=True)
             
             elif e.key == pygame.K_RETURN:
                 if self.menu == 3:
@@ -284,7 +284,7 @@ class Menu():
                                     elif num == 1:   # rename
                                         self.rename = True
                                         self.disable_buttons = True
-                                        textinput.initial_text(self.maps[self.selected_item, 1])
+                                        textinput.initial_text(self.maps[self.selected_item, 1], selected=True)
                                     elif num == 2:   # delete
                                         self.are_you_sure = True
                                         self.disable_buttons = True
@@ -304,7 +304,7 @@ class Menu():
                                 elif num == 1:   # new map
                                     self.new_map = True
                                     self.disable_buttons = True
-                                    textinput.initial_text("New Map")
+                                    textinput.initial_text("New Map", selected=True)
                                 elif num == 2:   # import map
                                     file_path = fileops.load_file([("Text Files", "*.ini")])
                                     if file_path != "":

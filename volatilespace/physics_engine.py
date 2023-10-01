@@ -135,8 +135,7 @@ class Physics():
         self.semi_minor = np.zeros(len(mass))
         self.periapsis_arg = np.zeros(len(mass))
         self.ecc_v = np.zeros([len(mass), 2])
-        self.body_size()   # re-calculate body size
-        self.black_hole()  # re-calculate black holes
+        self.body()   # re-calculate body related physics
     
     def add_body(self, data):
         """Add body to simulation."""
@@ -461,14 +460,14 @@ class Physics():
                     curves[0, num, :] = curves[0, num, :] - self.semi_major[num, np.newaxis]   # translate parabola by semi_major, since its center is not in 0,0
                 if ecc > 1:   # hyperbola
                     curves[:, num, :] = np.array([self.semi_major[num] * 1/np.cos(self.hyp_t), self.semi_minor[num] * np.tan(self.hyp_t)])   # raw hyperbolas
-                # parametric equation for circle is same as for sphere, just semi_major = semi_minor, thus it is not required
+                # parametric equation for circle is same as for ellipse, just semi_major = semi_minor, thus it is not required
         
-        curves_rot = np.zeros((2, curves.shape[1], curves.shape[2]))   # empty array for new rotaded curve
+        curves_rot = np.zeros((2, curves.shape[1], curves.shape[2]))   # empty array for new rotated curve
         for body in range(curves.shape[1]):   # for each body
             curves_rot[:, body, :] = np.dot(rot[:, :, body], curves[:, body, :])   # apply rotation matrix to all curve points
         curves_x = curves_rot[0, :, :] + focus_x[:, np.newaxis] + self.pos[self.parents, 0, np.newaxis]   # translate to align focus and parent
         curves_y = curves_rot[1, :, :] + focus_y[:, np.newaxis] + self.pos[self.parents, 1, np.newaxis]
-        return curves_x, curves_y
+        return np.stack([curves_x, curves_y])
     
     
     def check_collision(self):
@@ -507,16 +506,18 @@ class Physics():
             return body1, body2
     
     
-    def body_size(self):
-        """Calculate bodies size from mass and density."""
+    def body(self):
+        """Body related physics (size, thermal, bh...)"""
+        # radius
         volume = self.mass / self.den   # volume from mass and density
         self.rad = self.rad_mult * np.cbrt(3 * volume / (4 * np.pi))   # calculate radius from volume
-    
-    
-    def body_temp(self):
-        """Thermal calculations."""
+        
+        # thermal
         core_temp = (self.gc * mp * self.mass * mass_sim_mult) / ((3/2) * k * self.rad * rad_sim_mult)   # core temperature
         self.temp = 0 / core_temp   # surface temperature # ### temporarily ###
+        
+        # black hole
+        self.rad_sc = 2 * self.mass * mass_sim_mult * self.gc / c**2   # Schwarzschild radius
     
     
     def body_color(self):
@@ -538,11 +539,6 @@ class Physics():
         return self.color   # return calculated color
     
     
-    def black_hole(self):
-        """Define black hole bodies."""
-        self.rad_sc = 2 * self.mass * mass_sim_mult * self.gc / c**2   # Schwarzschild radius
-    
-    
     def classify(self):
         """Body classification."""
         self.types = np.zeros(len(self.mass))  # it is moon
@@ -551,6 +547,97 @@ class Physics():
         self.types = np.where(self.mass > 5000, 3, self.types)   # ### temporarily ###
         # self.types = np.where(self.temp > 1000, 3, self.types)    # if temperature is over 1000 degrees: it is a star
         # self.types = np.where(self.rad_sc > self.rad, 4, self.types)   # if schwarzschild radius is greater than radius: it is black hole
+    
+    
+    def precalculate(self, body_data):
+        """Calculate body related values without it being added to simulation."""
+        # radius
+        mass = body_data["mass"]
+        density = body_data["density"]
+        base_color = body_data["color"]
+        
+        volume = mass / density
+        radius = self.rad_mult * np.cbrt(3 * volume / (4 * np.pi))
+        
+        # thermal
+        core_temp = (self.gc * mp * mass * mass_sim_mult) / ((3/2) * k * radius * rad_sim_mult)   # core temperature
+        temp = 0 / core_temp   # surface temperature # ### temporarily ###
+        
+        # bh
+        rad_sc = 2 * mass * mass_sim_mult * self.gc / c**2   # Schwarzschild radius
+        
+        # classify
+        body_type = 0  # it is moon
+        if mass > 200:
+            body_type = 1   # soid planet
+        if density < 1:
+            body_type = 2   # gas planet
+        if mass > 5000:   # ### temporarily ###
+            body_type = 3   # star
+        # if temp > 1000:
+        #     body_type = 3   # star
+        # if rad_sc > rad:
+        #     body_type = 4   # bh
+        
+        # star color
+        color = list(base_color)
+        if temp > 1000:
+            color[:, 0] = base_color[:, 0] + ((255 - base_color[:, 0]) * (temp - 1000)) / 2000   # transition from base red to full red
+            color[:, 1] = base_color[:, 1] - ((base_color[:, 1]) * (temp - 1000)) / 2000   # transition from base green to no green
+            color[:, 2] = base_color[:, 2] - ((base_color[:, 2]) * (temp - 1000)) / 2000   # transition from base blue to no blue
+        if temp > 3000:
+            color[:, 1] = (255 * (temp - 3000)) / 3000   # transition from no green to full green
+        if temp > 6000:
+            color[:, 2] = (255 * (temp - 6000)) / 4000   # transition from no blue to full blue
+        if temp > 10000:
+            color[:, 0] = 255 - ((255 * (temp - 10000) / 10000))   # transition from full red to no red
+            color[:, 1] = 255 - ((135 * (temp - 10000) / 20000))   # transition from full green to 120 green
+        for num, value in enumerate(color):   # limit color from 0 to 255
+            if value < 0:
+                color[num] = 0
+            if value > 255:
+                color[num] = 255
+        
+        precalculated_data = {"radius": radius, "type": body_type, "temp": temp, "real_color": color, "rad_sc": rad_sc}
+        return precalculated_data
+    
+    
+    def precalc_curve(self, pos, vel):
+        """Calculate body orbit values without it being added to simulation."""
+        parent = 0   # get parent body
+        rel_pos = pos - self.pos[parent]
+        rel_vel = vel - self.vel[parent]
+        u = self.gc * self.mass[parent]   # standard gravitational parameter
+        semi_major = -1 * u / (2*(rel_vel.dot(rel_vel) / 2 - u / mag(rel_pos)))   # semi-major axis
+        momentum = np.cross(rel_pos, rel_vel)   # orbital momentum, since this is 2d, momentum is scalar
+        ecc_v = ([rel_vel[1], -rel_vel[0]] * momentum / u) - rel_pos / mag(rel_pos)   # eccentricity vector
+        ecc = mag(ecc_v)   # eccentricity
+        periapsis_arg = ((3 * np.pi / 2) + math.atan2(-ecc_v[0], ecc_v[1])) % (2*np.pi)   # argument of periapsis
+        focus = semi_major * ecc   # focus
+        semi_minor = math.sqrt(abs(focus**2 - semi_major**2))   # semi-minor axis
+        
+        focus_x = focus * np.cos(periapsis_arg)
+        focus_y = focus * np.sin(periapsis_arg)
+        rot = np.array([[np.cos(periapsis_arg), - np.sin(periapsis_arg)],
+                        [np.sin(periapsis_arg), np.cos(periapsis_arg)]])
+        
+        # curve[axis, point]
+        curve = np.zeros((2, self.curve_points))
+        ecc = np.sqrt(ecc_v.dot(ecc_v))
+        if ecc < 1:
+            curve[:, :] = np.array([semi_major * np.cos(self.ell_t), semi_minor * np.sin(self.ell_t)])   # raw ellipse
+        else:
+            if ecc == 1:
+                curve[:, :] = np.array([semi_major * self.par_t**2, 2 * semi_major * self.par_t])   # raw parabola
+                curve[0, :] = curve[0, :] - semi_major[np.newaxis]
+            if ecc > 1:
+                curve[:, :] = np.array([semi_major * 1/np.cos(self.hyp_t), semi_minor * np.tan(self.hyp_t)])   # raw hyperbola
+        
+        curve_rot = np.zeros((2, curve.shape[1]))   # empty array for new rotated curve
+        curve_rot[:, :] = np.dot(rot[:, :], curve[:, :])   # apply rotation matrix to all curve points
+        curve_x = curve_rot[0, :] + focus_x + self.pos[parent, 0]   # translate to align focus and parent
+        curve_y = curve_rot[1, :] + focus_y + self.pos[parent, 1]
+        return np.stack([curve_x, curve_y])
     
     
     def get_bodies(self):

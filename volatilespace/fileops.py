@@ -17,7 +17,7 @@ def save_file(file_name, filetype=[("All Files", "*.*")]):
     root = tk.Tk()   # define tkinter root
     root.withdraw()   # make tkinter root invisible
     if file_name == "":
-        file_name = "new map.ini"
+        file_name = "New Map.ini"
     save_file = filedialog.asksaveasfile(mode='w', initialfile=file_name, defaultextension=".ini",
                                          initialdir=home_dir, filetypes=filetype)
     if save_file is None:   # asksaveasfile return "None" if dialog closed with "cancel"
@@ -107,6 +107,8 @@ def save_system(path, name, date, conf, time, body_names, mass, density, positio
     """Save system to file"""
     if not os.path.exists("Maps"):
         os.mkdir("Maps")
+    if name == "":   # there must be name
+        name = "Unnamed"
     if os.path.exists(path):   # when overwriting, delete file
         open(path, "w").close()
     system = ConfigParser()   # load config class
@@ -141,14 +143,25 @@ def new_map(name, date):
     """Creates new map with initial body and saves to file."""
     if not os.path.exists("Maps"):
         os.mkdir("Maps")
-    path = "Maps/" + name + ".ini"
+    if name == "":   # there must be name
+        name = "New Map"
+    
+    # prevent having same name maps
+    map_list = gen_map_list()
+    new_name = name
+    num = 1
+    while new_name in map_list[:, 1] or new_name + ".ini" in map_list[:, 0]:
+        new_name = name + " " + str(num)
+        num += 1
+    
+    path = "Maps/" + new_name + ".ini"
     if os.path.exists(path):   # when overwriting, delete file
         open(path, "w").close()
     system = ConfigParser()   # load config class
-    system.read(name + ".ini")   # load system
+    system.read(new_name + ".ini")   # load system
     
     system.add_section("config")   # special section for config
-    system.set("config", "name", name)
+    system.set("config", "name", new_name)
     system.set("config", "date", date)
     system.set("config", "time", "0")
     
@@ -169,9 +182,20 @@ def new_map(name, date):
     return path
 
 
-def rename_map(path, new_name):
+def rename_map(path, name):
     system = ConfigParser()
     system.read(path)
+    if name == "":   # there must be name
+        name = "Unnamed"
+    
+    # prevent having same name maps
+    map_list = gen_map_list()
+    new_name = name
+    num = 1
+    while new_name in map_list[:, 1] or new_name + ".ini" in map_list[:, 0]:
+        new_name = name + " " + str(num)
+        num += 1
+    
     system.set("config", "name", new_name)
     with open(path, 'w') as f:
         system.write(f)
