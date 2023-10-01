@@ -172,34 +172,38 @@ class Physics():
     
     def del_body(self, delete):
         """Remove body from simulation."""
-        self.names = np.delete(self.names, delete)
-        self.mass = np.delete(self.mass, delete)
-        self.den = np.delete(self.den, delete)
-        self.temp = np.delete(self.temp, delete)
-        self.color = np.delete(self.color, delete, axis=0)
-        self.base_color = np.delete(self.base_color, delete, axis=0)
-        self.rad = np.delete(self.rad, delete)
-        self.pos = np.delete(self.pos, delete, axis=0)
-        self.vel = np.delete(self.vel, delete, axis=0)
-        self.rel_vel = np.delete(self.rel_vel, delete, axis=0)
-        self.parents = np.delete(self.parents, delete)
-        self.simplified_orbit_coi()   # re-calculate COIs
-        self.find_parents()   # find parents for all bodies
-        self.focus = np.delete(self.focus, delete)
-        self.semi_major = np.delete(self.semi_major, delete)
-        self.semi_minor = np.delete(self.semi_minor, delete)
-        self.periapsis_arg = np.delete(self.periapsis_arg, delete)
-        self.ecc_v = np.delete(self.ecc_v, delete, axis=0)
-        if self.largest == delete:
-            self.find_parents()   # if root is deleted, we need new one asap
-            self.simplified_orbit_coi()   # root is identified by coi=0
-            # move new root to (0, 0) and translate all other bodies
-            diff = list(self.pos[self.largest])
-            for body in range(len(self.mass)):
-                self.pos[body] -= diff
-            self.vel[self.largest] = [0, 0]
-            if self.largest != 0:   # make sure largest body is first
-                self.set_root(self.largest)
+        if len(self.mass) > 1:   # there must be at lest one body in simulation
+            self.names = np.delete(self.names, delete)
+            self.mass = np.delete(self.mass, delete)
+            self.den = np.delete(self.den, delete)
+            self.temp = np.delete(self.temp, delete)
+            self.color = np.delete(self.color, delete, axis=0)
+            self.base_color = np.delete(self.base_color, delete, axis=0)
+            self.rad = np.delete(self.rad, delete)
+            self.pos = np.delete(self.pos, delete, axis=0)
+            self.vel = np.delete(self.vel, delete, axis=0)
+            self.rel_vel = np.delete(self.rel_vel, delete, axis=0)
+            self.parents = np.delete(self.parents, delete)
+            self.simplified_orbit_coi()   # re-calculate COIs
+            self.find_parents()   # find parents for all bodies
+            self.focus = np.delete(self.focus, delete)
+            self.semi_major = np.delete(self.semi_major, delete)
+            self.semi_minor = np.delete(self.semi_minor, delete)
+            self.periapsis_arg = np.delete(self.periapsis_arg, delete)
+            self.ecc_v = np.delete(self.ecc_v, delete, axis=0)
+            if self.largest == delete:
+                self.find_parents()   # if root is deleted, we need new one asap
+                self.simplified_orbit_coi()   # root is identified by coi=0
+                # move new root to (0, 0) and translate all other bodies
+                diff = list(self.pos[self.largest])
+                for body in range(len(self.mass)):
+                    self.pos[body] -= diff
+                self.vel[self.largest] = [0, 0]
+                if self.largest != 0:   # make sure largest body is first
+                    self.set_root(self.largest)
+            return 0
+        else:
+            return 1
         
     def set_root(self, body):
         """Make first body be root by swapping it with current first body. 
@@ -604,9 +608,18 @@ class Physics():
     
     def precalc_curve(self, pos, vel):
         """Calculate body orbit values without it being added to simulation."""
-        parent = 0   # get parent body
+        
+        # same as in find_parents, but only for one body
+        mass_sorted = np.sort(self.mass)[-1::-1]
+        bodies_sorted = np.argsort(self.mass)[-1::-1]
+        parent = self.largest
+        for num, body_mass in enumerate(mass_sorted):
+            pot_parent = bodies_sorted[num]
+            if (pos[0] - self.pos[pot_parent, 0])**2 + (pos[1] - self.pos[pot_parent, 1])**2 < (self.coi[pot_parent])**2:
+                parent = pot_parent
+        
         rel_pos = pos - self.pos[parent]
-        rel_vel = vel - self.vel[parent]
+        rel_vel = np.array(vel)
         u = self.gc * self.mass[parent]   # standard gravitational parameter
         semi_major = -1 * u / (2*(rel_vel.dot(rel_vel) / 2 - u / mag(rel_pos)))   # semi-major axis
         momentum = np.cross(rel_pos, rel_vel)   # orbital momentum, since this is 2d, momentum is scalar

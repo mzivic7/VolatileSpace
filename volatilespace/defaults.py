@@ -44,7 +44,8 @@ keybindings = {"forward": pg.K_w,
                "cycle_grid_modes": pg.K_v,
                "screenshot": pg.K_F1,
                "toggle_ui_visibility": pg.K_F2,
-               "toggle_labels_visibility": pg.K_F3
+               "toggle_labels_visibility": pg.K_F3,
+               "delete_body_in_editor": pg.K_DELETE
                }
 
 

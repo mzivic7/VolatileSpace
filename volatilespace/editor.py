@@ -362,7 +362,7 @@ class Editor():
                 if e.key == pygame.K_ESCAPE:
                     self.input_value = None
                     self.check_new_name()
-                if e.key == pygame.K_RETURN:
+                elif e.key == pygame.K_RETURN:
                     if self.input_value == 0:
                         new_value = self.new_value_raw
                     else:
@@ -377,7 +377,7 @@ class Editor():
                                     self.new_body_data["mass"] = new_value
                                 if self.input_value == 3:
                                     self.new_body_data["density"] = new_value
-                            else:   # if input value is string (for color)
+                            elif self.input_value is not None:   # if input value is string (for color)
                                 color = self.new_body_data["color"]
                                 if self.input_value[-1] == "a":   # R
                                     color[0] = int(new_value)
@@ -422,13 +422,13 @@ class Editor():
                                     physics.set_body_mass(self.selected, new_value)
                                 elif self.input_value == 3:   # density
                                     physics.set_body_den(self.selected, new_value)
-                                elif int(self.types[self.selected]) in [0, 1, 2]:   # planet, moon
+                                elif int(self.types[self.selected]) in [0, 1, 2]:   # moon, planet, gas
                                     if self.input_value == 6:   # rotation period
                                         pass
                                 elif int(self.types[self.selected]) == 3:   # star
                                     if self.input_value == 9:   # H/He ratio
                                         pass
-                            else:   # if input value is string (for color)
+                            elif self.input_value is not None:   # if input value is string (for color)
                                 color = self.colors[self.selected]
                                 if self.input_value[-1] == "a":   # R
                                     color[0] = int(new_value)
@@ -525,6 +525,19 @@ class Editor():
                     if e.key == self.keys["right"]:
                         self.direction = "right"
         
+        if self.menu is None and self.selected is not None:
+            if e.type == pygame.KEYDOWN:
+                if e.key == self.keys["delete_body_in_editor"]:
+                    state = physics.del_body(self.selected)
+                    if state == 1:
+                        graphics.timed_text_init(rgb.red, self.fontmd, "Cant delete body. There must be at least one body in simulation.", (self.screen_x/2, self.screen_y-70), 2, True)
+                    else:
+                        self.names, self.types, self.mass, self.density, self.temp, self.position, self.velocity, self.colors, self.size, self.rad_sc = physics.get_bodies()
+                        self.selected = False
+                        if self.right_menu in [3, 4]:
+                            self.right_menu = None
+                        
+        
         if e.type == pygame.KEYUP and e.key in [pygame.K_w, pygame.K_s, pygame.K_a, pygame.K_d]:
             self.direction = False   # when wasd key is released, clear direction to which velocity is added
         
@@ -549,17 +562,19 @@ class Editor():
         # y coordinate in self.mouse is negative for easier applying in formula to check if mouse is inside circle
         
         # disable input when mouse clicks on ui
-        if self.disable_ui is False:
-            if not self.pause_menu and self.menu is None:
-                if e.type == pygame.MOUSEBUTTONDOWN:
-                    if self.mouse_raw[0] <= self.btn_s or self.mouse_raw[1] <= 22:
+        
+        if not self.pause_menu and self.menu is None:
+            if e.type == pygame.MOUSEBUTTONDOWN:
+                if self.mouse_raw[0] <= self.btn_s or self.mouse_raw[1] <= 22:
+                    if self.disable_ui is False:
                         self.disable_input = True
                         self.allow_keys = True
                         self.enable_insert = False
-                    else:
-                        self.disable_input = False
-                        self.allow_keys = False
-                    if self.right_menu is not None:
+                else:
+                    self.disable_input = False
+                    self.allow_keys = False
+                if self.right_menu is not None:
+                    if self.disable_ui is False:
                         if self.mouse_raw[0] >= self.right_menu_x:
                             self.disable_input = True
                             self.allow_keys = True
@@ -583,28 +598,30 @@ class Editor():
                     self.check_new_name()   # check if name is already taken
                     physics.add_body(self.new_body_data)   # add new body to class
             
-            # moving and selecting
-            else:
-                if e.type == pygame.MOUSEBUTTONDOWN and e.button == 1:
+            # moving and selecting with lclick, or middle click in insert mode
+            if e.type == pygame.MOUSEBUTTONDOWN:
+                if (not self.enable_insert and e.button == 1) or (self.enable_insert and e.button == 2):
                     self.names, self.types, self.mass, self.density, self.temp, self.position, self.velocity, self.colors, self.size, self.rad_sc = physics.get_bodies()
                     self.move = True   # enable view move
                     self.mouse_old = self.mouse   # initial mouse position for movement
                     self.mouse_raw_old = self.mouse_raw   # initial mouse position for movement
-                            
-                if e.type == pygame.MOUSEBUTTONUP and e.button == 1:
+                    
+            if e.type == pygame.MOUSEBUTTONUP:
+                if (not self.enable_insert and e.button == 1) or (self.enable_insert and e.button == 2):
                     self.move = False   # disable move move
                     mouse_move = math.dist(self.mouse_raw, self.mouse_raw_old)   # mouse move dist
                     self.select_toggle = False
-                    if mouse_move < self.select_sens:   # if mouse moved less than n pixels:
-                        for self.body, self.body_pos in enumerate(self.position):   # for each body:
-                            # if mouse is inside body radius on its location: (body_x - mouse_x)**2 + (body_y - mouse_y)**2 < radius**2
-                            if sum(np.square(self.body_pos - self.sim_coords(self.mouse_raw))) < (self.size[self.body])**2:
-                                self.selected = self.body  # this body is selected
-                                self.select_toggle = True   # do not exit select mode
-                        if self.select_toggle is False and self.right_menu not in [3, 4]:   # if inside select mode and not in edit right menus
-                            self.selected = False   # exit select mode
-                            if self.right_menu in [3, 4]:
-                                self.right_menu = None   # disable orbit and body edit
+                    if e.button != 2:   # don't select body with middle click when in insert mode 
+                        if mouse_move < self.select_sens:   # if mouse moved less than n pixels:
+                            for self.body, self.body_pos in enumerate(self.position):   # for each body:
+                                # if mouse is inside body radius on its location: (body_x - mouse_x)**2 + (body_y - mouse_y)**2 < radius**2
+                                if sum(np.square(self.body_pos - self.sim_coords(self.mouse_raw))) < (self.size[self.body])**2:
+                                    self.selected = self.body  # this body is selected
+                                    self.select_toggle = True   # do not exit select mode
+                            if self.select_toggle is False and self.right_menu not in [3, 4]:   # if inside select mode and not in edit right menus
+                                self.selected = False   # exit select mode
+                                if self.right_menu in [3, 4]:
+                                    self.right_menu = None   # disable orbit and body edit
             
                 
             # mouse wheel: change zoom
@@ -820,7 +837,7 @@ class Editor():
                     prop_merged = prop_insert_body.copy()
                     text_merged = text_insert_body.copy()
                     new_body_type = self.new_body_data["type"]
-                    if new_body_type in [0, 1, 2]:   # planet, moon
+                    if new_body_type in [0, 1, 2]:   # moon, planet, gas
                         prop_merged = prop_insert_body + prop_edit_planet
                         text_merged = text_insert_body + text_edit_planet
                     elif new_body_type == 3:   # star
@@ -851,6 +868,7 @@ class Editor():
                                             self.check_new_name()   # check if name is already taken
                                             self.precalc_data = physics.precalculate(self.new_body_data)
                                             self.input_value = None   # disable textinput when changing body type
+                                            break
                                         x_pos += w_short + 10
                                 elif editable in [1, 2]:
                                     init_values = [self.new_body_data["name"],
@@ -859,7 +877,7 @@ class Editor():
                                                    metric.format_si(self.new_body_data["density"], 3),
                                                    None]
                                     if num >= len(prop_insert_body):
-                                        if new_body_type in [0, 1]:   # planet, moon
+                                        if new_body_type in [0, 1, 2]:   # moon, planet, gas
                                             init_values += ["WIP", "WIP", "WIP", "WIP", "WIP"]
                                             if num == 6:   # color
                                                 x_pos = self.r_menu_x_btn + 58
@@ -926,7 +944,7 @@ class Editor():
                     y_pos = 38
                     prop_merged = prop_edit_body.copy()
                     text_merged = text_edit_body.copy()
-                    if int(self.types[self.selected]) in [0, 1, 2]:   # planet, moon
+                    if int(self.types[self.selected]) in [0, 1, 2]:   # moon, planet, gas
                         prop_merged = prop_edit_body + prop_edit_planet
                         text_merged = text_edit_body + text_edit_planet
                     elif int(self.types[self.selected]) == 3:   # star
@@ -944,7 +962,7 @@ class Editor():
                                                metric.format_si(self.size[self.selected], 3),
                                                metric.format_si(self.coi[self.selected], 3)]
                                 if num >= len(prop_edit_body):
-                                    if int(self.types[self.selected]) in [0, 1]:   # planet, moon
+                                    if int(self.types[self.selected]) in [0, 1, 2]:   # moon, planet, gas
                                         init_values += ["WIP", "WIP", "WIP", "WIP", "WIP"]
                                         if num == 7:   # color
                                             x_pos = self.r_menu_x_btn + 58
@@ -977,10 +995,13 @@ class Editor():
                         if editable == 3:
                             y_pos += 12
                             if self.r_menu_x_btn <= self.mouse_raw[0]-1 <= self.r_menu_x_btn + 280 and y_pos <= self.mouse_raw[1]-1 <= y_pos + 19:
-                                physics.del_body(self.selected)
-                                self.names, self.types, self.mass, self.density, self.temp, self.position, self.velocity, self.colors, self.size, self.rad_sc = physics.get_bodies()
-                                self.selected = False
-                                self.right_menu = None
+                                state = physics.del_body(self.selected)
+                                if state == 1:
+                                    graphics.timed_text_init(rgb.red, self.fontmd, "Cant delete body. There must be at least one body in simulation.", (self.screen_x/2, self.screen_y-70), 2, True)
+                                else:
+                                    self.names, self.types, self.mass, self.density, self.temp, self.position, self.velocity, self.colors, self.size, self.rad_sc = physics.get_bodies()
+                                    self.selected = False
+                                    self.right_menu = None
                         y_pos += 26
                 if self.right_menu == 5:   # sim config
                     y_pos = 38
@@ -1012,7 +1033,7 @@ class Editor():
                                 self.new_body_data["mass"] = new_value
                             if self.input_value == 3:
                                 self.new_body_data["density"] = new_value
-                        else:   # if input value is string (for color)
+                        elif self.input_value is not None:   # if input value is string (for color)
                             color = self.new_body_data["color"]
                             if self.input_value[-1] == "a":   # R
                                 color[0] = int(new_value)
@@ -1057,13 +1078,13 @@ class Editor():
                                 physics.set_body_mass(self.selected, new_value)
                             elif self.input_value == 3:   # density
                                 physics.set_body_den(self.selected, new_value)
-                            elif int(self.types[self.selected]) in [0, 1, 2]:   # planet, moon
+                            elif int(self.types[self.selected]) in [0, 1, 2]:   # moon, planet, gas
                                 if self.input_value == 6:   # rotation period
                                     pass
                             elif int(self.types[self.selected]) == 3:   # star
                                 if self.input_value == 9:   # H/He ratio
                                     pass
-                        else:   # if input value is string (for color)
+                        elif self.input_value is not None:   # if input value is string (for color)
                             color = self.colors[self.selected]
                             if self.input_value[-1] == "a":   # R
                                 color[0] = int(new_value)
@@ -1240,7 +1261,8 @@ class Editor():
                 # draw new body before released
                 graphics.draw_circle_fill(screen, self.precalc_data["real_color"], self.screen_coords(self.new_position), self.precalc_data["radius"] * self.zoom)
                 # draw line connecting body and release point
-                graphics.draw_line(screen, rgb.red, self.screen_coords(self.new_position), (self.mouse_raw[0], self.mouse_raw[1]), 1)
+                if not self.disable_labels:
+                    graphics.draw_line(screen, rgb.red, self.screen_coords(self.new_position), (self.mouse_raw[0], self.mouse_raw[1]), 1)
                 # draw predicted orbit line
                 drag_position = self.sim_coords(self.mouse_raw)
                 distance = math.dist(self.new_position, drag_position) * self.zoom
@@ -1398,7 +1420,7 @@ class Editor():
                 prop_merged = prop_insert_body
                 texts_merged = texts_body[:]
                 new_body_type = self.new_body_data["type"]
-                if new_body_type in [0, 1, 2]:   # planet, moon
+                if new_body_type in [0, 1, 2]:   # moon, planet, gas
                     prop_merged = prop_insert_body + prop_edit_planet
                     values_planet = ["WIP",
                                      self.new_body_data["color"],
@@ -1467,7 +1489,7 @@ class Editor():
                     texts_body.append(text_edit_body[i] + values_body[i])
                 prop_merged = prop_edit_body
                 texts_merged = texts_body[:]
-                if int(self.types[self.selected]) in [0, 1, 2]:   # planet, moon
+                if int(self.types[self.selected]) in [0, 1, 2]:   # moon, planet, gas
                     prop_merged = prop_edit_body + prop_edit_planet
                     values_planet = ["WIP",
                                      self.colors[self.selected],
@@ -1518,7 +1540,7 @@ class Editor():
                     y_pos = 38 + self.input_value * 26
                     pygame.draw.rect(screen, rgb.gray2, (self.r_menu_x_btn, y_pos, 280, 21))
                     textinput.graphics(screen, clock, self.fontmd, (self.r_menu_x_btn, y_pos), (280, 21), center=False)
-                else:   # if input value is string (for color)
+                elif self.input_value is not None:   # if input value is string (for color)
                     y_pos = 38 + int(self.input_value[:-1]) * 26
                     if self.input_value[-1] == "a":
                         x_pos = self.r_menu_x_btn + 58
