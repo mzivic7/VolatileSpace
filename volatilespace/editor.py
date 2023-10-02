@@ -88,7 +88,6 @@ class Editor():
         self.file_path = ""   # path to currently active file
         self.selected_path = ""   # path to selected file
         self.input_value = None   # which value is being text-inputed
-        self.clicked_on_textinput = False   # when clicking on active textinput
         self.new_value_raw = ""   # when inputting new value
         self.gen_map_list()
         self.reload_settings()
@@ -203,7 +202,6 @@ class Editor():
         self.maps = fileops.gen_map_list()
         self.map_list_size = len(self.maps) * self.btn_h + len(self.maps) * self.space
         if len(self.maps) != 0:
-            
             self.selected_path = "Maps/" + self.maps[self.selected_item, 0]
         
         # limit text size
@@ -218,6 +216,7 @@ class Editor():
             self.selected_item = 0
         else:
             self.selected_item = selected_item[0]
+            self.selected_path = "Maps/" + self.maps[self.selected_item, 0]
     
     
     def load_system(self, system):
@@ -721,7 +720,7 @@ class Editor():
                                 self.ask = None
                             x_pos += self.btn_w_h + self.space
                     
-                    else:   # disable underlaying menu
+                    else:   # disables underlaying menu
                         # maps list
                         if self.maps_y - self.space <= self.mouse_raw[1]-1 <= self.maps_y + self.list_limit:
                             y_pos = self.maps_y - self.scroll
@@ -780,249 +779,12 @@ class Editor():
                 elif self.menu == 2:
                     pass
             
-            # ask
-            if self.click:
-                if self.ask is not None:
-                    x_pos = self.ask_x
-                    for num in [0, 1]:
-                        if x_pos <= self.mouse_raw[0]-1 <= x_pos + self.btn_w_h and self.ask_y <= self.mouse_raw[1]-1 <= self.ask_y + self.btn_h:
-                            if num == 0:   # cancel
-                                pass
-                            elif num == 1:   # yes
-                                if self.ask == "load":
-                                    self.ask_load()
-                                if self.ask == "save":
-                                    self.ask_save()
-                            self.menu = None
-                            self.pause_menu = True
-                            self.ask = None
-                        x_pos += self.btn_w_h + self.space
-            
-            
-            if not self.disable_ui:
-                # left ui
-                if not self.input_value:   # don't change window if textinpt is active
-                    y_pos = 23
-                    for num, img in enumerate(self.ui_imgs):
-                        if 0 <= self.mouse_raw[0] <= 0 + self.btn_s and y_pos <= self.mouse_raw[1] <= y_pos + self.btn_s:
-                            if num == 0:   # menu
-                                self.pause_menu = True
-                                self.disable_input = True
-                                self.pause = True
-                                self.right_menu = None
-                            else:
-                                if self.right_menu == num:
-                                    self.right_menu = None
-                                else:
-                                    if num in [3, 4]:
-                                        if self.selected is not False:
-                                            if num == 3 and self.selected == self.parents[self.selected]:   # don't display orbit edit for root body
-                                                pass
-                                            else:
-                                                self.right_menu = num
-                                    else:
-                                        self.right_menu = num
-                        y_pos += self.btn_s + 1
-                
-                # right ui
-                if self.right_menu == 1:   # body list
-                    y_pos = 38
-                    for num, name in enumerate(self.names):
-                        if self.r_menu_x_btn <= self.mouse_raw[0]-1 <= self.r_menu_x_btn + 280 and y_pos <= self.mouse_raw[1]-1 <= y_pos + 21:
-                            self.selected = num
-                            self.follow = True
-                        y_pos += 26
-                if self.right_menu == 2:   # insert
-                    y_pos = 38
-                    prop_merged = prop_insert_body.copy()
-                    text_merged = text_insert_body.copy()
-                    new_body_type = self.new_body_data["type"]
-                    if new_body_type in [0, 1, 2]:   # moon, planet, gas
-                        prop_merged = prop_insert_body + prop_edit_planet
-                        text_merged = text_insert_body + text_edit_planet
-                    elif new_body_type == 3:   # star
-                        prop_merged = prop_insert_body + prop_edit_star
-                        text_merged = text_insert_body + text_edit_star
-                    elif new_body_type == 4:   # bh
-                        prop_merged.append(0)
-                    break_flag = False
-                    prop_merged.append(3)
-                    for num, editable in enumerate(prop_merged):
-                        if self.r_menu_x_btn <= self.mouse_raw[0]-1 <= self.r_menu_x_btn + 280 and y_pos <= self.mouse_raw[1]-1 <= y_pos + 21:
-                            if self.input_value is None or self.input_value != num:   # skip if textinput is already active and clicked on it
-                                if num == 1:   # select body type
-                                    x_pos = self.r_menu_x_btn
-                                    w_short = (280 + 10) / len(body_types) - 10
-                                    for num, img in enumerate(body_types):
-                                        if x_pos <= self.mouse_raw[0]-1 <= x_pos + w_short:
-                                            if num == 0:
-                                                self.new_body_data = copy.deepcopy(defaults.new_body_moon)
-                                            elif num == 1:
-                                                self.new_body_data = copy.deepcopy(defaults.new_body_planet)
-                                            elif num == 2:
-                                                self.new_body_data = copy.deepcopy(defaults.new_body_gas)
-                                            elif num == 3:
-                                                self.new_body_data = copy.deepcopy(defaults.new_body_star)
-                                            elif num == 4:
-                                                self.new_body_data = copy.deepcopy(defaults.new_body_bh)
-                                            self.check_new_name()   # check if name is already taken
-                                            self.precalc_data = physics.precalculate(self.new_body_data)
-                                            self.input_value = None   # disable textinput when changing body type
-                                            break
-                                        x_pos += w_short + 10
-                                elif editable in [1, 2]:
-                                    init_values = [self.new_body_data["name"],
-                                                   None,
-                                                   metric.format_si(self.new_body_data["mass"], 3),
-                                                   metric.format_si(self.new_body_data["density"], 3),
-                                                   None]
-                                    if num >= len(prop_insert_body):
-                                        if new_body_type in [0, 1, 2]:   # moon, planet, gas
-                                            init_values += ["WIP", "WIP", "WIP", "WIP", "WIP"]
-                                            if num == 6:   # color
-                                                x_pos = self.r_menu_x_btn + 58
-                                                for num in range(3):
-                                                    if x_pos <= self.mouse_raw[0]-1 <= x_pos + 53:
-                                                        if num == 0:
-                                                            self.input_value = "6a"
-                                                            fixed_init_text = "R: "
-                                                            color_componet = self.new_body_data["color"][0]
-                                                        elif num == 1:
-                                                            self.input_value = "6b"
-                                                            fixed_init_text = "G: "
-                                                            color_componet = self.new_body_data["color"][1]
-                                                        elif num == 2:
-                                                            self.input_value = "6c"
-                                                            fixed_init_text = "B: "
-                                                            color_componet = self.new_body_data["color"][2]
-                                                        textinput.initial_text(str(color_componet), fixed_init_text, x_corr=-3, limit_len=3)
-                                                        self.click = False
-                                                        break_flag = True   # don't run code after this
-                                                        break
-                                                    x_pos += 59
-                                        if break_flag:
-                                            break
-                                        elif new_body_type == 3:   # star
-                                            init_values += ["WIP", "WIP", "WIP", "WIP"]
-                                    self.input_value = num
-                                    textinput.initial_text(init_values[num], text_merged[num])
-                                    self.click = False
-                            else:   # when clicking on same text as textinput
-                                self.clicked_on_textinput = True
-                        if editable in [3, 4]:
-                            y_pos += 12
-                            if self.r_menu_x_btn <= self.mouse_raw[0]-1 <= self.r_menu_x_btn + 280 and y_pos <= self.mouse_raw[1]-1 <= y_pos + 21:
-                                self.enable_insert = not self.enable_insert
-                        y_pos += 26
-                if self.right_menu == 3:   # edit orbit
-                    y_pos = 38
-                    for num, editable in enumerate(prop_edit_orb):
-                        if self.r_menu_x_btn <= self.mouse_raw[0]-1 <= self.r_menu_x_btn + 280 and y_pos <= self.mouse_raw[1]-1 <= y_pos + 21:
-                            if editable == 1:
-                                self.input_value = num
-                                if num < 2:
-                                    if num == 0:
-                                        init_value = self.names[self.selected]
-                                elif num == 8:   # change orbit direction button
-                                    pe_d = self.orbit_data[0]
-                                    ap_d = None
-                                    ecc = self.orbit_data[2]
-                                    omega_deg = self.orbit_data[3]
-                                    mean_anomaly = -self.orbit_data[4]   # inverted
-                                    true_anomaly = None
-                                    direction = self.orbit_data[6]
-                                    direction = -direction
-                                    self.input_value = None
-                                    physics.kepler_inverse(self.selected, ecc, omega_deg, pe_d, mean_anomaly, true_anomaly, ap_d, direction)
-                                    break
-                                else:
-                                    init_value = metric.format_si(self.orbit_data[num - 2], 3)
-                                textinput.initial_text(init_value, text_edit_orb[num])
-                                self.click = False
-                        y_pos += 26
-                if self.right_menu == 4:   # edit body
-                    y_pos = 38
-                    prop_merged = prop_edit_body.copy()
-                    text_merged = text_edit_body.copy()
-                    if int(self.types[self.selected]) in [0, 1, 2]:   # moon, planet, gas
-                        prop_merged = prop_edit_body + prop_edit_planet
-                        text_merged = text_edit_body + text_edit_planet
-                    elif int(self.types[self.selected]) == 3:   # star
-                        prop_merged = prop_edit_body + prop_edit_star
-                        text_merged = text_edit_body + text_edit_star
-                    break_flag = False
-                    prop_merged.append(3)
-                    for num, editable in enumerate(prop_merged):
-                        if self.r_menu_x_btn <= self.mouse_raw[0]-1 <= self.r_menu_x_btn + 280 and y_pos <= self.mouse_raw[1]-1 <= y_pos + 21:
-                            if editable in [1, 2]:
-                                init_values = [self.names[self.selected],
-                                               None,
-                                               metric.format_si(self.mass[self.selected], 3),
-                                               metric.format_si(self.density[self.selected], 3),
-                                               metric.format_si(self.size[self.selected], 3),
-                                               metric.format_si(self.coi[self.selected], 3)]
-                                if num >= len(prop_edit_body):
-                                    if int(self.types[self.selected]) in [0, 1, 2]:   # moon, planet, gas
-                                        init_values += ["WIP", "WIP", "WIP", "WIP", "WIP"]
-                                        if num == 7:   # color
-                                            x_pos = self.r_menu_x_btn + 58
-                                            for num in range(3):
-                                                if x_pos <= self.mouse_raw[0]-1 <= x_pos + 53:
-                                                    if num == 0:
-                                                        self.input_value = "7a"
-                                                        fixed_init_text = "R: "
-                                                        color_componet = self.colors[self.selected, 0]
-                                                    elif num == 1:
-                                                        self.input_value = "7b"
-                                                        fixed_init_text = "G: "
-                                                        color_componet = self.colors[self.selected, 1]
-                                                    elif num == 2:
-                                                        self.input_value = "7c"
-                                                        fixed_init_text = "B: "
-                                                        color_componet = self.colors[self.selected, 2]
-                                                    textinput.initial_text(str(color_componet), fixed_init_text, x_corr=-3, limit_len=3)
-                                                    self.click = False
-                                                    break_flag = True   # don't run code after this
-                                                    break
-                                                x_pos += 59
-                                    if break_flag:
-                                        break
-                                    elif int(self.types[self.selected]) == 3:   # star
-                                        init_values += ["WIP", "WIP", "WIP", "WIP"]
-                                self.input_value = num
-                                textinput.initial_text(init_values[num], text_merged[num])
-                                self.click = False
-                        if editable == 3:
-                            y_pos += 12
-                            if self.r_menu_x_btn <= self.mouse_raw[0]-1 <= self.r_menu_x_btn + 280 and y_pos <= self.mouse_raw[1]-1 <= y_pos + 19:
-                                state = physics.del_body(self.selected)
-                                if state == 1:
-                                    graphics.timed_text_init(rgb.red, self.fontmd, "Cant delete body. There must be at least one body in simulation.", (self.screen_x/2, self.screen_y-70), 2, True)
-                                else:
-                                    self.names, self.types, self.mass, self.density, self.temp, self.position, self.velocity, self.colors, self.size, self.rad_sc = physics.get_bodies()
-                                    self.selected = False
-                                    self.right_menu = None
-                        y_pos += 26
-                if self.right_menu == 5:   # sim config
-                    y_pos = 38
-                    for num, item in enumerate(self.sim_conf.items()):
-                        if self.r_menu_x_btn <= self.mouse_raw[0]-1 <= self.r_menu_x_btn + 280 and y_pos <= self.mouse_raw[1]-1 <= y_pos + 21:
-                            self.input_value = num
-                            textinput.initial_text(str(item[1]), item[0] + ": ")
-                            self.click = False
-                        y_pos += 26
-                    y_pos += 12
-                    if self.r_menu_x_btn <= self.mouse_raw[0]-1 <= self.r_menu_x_btn + 280 and y_pos <= self.mouse_raw[1]-1 <= y_pos + 21:
-                        self.sim_conf = defaults.sim_config.copy()
-                        physics.load_conf(self.sim_conf)
-            
-            
             # on click, disable text input:
-            if self.click and not self.clicked_on_textinput:
+            if self.click and not self.click_timer:
                 if self.input_value == 0:
-                    new_value = self.new_value_raw
+                    new_value = self.new_value_raw   # for names
                 else:
-                    new_value = metric.parse_si(self.new_value_raw)
+                    new_value = metric.parse_si(self.new_value_raw)   # for values
                 if new_value is not None:   # if value is valid
                     if self.right_menu == 2:   # insert
                         if type(self.input_value) is int:
@@ -1045,6 +807,7 @@ class Editor():
                         self.precalc_data = physics.precalculate(self.new_body_data)
                         self.new_body_data["type"] = self.precalc_data["type"]
                     elif self.right_menu == 3:   # edit orbit
+                        
                         pe_d = self.orbit_data[0]
                         ap_d = None
                         ecc = self.orbit_data[2]
@@ -1099,6 +862,246 @@ class Editor():
                     self.input_value = None
                 else:
                     self.input_value = None
+            
+            # ask
+            if self.click:
+                if self.ask is not None:
+                    x_pos = self.ask_x
+                    for num in [0, 1]:
+                        if x_pos <= self.mouse_raw[0]-1 <= x_pos + self.btn_w_h and self.ask_y <= self.mouse_raw[1]-1 <= self.ask_y + self.btn_h:
+                            if num == 0:   # cancel
+                                pass
+                            elif num == 1:   # yes
+                                if self.ask == "load":
+                                    self.ask_load()
+                                if self.ask == "save":
+                                    self.ask_save()
+                            self.menu = None
+                            self.pause_menu = True
+                            self.ask = None
+                        x_pos += self.btn_w_h + self.space
+            
+            if not self.disable_ui:
+                # left ui
+                if not self.input_value:   # don't change window if textinpt is active
+                    y_pos = 23
+                    for num, img in enumerate(self.ui_imgs):
+                        if 0 <= self.mouse_raw[0] <= 0 + self.btn_s and y_pos <= self.mouse_raw[1] <= y_pos + self.btn_s:
+                            if num == 0:   # menu
+                                self.pause_menu = True
+                                self.disable_input = True
+                                self.pause = True
+                                self.right_menu = None
+                            else:
+                                if self.right_menu == num:
+                                    self.right_menu = None
+                                else:
+                                    if num in [3, 4]:
+                                        if self.selected is not False:
+                                            if num == 3 and self.selected == self.parents[self.selected]:   # don't display orbit edit for root body
+                                                pass
+                                            else:
+                                                self.right_menu = num
+                                                self.click = False
+                                    else:
+                                        self.right_menu = num
+                        y_pos += self.btn_s + 1
+                
+                # right ui
+                if not self.click_timer:
+                    if self.right_menu == 1:   # body list
+                        y_pos = 38
+                        for num, name in enumerate(self.names):
+                            if self.r_menu_x_btn <= self.mouse_raw[0]-1 <= self.r_menu_x_btn + 280 and y_pos <= self.mouse_raw[1]-1 <= y_pos + 21:
+                                self.selected = num
+                                self.follow = True
+                            y_pos += 26
+                    if self.right_menu == 2:   # insert
+                        y_pos = 38
+                        prop_merged = prop_insert_body.copy()
+                        text_merged = text_insert_body.copy()
+                        new_body_type = self.new_body_data["type"]
+                        if new_body_type in [0, 1, 2]:   # moon, planet, gas
+                            prop_merged = prop_insert_body + prop_edit_planet
+                            text_merged = text_insert_body + text_edit_planet
+                        elif new_body_type == 3:   # star
+                            prop_merged = prop_insert_body + prop_edit_star
+                            text_merged = text_insert_body + text_edit_star
+                        elif new_body_type == 4:   # bh
+                            prop_merged.append(0)
+                        break_flag = False
+                        prop_merged.append(3)
+                        for num, editable in enumerate(prop_merged):
+                            if self.r_menu_x_btn <= self.mouse_raw[0]-1 <= self.r_menu_x_btn + 280 and y_pos <= self.mouse_raw[1]-1 <= y_pos + 21:
+                                if num == 1:   # select body type
+                                    x_pos = self.r_menu_x_btn
+                                    w_short = (280 + 10) / len(body_types) - 10
+                                    for num, img in enumerate(body_types):
+                                        if x_pos <= self.mouse_raw[0]-1 <= x_pos + w_short:
+                                            if num == 0:
+                                                self.new_body_data = copy.deepcopy(defaults.new_body_moon)
+                                            elif num == 1:
+                                                self.new_body_data = copy.deepcopy(defaults.new_body_planet)
+                                            elif num == 2:
+                                                self.new_body_data = copy.deepcopy(defaults.new_body_gas)
+                                            elif num == 3:
+                                                self.new_body_data = copy.deepcopy(defaults.new_body_star)
+                                            elif num == 4:
+                                                self.new_body_data = copy.deepcopy(defaults.new_body_bh)
+                                            self.check_new_name()   # check if name is already taken
+                                            self.precalc_data = physics.precalculate(self.new_body_data)
+                                            self.input_value = None   # disable textinput when changing body type
+                                            break
+                                        x_pos += w_short + 10
+                                elif editable in [1, 2]:
+                                    init_values = [self.new_body_data["name"],
+                                                None,
+                                                metric.format_si(self.new_body_data["mass"], 3),
+                                                metric.format_si(self.new_body_data["density"], 3),
+                                                None]
+                                    if num >= len(prop_insert_body):
+                                        if new_body_type in [0, 1, 2]:   # moon, planet, gas
+                                            init_values += ["WIP", "WIP", "WIP", "WIP", "WIP"]
+                                            if num == 6:   # color
+                                                x_pos = self.r_menu_x_btn + 58
+                                                for num in range(3):
+                                                    if x_pos <= self.mouse_raw[0]-1 <= x_pos + 53:
+                                                        if num == 0:
+                                                            self.input_value = "6a"
+                                                            fixed_init_text = "R: "
+                                                            color_componet = self.new_body_data["color"][0]
+                                                        elif num == 1:
+                                                            self.input_value = "6b"
+                                                            fixed_init_text = "G: "
+                                                            color_componet = self.new_body_data["color"][1]
+                                                        elif num == 2:
+                                                            self.input_value = "6c"
+                                                            fixed_init_text = "B: "
+                                                            color_componet = self.new_body_data["color"][2]
+                                                        textinput.initial_text(str(color_componet), fixed_init_text, x_corr=-3, limit_len=3)
+                                                        self.click = False
+                                                        break_flag = True   # don't run code after this
+                                                        break
+                                                    x_pos += 59
+                                        if break_flag:
+                                            break
+                                        elif new_body_type == 3:   # star
+                                            init_values += ["WIP", "WIP", "WIP", "WIP"]
+                                    self.input_value = num
+                                    textinput.initial_text(init_values[num], text_merged[num])
+                                    self.click = False
+                                    self.first_click = True   # timer for double click
+                            if editable in [3, 4]:
+                                y_pos += 12
+                                if self.r_menu_x_btn <= self.mouse_raw[0]-1 <= self.r_menu_x_btn + 280 and y_pos <= self.mouse_raw[1]-1 <= y_pos + 21:
+                                    self.enable_insert = not self.enable_insert
+                            y_pos += 26
+                    if self.right_menu == 3:   # edit orbit
+                        y_pos = 38
+                        for num, editable in enumerate(prop_edit_orb):
+                            if self.r_menu_x_btn <= self.mouse_raw[0]-1 <= self.r_menu_x_btn + 280 and y_pos <= self.mouse_raw[1]-1 <= y_pos + 21:
+                                if editable == 1:
+                                    self.input_value = num
+                                    if num < 2:
+                                        if num == 0:
+                                            init_value = self.names[self.selected]
+                                    elif num == 8:   # change orbit direction button
+                                        pe_d = self.orbit_data[0]
+                                        ap_d = None
+                                        ecc = self.orbit_data[2]
+                                        omega_deg = self.orbit_data[3]
+                                        mean_anomaly = -self.orbit_data[4]   # inverted
+                                        true_anomaly = None
+                                        direction = self.orbit_data[6]
+                                        direction = -direction
+                                        self.input_value = None
+                                        physics.kepler_inverse(self.selected, ecc, omega_deg, pe_d, mean_anomaly, true_anomaly, ap_d, direction)
+                                        break
+                                    else:
+                                        init_value = metric.format_si(self.orbit_data[num - 2], 3)
+                                    textinput.initial_text(init_value, text_edit_orb[num])
+                                    self.click = False
+                                    self.first_click = True
+                            y_pos += 26
+                    if self.right_menu == 4:   # edit body
+                        y_pos = 38
+                        prop_merged = prop_edit_body.copy()
+                        text_merged = text_edit_body.copy()
+                        if int(self.types[self.selected]) in [0, 1, 2]:   # moon, planet, gas
+                            prop_merged = prop_edit_body + prop_edit_planet
+                            text_merged = text_edit_body + text_edit_planet
+                        elif int(self.types[self.selected]) == 3:   # star
+                            prop_merged = prop_edit_body + prop_edit_star
+                            text_merged = text_edit_body + text_edit_star
+                        break_flag = False
+                        prop_merged.append(3)
+                        for num, editable in enumerate(prop_merged):
+                            if self.r_menu_x_btn <= self.mouse_raw[0]-1 <= self.r_menu_x_btn + 280 and y_pos <= self.mouse_raw[1]-1 <= y_pos + 21:
+                                if editable in [1, 2]:
+                                    init_values = [self.names[self.selected],
+                                                    None,
+                                                    metric.format_si(self.mass[self.selected], 3),
+                                                    metric.format_si(self.density[self.selected], 3),
+                                                    metric.format_si(self.size[self.selected], 3),
+                                                    metric.format_si(self.coi[self.selected], 3)]
+                                    if num >= len(prop_edit_body):
+                                        if int(self.types[self.selected]) in [0, 1, 2]:   # moon, planet, gas
+                                            init_values += ["WIP", "WIP", "WIP", "WIP", "WIP"]
+                                            if num == 7:   # color
+                                                x_pos = self.r_menu_x_btn + 58
+                                                for num in range(3):
+                                                    if x_pos <= self.mouse_raw[0]-1 <= x_pos + 53:
+                                                        if num == 0:
+                                                            self.input_value = "7a"
+                                                            fixed_init_text = "R: "
+                                                            color_componet = self.colors[self.selected, 0]
+                                                        elif num == 1:
+                                                            self.input_value = "7b"
+                                                            fixed_init_text = "G: "
+                                                            color_componet = self.colors[self.selected, 1]
+                                                        elif num == 2:
+                                                            self.input_value = "7c"
+                                                            fixed_init_text = "B: "
+                                                            color_componet = self.colors[self.selected, 2]
+                                                        textinput.initial_text(str(color_componet), fixed_init_text, x_corr=-3, limit_len=3)
+                                                        self.click = False
+                                                        break_flag = True   # don't run code after this
+                                                        break
+                                                    x_pos += 59
+                                        if break_flag:
+                                            break
+                                        elif int(self.types[self.selected]) == 3:   # star
+                                            init_values += ["WIP", "WIP", "WIP", "WIP"]
+                                    self.input_value = num
+                                    textinput.initial_text(init_values[num], text_merged[num])
+                                    self.click = False
+                                    self.first_click = True
+                            if editable == 3:
+                                y_pos += 12
+                                if self.r_menu_x_btn <= self.mouse_raw[0]-1 <= self.r_menu_x_btn + 280 and y_pos <= self.mouse_raw[1]-1 <= y_pos + 19:
+                                    state = physics.del_body(self.selected)
+                                    if state == 1:
+                                        graphics.timed_text_init(rgb.red, self.fontmd, "Cant delete body. There must be at least one body in simulation.", (self.screen_x/2, self.screen_y-70), 2, True)
+                                    else:
+                                        self.names, self.types, self.mass, self.density, self.temp, self.position, self.velocity, self.colors, self.size, self.rad_sc = physics.get_bodies()
+                                        self.selected = False
+                                        self.right_menu = None
+                            y_pos += 26
+                    if self.right_menu == 5:   # sim config
+                        y_pos = 38
+                        for num, item in enumerate(self.sim_conf.items()):
+                            if self.r_menu_x_btn <= self.mouse_raw[0]-1 <= self.r_menu_x_btn + 280 and y_pos <= self.mouse_raw[1]-1 <= y_pos + 21:
+                                self.input_value = num
+                                textinput.initial_text(str(item[1]), item[0] + ": ")
+                                self.click = False
+                                self.first_click = True
+                            y_pos += 26
+                        y_pos += 12
+                        if self.r_menu_x_btn <= self.mouse_raw[0]-1 <= self.r_menu_x_btn + 280 and y_pos <= self.mouse_raw[1]-1 <= y_pos + 21:
+                            self.sim_conf = defaults.sim_config.copy()
+                            physics.load_conf(self.sim_conf)
+                
+                
             
             # scrollbar
             if e.type == pygame.MOUSEWHEEL and (self.menu == 0 or self.menu == 1):
