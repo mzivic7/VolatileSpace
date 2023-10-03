@@ -51,6 +51,11 @@ def mag(vector):
     return math.sqrt(vector.dot(vector))
 
 
+def fast_cross(v1, v2):
+    """Faster than numpy's"""
+    return np.array([v1[0]*v2[1] - v1[1]*v2[0]])
+
+
 def orbit_time_to(mean_anomaly, target_angle, period):
     """Time to point on orbit"""
     return period - (mean_anomaly + target_angle)*(period / (2 * np.pi)) % period
@@ -74,12 +79,12 @@ def swap_with_first(list_in, n):
 def find_parent_one(body_s, bodies_sorted, pos, coi):
     """Finds parent for one body"""
     if body_s:
-        body = np.where(bodies_sorted==body_s)[0][0]   # unsorted body index
+        body = np.where(bodies_sorted == body_s)[0][0]   # unsorted body index
         parent = 0   # parent is root, until other is found
         for numL in range(len(bodies_sorted[:body])):   # for previously calculated bodies:
             pot_parent = bodies_sorted[numL]   # potential parent index
             rel_pos = pos[body_s] - pos[pot_parent]
-            if sum([i*i for i in rel_pos]) < (coi[pot_parent])**2:   # just ultra fast check if point is inside circle - COI
+            if rel_pos[0]*rel_pos[0] + rel_pos[1]*rel_pos[1] < coi[pot_parent]*coi[pot_parent]:   # just ultra fast check if point is inside circle - COI
                 parent = pot_parent   # this body is parent
                 # loop continues until smallest parent body is found
         return parent
@@ -87,11 +92,10 @@ def find_parent_one(body_s, bodies_sorted, pos, coi):
         return 0
 
 
-def gravity_one(body, parent, mass, pos, gc):
+def gravity_one(body, parent, mass, rel_pos, gc):
     """Calculates acceleration for one body in simplified n-body problem."""
     if body:   # skip calculation for root
-        rel_pos = pos[parent] - pos[body]
-        distance = math.dist([0, 0], rel_pos)
+        distance = math.sqrt(rel_pos[0]*rel_pos[0] + rel_pos[1]*rel_pos[1])   # x*x is faster than x**2 with small numbers
         force = gc * mass[body] * mass[parent] / distance**2   # Newton's law of universal gravitation
         # calculate angle between 2 bodies and horizon
         angle = math.atan2(rel_pos[1], rel_pos[0])
@@ -109,7 +113,7 @@ def kepler_basic_one(body, parent, mass, pos, vel, gc):
         rel_vel = vel[body] - vel[parent]
         u = gc * mass[parent]   # standard gravitational parameter
         semi_major = -1 * u / (2*(rel_vel.dot(rel_vel) / 2 - u / mag(rel_pos)))
-        momentum = np.cross(rel_pos, rel_vel)   # orbital momentum, since this is 2d, momentum is scalar
+        momentum = fast_cross(rel_pos, rel_vel)   # orbital momentum, since this is 2d, momentum is scalar
         # since this is 2d and momentum is scalar, cross product is not needed, so just multiply, swap axes and -y:
         ecc_v = ([rel_vel[1], -rel_vel[0]] * momentum / u) - rel_pos / mag(rel_pos)
         ecc = mag(ecc_v)
@@ -327,20 +331,21 @@ class Physics():
         """For each body find its parent body, except for root."""
         self.parents = np.zeros([len(self.coi)], dtype=int)
         bodies_sorted = np.argsort(self.mass)[-1::-1]   # get indices for for sort bodies by mass
-        self.parents = np.array(list(map(find_parent_one, list(range(len(bodies_sorted))), repeat(bodies_sorted), repeat(self.pos), repeat(self.coi))))
+        self.parents = np.array(list(map(find_parent_one, list(range(len(self.mass))), repeat(bodies_sorted), repeat(self.pos), repeat(self.coi))))
     
     
     def gravity(self):
         """Newtonian simplified n-body orbital physics model."""
         parents_old = self.parents   # parent memory from last iteration
         self.find_parents()   # find parents for all bodies
-        acc_v = list(map(gravity_one, list(range(len(self.mass))), self.parents, repeat(self.mass), repeat(self.pos), repeat(self.gc)))
+        rel_pos = self.pos[self.parents] - self.pos
+        acc_v = list(map(gravity_one, list(range(len(self.mass))), self.parents, repeat(self.mass), rel_pos, repeat(self.gc)))
         self.rel_vel += acc_v
         
         # when body is leaving/entering COI
         for body in range(len(self.mass)):
-            if body != 0:   # skip root
-                if self.parents[body] != parents_old[body]:    # if parent for this body changed since last iteration:
+            if self.parents[body] != parents_old[body]:    # if parent for this body changed since last iteration:
+                if body != 0:   # skip root
                     parent = self.parents[body]
                     if self.mass[parent] > self.mass[parents_old[body]]:   # if body is leaving orbit:
                         self.rel_vel[body] += self.rel_vel[parents_old[body]]   # add velocity of previous parent to body relative velocity
@@ -372,7 +377,7 @@ class Physics():
         distance = mag(rel_pos)   # distance to parent
         speed_orb = mag(rel_vel)   # orbit speed
         true_anomaly = (periapsis_arg - (math.atan2(rel_pos[1], rel_pos[0]) - np.pi)) % (2*np.pi)  # true anomaly from relative position
-        moment = np.cross(rel_pos, rel_vel)   # rotation moment
+        moment = fast_cross(rel_pos, rel_vel)   # rotation moment
         direction = -1 * int(math.copysign(1, moment))   # if moment is negative, rotation is clockwise (-1)
         if direction == -1:   # if direction is clockwise
             true_anomaly = 2*np.pi - true_anomaly   # invert Ta to be calculated in opposite directio
@@ -654,7 +659,7 @@ class Physics():
         rel_vel = np.array(vel)
         u = self.gc * self.mass[parent]   # standard gravitational parameter
         semi_major = -1 * u / (2*(rel_vel.dot(rel_vel) / 2 - u / mag(rel_pos)))   # semi-major axis
-        momentum = np.cross(rel_pos, rel_vel)   # orbital momentum, since this is 2d, momentum is scalar
+        momentum = fast_cross(rel_pos, rel_vel)   # orbital momentum, since this is 2d, momentum is scalar
         ecc_v = ([rel_vel[1], -rel_vel[0]] * momentum / u) - rel_pos / mag(rel_pos)   # eccentricity vector
         ecc = mag(ecc_v)   # eccentricity
         periapsis_arg = ((3 * np.pi / 2) + math.atan2(-ecc_v[0], ecc_v[1])) % (2*np.pi)   # argument of periapsis

@@ -1,6 +1,6 @@
 import pygame
 import math
-from pygame import gfxdraw
+from pygame import gfxdraw   # gfxdraw ### DEPRECATED ###
 from ast import literal_eval as leval
 
 from volatilespace import fileops
@@ -64,21 +64,21 @@ class Graphics():
             pygame.draw.lines(surface, colors, closed, points, thickness)
 
     
-    def draw_circle(self, surface, color, center, radius, thickness):
+    def draw_circle(self, surface, color, center, radius, thickness):   # gfxdraw ### DEPRECATED ###
         """Draw a circle"""
         if radius < 60000:   # no need to draw so large circle lines
-            if self.antial is True and radius < 1000:   # limit radius because of gfxdraw bug ### BUG ### 32767
+            if self.antial is True and radius < 1000:   # limit radius because of gfxdraw bug
                 # if circle is off screen dont draw it, because gfxdraw uses short integers for position and radius
                 if center[0]+radius > 0 and center[0]-radius < self.screen_x and center[1]+radius > 0 and center[1]-radius < self.screen_y:
                     gfxdraw.aacircle(surface, int(center[0]), int(center[1]), int(radius), color)   # draw initial circle
-                    if thickness != 1:   # antialiased line has no thickness option ### BUG ###
+                    if thickness != 1:   # antialiased line has no thickness option
                         for num in range(1, thickness):   # draw one more circle for each number of thickness
                             gfxdraw.aacircle(surface, int(center[0]), int(center[1]), int(radius)+num, color)
             else:
                 pygame.draw.circle(surface, color, center, radius, thickness)
         
     
-    def draw_circle_fill(self, surface, color, center, radius, antial=None):
+    def draw_circle_fill(self, surface, color, center, radius, antial=None):   # gfxdraw ### DEPRECATED ###
         """Draw a filled circle"""
         if antial is None:
             func_antial = self.antial
@@ -87,7 +87,7 @@ class Graphics():
         if radius == 1:   # if star radius is 1px
             gfxdraw.pixel(surface, int(center[0]), int(center[1]), color)    # draw just that pixel
         else:   # if radius is more than 1px (radius-1 because 1px radius covers 4px total)
-            if func_antial is True and radius < 1000:   # ### BUG ### 32767
+            if func_antial is True and radius < 1000:
                 if center[0]+radius > 0 and center[0]-radius < self.screen_x and center[1]+radius > 0 and center[1]-radius < self.screen_y:
                     gfxdraw.aacircle(surface, int(center[0]), int(center[1]), int(radius - 1), color)
                     gfxdraw.filled_circle(surface, int(center[0]), int(center[1]), int(radius - 1), color)
