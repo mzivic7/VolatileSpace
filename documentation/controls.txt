@@ -1,6 +1,7 @@
 ### MOUSE ###
 Lclick on body     Select body
 Lclick + drag      Move view / Insert new body (in insert mode)
+Rclick             Disables insert mode
 Mouse_wheel        Zoom in / Zoom out
 
 ### KEYBOARD ###
@@ -16,3 +17,4 @@ Escape             Pause menu
 F1                 Screenshot
 F2                 Toggle UI visibility
 F3                 Toggle labels visibility
+Delete             Delete selected body in editor

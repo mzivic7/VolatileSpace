@@ -8,6 +8,7 @@ import datetime
 from configparser import ConfigParser
 from ast import literal_eval as leval
 import copy
+from itertools import repeat
 
 from volatilespace import fileops
 from volatilespace import physics_engine
@@ -437,8 +438,9 @@ class Editor():
                                     color[2] = int(new_value)
                                 physics.set_body_color(self.selected, color)
                         elif self.right_menu == 5:   # sim config
-                            self.sim_conf[list(self.sim_conf.keys())[self.input_value]] = new_value
-                            physics.load_conf(self.sim_conf)
+                            if self.input_value is not None:   # just in case
+                                self.sim_conf[list(self.sim_conf.keys())[self.input_value]] = new_value
+                                physics.load_conf(self.sim_conf)
                     else:
                         graphics.timed_text_init(rgb.red, self.fontmd, "Entered value is invalid", (self.screen_x/2, self.screen_y-70), 2, True)
                     self.input_value = None
@@ -561,7 +563,6 @@ class Editor():
         # y coordinate in self.mouse is negative for easier applying in formula to check if mouse is inside circle
         
         # disable input when mouse clicks on ui
-        
         if not self.pause_menu and self.menu is None:
             if e.type == pygame.MOUSEBUTTONDOWN:
                 if self.mouse_raw[0] <= self.btn_s or self.mouse_raw[1] <= 22:
@@ -596,6 +597,12 @@ class Editor():
                     self.new_body_data["velocity"] = [new_acc_x, new_acc_y]
                     self.check_new_name()   # check if name is already taken
                     physics.add_body(self.new_body_data)   # add new body to class
+                
+                if e.type == pygame.MOUSEBUTTONDOWN and e.button == 3:
+                    if self.insert_body:
+                        self.insert_body = False
+                    elif self.enable_insert:
+                        self.enable_insert = False
             
             # moving and selecting with lclick, or middle click in insert mode
             if e.type == pygame.MOUSEBUTTONDOWN:
@@ -857,8 +864,9 @@ class Editor():
                                 color[2] = int(new_value)
                             physics.set_body_color(self.selected, color)
                     elif self.right_menu == 5:   # sim config
-                        self.sim_conf[list(self.sim_conf.keys())[self.input_value]] = new_value
-                        physics.load_conf(self.sim_conf)
+                        if self.input_value is not None:   # just in case
+                            self.sim_conf[list(self.sim_conf.keys())[self.input_value]] = new_value
+                            physics.load_conf(self.sim_conf)
                     self.input_value = None
                 else:
                     self.input_value = None
@@ -955,10 +963,10 @@ class Editor():
                                         x_pos += w_short + 10
                                 elif editable in [1, 2]:
                                     init_values = [self.new_body_data["name"],
-                                                None,
-                                                metric.format_si(self.new_body_data["mass"], 3),
-                                                metric.format_si(self.new_body_data["density"], 3),
-                                                None]
+                                                   None,
+                                                   metric.format_si(self.new_body_data["mass"], 3),
+                                                   metric.format_si(self.new_body_data["density"], 3),
+                                                   None]
                                     if num >= len(prop_insert_body):
                                         if new_body_type in [0, 1, 2]:   # moon, planet, gas
                                             init_values += ["WIP", "WIP", "WIP", "WIP", "WIP"]
@@ -1135,23 +1143,13 @@ class Editor():
     
     ###### --Physics-- ######
     def physics(self, e):
+        body_del = None
         if e.type == pygame.USEREVENT:   # event for calculations
             if self.pause is False:   # if it is not paused:
                 for num in range(self.warp):
                     physics.gravity()   # do gravity physics
                     physics.body()   # do body related physics (size, thermal, bh...)
-                    # get bodies information
-                    self.names, self.types, self.mass, self.density, self.temp, self.position, self.velocity, self.colors, self.size, self.rad_sc = physics.get_bodies()
-                    
                     body_del = physics.inelastic_collision()   # collisions
-                    if body_del is not False:   # if there is collision
-                        self.names, self.types, self.mass, self.density, self.temp, self.position, self.velocity, self.colors, self.size, self.rad_sc = physics.get_bodies()
-                        if body_del == self.selected:   # if selected body is deleted:
-                            self.selected = False   # exit from select mode
-                        if body_del < self.selected:   # if body before selected one is deleted
-                            self.selected -= 1   # on list move selected body back
-                        self.direction = False   # reset wasd if not false
-                    
                     self.sim_time += 1   # iterate sim_time
                     
                     if self.first:   # this is run only once at userevent start
@@ -1160,6 +1158,13 @@ class Editor():
                         self.selected = 0   # select body
                         self.follow = True   # follow it
         
+        if body_del is not None:   # if there is collision
+            if body_del == self.selected:   # if selected body is deleted:
+                self.selected = False   # exit from select mode
+            if body_del < self.selected:   # if body before selected one is deleted
+                self.selected -= 1   # on list move selected body back
+            self.direction = False   # reset wasd if not false
+        self.names, self.types, self.mass, self.density, self.temp, self.position, self.velocity, self.colors, self.size, self.rad_sc = physics.get_bodies()
         physics.kepler_basic()   # calculate basic keplerian elements
         self.semi_major, self.semi_minor, self.coi, self.parents = physics.get_body_orbits()   # get basic keplerian elements
         self.colors = physics.body_color()   # calculate colors from temperature

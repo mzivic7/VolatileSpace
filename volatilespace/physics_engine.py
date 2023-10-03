@@ -1,5 +1,6 @@
 import numpy as np
 import math
+from itertools import repeat
 
 from volatilespace import fileops
 from volatilespace import defaults
@@ -60,6 +61,7 @@ def rot_ellipse_by_y(x, a, b, p):
     y = (math.sqrt(a**2 * b**2 * (a**2 * math.cos(p)**2 + b**2 * math.sin(p)**2 - x**2 * math.sin(p)**4 - x**2 * math.cos(p)**4 - 2 * x**2 * math.sin(p)**2 * math.cos(p)**2)) + a**2 * x * math.sin(p) * math.cos(p) - b**2 * x * math.sin(p) * math.cos(p)) / (a**2 * math.cos(p)**2 + b**2 * math.sin(p)**2)
     return y
 
+
 def swap_with_first(list_in, n):
     """Swaps first element of list with n element."""
     if list_in.ndim == 1:
@@ -67,6 +69,72 @@ def swap_with_first(list_in, n):
     elif list_in.ndim == 2:
         list_in[[0, n]] = list_in[[n, 0]]
     return list_in
+
+
+def find_parent_one(body_s, bodies_sorted, pos, coi):
+    """Finds parent for one body"""
+    if body_s:
+        body = np.where(bodies_sorted==body_s)[0][0]   # unsorted body index
+        parent = 0   # parent is root, until other is found
+        for numL in range(len(bodies_sorted[:body])):   # for previously calculated bodies:
+            pot_parent = bodies_sorted[numL]   # potential parent index
+            rel_pos = pos[body_s] - pos[pot_parent]
+            if sum([i*i for i in rel_pos]) < (coi[pot_parent])**2:   # just ultra fast check if point is inside circle - COI
+                parent = pot_parent   # this body is parent
+                # loop continues until smallest parent body is found
+        return parent
+    else:
+        return 0
+
+
+def gravity_one(body, parent, mass, pos, gc):
+    """Calculates acceleration for one body in simplified n-body problem."""
+    if body:   # skip calculation for root
+        rel_pos = pos[parent] - pos[body]
+        distance = math.dist([0, 0], rel_pos)
+        force = gc * mass[body] * mass[parent] / distance**2   # Newton's law of universal gravitation
+        # calculate angle between 2 bodies and horizon
+        angle = math.atan2(rel_pos[1], rel_pos[0])
+        acc = force / mass[body]   # calculate acceleration
+        acc_v = np.array([acc * math.cos(angle), acc * math.sin(angle)])   # acceleration vector
+        return acc_v
+    else:
+        return [0, 0]
+
+
+def kepler_basic_one(body, parent, mass, pos, vel, gc):
+    """Basic keplerian orbit for one body."""
+    if body:   # skip calculation for root
+        rel_pos = pos[body] - pos[parent]
+        rel_vel = vel[body] - vel[parent]
+        u = gc * mass[parent]   # standard gravitational parameter
+        semi_major = -1 * u / (2*(rel_vel.dot(rel_vel) / 2 - u / mag(rel_pos)))
+        momentum = np.cross(rel_pos, rel_vel)   # orbital momentum, since this is 2d, momentum is scalar
+        # since this is 2d and momentum is scalar, cross product is not needed, so just multiply, swap axes and -y:
+        ecc_v = ([rel_vel[1], -rel_vel[0]] * momentum / u) - rel_pos / mag(rel_pos)
+        ecc = mag(ecc_v)
+        periapsis_arg = ((3 * np.pi / 2) + math.atan2(-ecc_v[0], ecc_v[1])) % (2*np.pi)
+        focus = semi_major * ecc
+        semi_minor = math.sqrt(abs(focus**2 - semi_major**2))
+        coi = semi_major * (mass[body] / mass[parent])**(2/5)
+        return focus, ecc_v, semi_major, semi_minor, periapsis_arg, coi
+    else:
+        return 0, np.zeros(2), 0, 0, 0, 0
+
+
+def check_collision_one(body1, mass, pos, rad):
+    """Check for collisions between one body and other bodies."""
+    for body2 in range(len(mass[body1+1:])):   # repeat between this and every other body:
+        body2 += body1 + 1
+        distance = math.dist((pos[body1, 0], pos[body1, 1]), (pos[body2, 0], pos[body2, 1]))
+        if distance <= rad[body1] + rad[body2]:   # if bodies collide
+            mass1 = mass[body1]
+            mass2 = mass[body2]
+            if mass1 <= mass2:   # set smaller object to be deleted
+                return body1, body2
+            else:
+                return body2, body1
+
 
 
 class Physics():
@@ -86,7 +154,7 @@ class Physics():
         self.vel = np.empty((0, 2), int)   # velocity
         self.rel_vel = np.empty((0, 2), int)   # relative velocity
         self.coi = np.array([])   # circle of influence
-        self.parents = np.array([], dtype=int)   # parents indexes
+        self.parents = np.array([], dtype=int)   # parents indices
         self.largest = 0   # most massive body (root)
         self.focus = np.array([])   # focus distance from center of ellipse
         self.semi_major = np.array([])   # ellipse semi major axis
@@ -126,7 +194,7 @@ class Physics():
         self.types = np.array([])
         self.pos = position
         self.vel = velocity
-        self.parents = np.array([0, 0, 1], dtype=int)   # parents indexes
+        self.parents = np.array([0, 0, 1], dtype=int)   # parents indices
         self.simplified_orbit_coi()   # calculate COIs
         self.find_parents()   # find parents for all bodies
         self.rel_vel = velocity - velocity[self.parents]
@@ -237,13 +305,13 @@ class Physics():
         self.largest = np.argmax(self.mass)   # find root
         self.coi = np.zeros([len(self.mass)])
         bodies_sorted = np.sort(self.mass)[-1::-1]   # reverse sort
-        body_indexes = np.argsort(self.mass)[-1::-1]   # get sorted indexes
+        body_indices = np.argsort(self.mass)[-1::-1]   # get sorted indices
         for num, body_mass in enumerate(bodies_sorted[1:]):   # for all sorted bodies except first one
-            body = body_indexes[num+1]   # get this body index
+            body = body_indices[num+1]   # get this body index
             # find its parent body:
             parent = self.largest   # parent is root, until other is found
             for numL in range(len(bodies_sorted[:num+1])):   # for previously calculated bodies (skip all smaller than this body):
-                pot_parent = body_indexes[numL]   # potential parent index
+                pot_parent = body_indices[numL]   # potential parent index
                 # if this body is inside potential parents COI:
                 if (self.pos[body, 0] - self.pos[pot_parent, 0])**2 + (self.pos[body, 1] - self.pos[pot_parent, 1])**2 < (self.coi[pot_parent])**2:
                     parent = pot_parent   # this body is parent
@@ -258,41 +326,28 @@ class Physics():
     def find_parents(self):
         """For each body find its parent body, except for root."""
         self.parents = np.zeros([len(self.coi)], dtype=int)
-        mass_sorted = np.sort(self.mass)[-1::-1]   # sort bodies by mass from largest to smallest
-        bodies_sorted = np.argsort(self.mass)[-1::-1]   # get indexes from above sort
-        for num, body_mass in enumerate(mass_sorted[1:]):   # for all sorted bodies except first one (root)
-            body = bodies_sorted[num+1]   # get this body index
-            # find its parent body:
-            parent = self.largest   # parent is root, until other is found
-            for numL in range(len(mass_sorted[:num+1])):   # for previously calculated bodies:
-                pot_parent = bodies_sorted[numL]   # potential parent index
-                # if this body is inside potential parents COI:
-                if (self.pos[body, 0] - self.pos[pot_parent, 0])**2 + (self.pos[body, 1] - self.pos[pot_parent, 1])**2 < (self.coi[pot_parent])**2:
-                    parent = pot_parent   # this body is parent
-                    # loop continues until smallest parent body is found
-            self.parents[body] = parent   # add it to array
+        bodies_sorted = np.argsort(self.mass)[-1::-1]   # get indices for for sort bodies by mass
+        self.parents = np.array(list(map(find_parent_one, list(range(len(bodies_sorted))), repeat(bodies_sorted), repeat(self.pos), repeat(self.coi))))
     
     
     def gravity(self):
         """Newtonian simplified n-body orbital physics model."""
         parents_old = self.parents   # parent memory from last iteration
         self.find_parents()   # find parents for all bodies
-        for body, mass in enumerate(self.mass):   # for every body:
-            if self.coi[body] != 0:   # skip root
-                parent = self.parents[body]   # get parent for this body
-                distance = math.dist((self.pos[body, 0], self.pos[body, 1]), (self.pos[parent, 0], self.pos[parent, 1]))
-                force = self.gc * mass * self.mass[parent] / distance**2   # Newton's law of universal gravitation
-                # calculate angle between 2 bodies and horizon
-                angle = math.atan2(self.pos[parent, 1] - self.pos[body, 1], self.pos[parent, 0] - self.pos[body, 0])
-                acc = force / mass   # calculate acceleration
-                accv = np.array([acc * math.cos(angle), acc * math.sin(angle)])   # acceleration vector
-                self.rel_vel[body] += accv   # add acceleration to velocity vector
-                if parent != parents_old[body]:    # if parent for this body changed since last iteration:
+        acc_v = list(map(gravity_one, list(range(len(self.mass))), self.parents, repeat(self.mass), repeat(self.pos), repeat(self.gc)))
+        self.rel_vel += acc_v
+        
+        # when body is leaving/entering COI
+        for body in range(len(self.mass)):
+            if body != 0:   # skip root
+                if self.parents[body] != parents_old[body]:    # if parent for this body changed since last iteration:
+                    parent = self.parents[body]
                     if self.mass[parent] > self.mass[parents_old[body]]:   # if body is leaving orbit:
                         self.rel_vel[body] += self.rel_vel[parents_old[body]]   # add velocity of previous parent to body relative velocity
                     if self.mass[parent] < self.mass[parents_old[body]]:   # if body is entering orbit:
                         self.rel_vel[body] -= self.rel_vel[parent]   # subtract velocity of new parent to body relative velocity
-        bodies_sorted = np.argsort(self.mass)[-1::-1]   # get indexes from above sort
+        
+        bodies_sorted = np.argsort(self.mass)[-1::-1]   # get indices from above sort
         for body in bodies_sorted[1:]:   # for sorted bodies by mass except first one (root)
             self.vel[body] = self.rel_vel[body] + self.vel[self.parents[body]]   # absolute vel from relative and parents absolute
         self.pos += self.vel   # update positions
@@ -300,25 +355,8 @@ class Physics():
     
     def kepler_basic(self):
         """Basic keplerian orbit (only used in drawing orbit line)."""
-        for body in range(len(self.mass)):   # for every body:
-            if self.coi[body] != 0:   # skip root
-                parent = self.parents[body]   # get parent body
-                # calculate basic keplerian orbit physics
-                rel_pos = self.pos[body] - self.pos[parent]   # relative position
-                rel_vel = self.vel[body] - self.vel[parent]   # relative velocity
-                u = self.gc * self.mass[parent]   # standard gravitational parameter
-                semi_major = -1 * u / (2*(rel_vel.dot(rel_vel) / 2 - u / mag(rel_pos)))   # semi-major axis
-                momentum = np.cross(rel_pos, rel_vel)   # orbital momentum, since this is 2d, momentum is scalar
-                # since this is 2d and momentum is scalar, cross product is not needed, so just multiply, swap axes and -y:
-                ecc_v = ([rel_vel[1], -rel_vel[0]] * momentum / u) - rel_pos / mag(rel_pos)   # eccentricity vector
-                ecc = mag(ecc_v)   # eccentricity
-                self.periapsis_arg[body] = ((3 * np.pi / 2) + math.atan2(-ecc_v[0], ecc_v[1])) % (2*np.pi)   # argument of periapsis
-                focus = semi_major * ecc   # focus
-                self.semi_minor[body] = math.sqrt(abs(focus**2 - semi_major**2))   # semi-minor axis
-                self.coi[body] = semi_major * (self.mass[body] / self.mass[parent])**(2/5)   # calculate its COI and save to index
-                self.focus[body] = focus   # save data to array
-                self.semi_major[body] = semi_major
-                self.ecc_v[body] = ecc_v
+        values = list(map(kepler_basic_one, list(range(len(self.mass))), self.parents, repeat(self.mass), repeat(self.pos), repeat(self.vel), repeat(self.gc)))
+        self.focus, self.ecc_v, self.semi_major, self.semi_minor, self.periapsis_arg, self.coi = list(map(np.array, zip(*values)))
     
     
     def kepler_advanced(self, selected):
@@ -475,22 +513,16 @@ class Physics():
     
     
     def check_collision(self):
-        """Check for collisions between bodies."""
-        for body1, mass1 in enumerate(self.mass):   # for every body:
-            for body2, mass2 in enumerate(self.mass[body1+1:], body1+1):   # repeat between this and every other body:
-                distance = math.dist((self.pos[body1, 0], self.pos[body1, 1]), (self.pos[body2, 0], self.pos[body2, 1]))
-                if distance <= self.rad[body1] + self.rad[body2]:   # if bodies collide
-                    if mass1 <= mass2:   # set smaller object to be deleted
-                        return body1, body2
-                    else:
-                        return body2, body1
-        return False, False   # return none if there are no collisions
+        """Check for collisions between all bodies."""
+        value = list(map(check_collision_one, list(range(len(self.mass[:-1]))), repeat(self.mass), repeat(self.pos), repeat(self.rad)))
+        body1, body2 = next((item for item in value if item is not None), (None, None))
+        return body1, body2
     
     
     def inelastic_collision(self):
         """Inelastic collision - two bodies collide, merging into third, with sum of mass and velocity."""
         body_del, body_add = self.check_collision()   # check for collisions
-        if body_del is not False:   # if there is collision:
+        if body_del is not None:   # if there is collision:
             mass_r = self.mass[body_del] + self.mass[body_add]   # resulting mass
             mom1 = self.vel[body_add] * self.mass[body_add]   # first body moment vector
             mom2 = self.vel[body_del] * self.mass[body_del]   # second body moment vector
