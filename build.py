@@ -3,11 +3,9 @@ import shutil
 from sys import platform
 
 if platform == "win32":
-    os.system('pyinstaller --noconfirm --onedir --windowed --clean --add-data "fonts;fonts/" --add-data "img:img/" --name "VolatileSpace" "main.py"')
+    os.system('wine pyinstaller --noconfirm --upx-dir=upx --onedir --windowed --clean --contents-directory "libraries" --icon "img/icon.ico" --name "VolatileSpace" "main.py"')
 else:
-    os.system('python -m PyInstaller --noconfirm --onedir --windowed --clean --add-data "fonts:fonts/" --add-data "img;img/" --name "VolatileSpace" "main.py"')
+    os.system('pipenv run python -m PyInstaller --noconfirm --onedir --windowed --clean --contents-directory "libraries" --name "VolatileSpace" "main.py"')
 
-os.remove('VolatileSpace.spec')
-shutil.rmtree('build')
-shutil.copytree('dist/', './', dirs_exist_ok=True)
-shutil.rmtree('dist')
+shutil.copytree('img/', 'dist/VolatileSpace/img/', dirs_exist_ok=True)
+shutil.copytree('fonts/', 'dist/VolatileSpace/fonts/', dirs_exist_ok=True)

@@ -1,4 +1,2 @@
 editor.py      mouse.set_pos not works on linux wih wayland
-graphics.py    gfxdraw uses short integers
-graphics.py    weird gfxdraw aacircle line when zoom in
-graphics.py    thicknes in gfxdraw aacircle and aaline/s
+graphics.py    gfxdraw is deprecated !!!

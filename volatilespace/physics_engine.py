@@ -2,6 +2,7 @@ import numpy as np
 import math
 from itertools import repeat
 
+
 from volatilespace import fileops
 from volatilespace import defaults
 
@@ -46,6 +47,11 @@ def get_angle(a, b, c):
     return np.arccos(cosine_angle)
 
 
+def orbit_time_to(mean_anomaly, target_angle, period):
+    """Time to point on orbit"""
+    return period - (mean_anomaly + target_angle)*(period / (2 * np.pi)) % period
+
+
 def mag(vector):
     """Vector magnitude"""
     return math.sqrt(vector.dot(vector))
@@ -54,11 +60,6 @@ def mag(vector):
 def fast_cross(v1, v2):
     """Faster than numpy's"""
     return np.array([v1[0]*v2[1] - v1[1]*v2[0]])
-
-
-def orbit_time_to(mean_anomaly, target_angle, period):
-    """Time to point on orbit"""
-    return period - (mean_anomaly + target_angle)*(period / (2 * np.pi)) % period
 
 
 def rot_ellipse_by_y(x, a, b, p):
@@ -72,7 +73,7 @@ def swap_with_first(list_in, n):
     if list_in.ndim == 1:
         list_in[0], list_in[n] = list_in[n], list_in[0]
     elif list_in.ndim == 2:
-        list_in[[0, n]] = list_in[[n, 0]]
+        list_in[0, n] = list_in[n, 0]
     return list_in
 
 
@@ -103,7 +104,7 @@ def gravity_one(body, parent, mass, rel_pos, gc):
         acc_v = np.array([acc * math.cos(angle), acc * math.sin(angle)])   # acceleration vector
         return acc_v
     else:
-        return [0, 0]
+        return np.array([0, 0], dtype=np.float64)
 
 
 def kepler_basic_one(body, parent, mass, pos, vel, gc):
@@ -130,7 +131,8 @@ def check_collision_one(body1, mass, pos, rad):
     """Check for collisions between one body and other bodies."""
     for body2 in range(len(mass[body1+1:])):   # repeat between this and every other body:
         body2 += body1 + 1
-        distance = math.dist((pos[body1, 0], pos[body1, 1]), (pos[body2, 0], pos[body2, 1]))
+        rel_pos = pos[body1] - pos[body2]
+        distance = math.sqrt(rel_pos[0]*rel_pos[0] + rel_pos[1]*rel_pos[1])
         if distance <= rad[body1] + rad[body2]:   # if bodies collide
             mass1 = mass[body1]
             mass2 = mass[body2]

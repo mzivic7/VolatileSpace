@@ -107,9 +107,8 @@ class Editor():
         self.enable_insert = False   # enable body inserting
         self.insert_body = False   # is body being inserted
         self.move = False    # move view mode
-        self.body_del = False   # which body will be deleted
-        self.selected = False   # seleced body
-        self.direction = False   # keyboard buttons wasd
+        self.selected = None   # selected body
+        self.direction = None   # keyboard buttons wasd
         self.follow = False   # follow selected body
         self.first = True   # is this first iteration
         self.mouse = [0, 0]   # mouse position in simulation
@@ -231,6 +230,9 @@ class Editor():
         self.gen_map_list()
         self.check_new_name()
         self.selected_item = 0
+        self.selected = None
+        self.warp_index = 0
+        self.first = True
         
         # userevent may not been run in first iteration, but this values are needed in graphics section:
         self.names, self.types, self.mass, self.density, self.temp, self.position, self.velocity, self.colors, self.size, self.rad_sc = physics.get_bodies()
@@ -476,9 +478,7 @@ class Editor():
                 
                 elif e.key == self.keys["focus_home"]:
                     self.follow = False   # disable follow
-                    self.focus_point([0, 0], 0.5)   # return to (0,0) coordinates
-                    # self.zoom = 1   # reset zoom
-                    # self.zoom_x, self.zoom_y = 0, 0   # reset zoom offset
+                    self.focus_point([0, 0], self.zoom)   # return to (0,0) coordinates
                     
                 elif e.key == self.keys["follow_selected_body"]:
                     self.follow = not self.follow   # toggle follow
@@ -516,7 +516,7 @@ class Editor():
                     self.warp_index = 0   # reset warp index
                     self.warp = self.warp_range[self.warp_index]   # update warp
                 
-                if self.selected is not False:   # if there is selected body, allow changing its velocity with wasd
+                if self.selected is not None:   # if there is selected body, allow changing its velocity with wasd
                     if e.key == self.keys["forward"]:
                         self.direction = "up"   # to what direction velocity is added
                     if e.key == self.keys["backward"]:
@@ -534,16 +534,16 @@ class Editor():
                         graphics.timed_text_init(rgb.red, self.fontmd, "Cant delete body. There must be at least one body in simulation.", (self.screen_x/2, self.screen_y-70), 2, True)
                     else:
                         self.names, self.types, self.mass, self.density, self.temp, self.position, self.velocity, self.colors, self.size, self.rad_sc = physics.get_bodies()
-                        self.selected = False
+                        self.selected = None
                         if self.right_menu in [3, 4]:
                             self.right_menu = None
                         
         
         if e.type == pygame.KEYUP and e.key in [pygame.K_w, pygame.K_s, pygame.K_a, pygame.K_d]:
-            self.direction = False   # when wasd key is released, clear direction to which velocity is added
+            self.direction = None   # when wasd key is released, clear direction to which velocity is added
         
         # add velocity to specific direction
-        if self.direction is not False:
+        if self.direction is not None:
             name, types, mass, density, temp, position, velocity, colors, size, rad_sc = physics.get_bodies()   # get body velocity to be increased
             if self.direction == "up":   # new_velocity = old_velocity + key_sensitivity
                 physics.set_body_vel(self.selected, [velocity[self.selected, 0], velocity[self.selected, 1] + self.key_sens])   # set new velocity
@@ -625,7 +625,7 @@ class Editor():
                                     self.selected = self.body  # this body is selected
                                     self.select_toggle = True   # do not exit select mode
                             if self.select_toggle is False and self.right_menu not in [3, 4]:   # if inside select mode and not in edit right menus
-                                self.selected = False   # exit select mode
+                                self.selected = None   # exit select mode
                                 if self.right_menu in [3, 4]:
                                     self.right_menu = None   # disable orbit and body edit
             
@@ -905,7 +905,7 @@ class Editor():
                                     self.right_menu = None
                                 else:
                                     if num in [3, 4]:
-                                        if self.selected is not False:
+                                        if self.selected is not None:
                                             if num == 3 and self.selected == self.parents[self.selected]:   # don't display orbit edit for root body
                                                 pass
                                             else:
@@ -1092,7 +1092,7 @@ class Editor():
                                         graphics.timed_text_init(rgb.red, self.fontmd, "Cant delete body. There must be at least one body in simulation.", (self.screen_x/2, self.screen_y-70), 2, True)
                                     else:
                                         self.names, self.types, self.mass, self.density, self.temp, self.position, self.velocity, self.colors, self.size, self.rad_sc = physics.get_bodies()
-                                        self.selected = False
+                                        self.selected = None
                                         self.right_menu = None
                             y_pos += 26
                     if self.right_menu == 5:   # sim config
@@ -1160,10 +1160,10 @@ class Editor():
         
         if body_del is not None:   # if there is collision
             if body_del == self.selected:   # if selected body is deleted:
-                self.selected = False   # exit from select mode
+                self.selected = None   # exit from select mode
             if body_del < self.selected:   # if body before selected one is deleted
                 self.selected -= 1   # on list move selected body back
-            self.direction = False   # reset wasd if not false
+            self.direction = None   # reset wasd if not false
         self.names, self.types, self.mass, self.density, self.temp, self.position, self.velocity, self.colors, self.size, self.rad_sc = physics.get_bodies()
         physics.kepler_basic()   # calculate basic keplerian elements
         self.semi_major, self.semi_minor, self.coi, self.parents = physics.get_body_orbits()   # get basic keplerian elements
@@ -1221,7 +1221,8 @@ class Editor():
             offset_diff = self.offset_old - np.array([self.offset_x, self.offset_y])   # movement vector in one iterration
             offset_diff = offset_diff * min(self.zoom, 3)   # add zoom to speed calculation and limit zoom
             self.offset_old = np.array([self.offset_x, self.offset_y])
-            speed = math.sqrt(offset_diff.dot(offset_diff))/3   # speed as movement vector magnitude
+            if not self.first:
+                speed = math.sqrt(offset_diff.dot(offset_diff))/3   # speed as movement vector magnitude
             while speed > 300:   # limits speed when view is jumping (focus home, distant body...)
                 speed = math.sqrt(speed)
             direction = math.atan2(offset_diff[1], offset_diff[0])   # movement vector angle from atan2
@@ -1232,7 +1233,7 @@ class Editor():
         if self.grid_enable:
             if self.grid_mode == 0:   # grid mode: home
                 origin = self.screen_coords([0, 0])
-            if self.selected is not False:
+            if self.selected is not None:
                 if self.grid_mode == 1:      # grid mode: selected body
                     if self.follow is False:
                         origin = self.screen_coords(self.position[self.selected])
@@ -1285,7 +1286,7 @@ class Editor():
         
         
         # select body
-        if self.selected is not False:
+        if self.selected is not None:
             parent = self.parents[self.selected]      # get selected body parent
             body_pos = self.position[self.selected, :]      # get selected body position
             ecc, periapsis, pe_d, pe_t, apoapsis, ap_d, ap_t, pe_arg, ma, ta, direction, distance, period, speed_orb, speed_hor, speed_vert = physics.kepler_advanced(self.selected)   # get advanced kepler parameters for selected body
@@ -1389,7 +1390,7 @@ class Editor():
             
             # left ui
             pygame.draw.rect(screen, rgb.black, (0, 0, self.btn_s, self.screen_y))
-            if self.selected is not False:
+            if self.selected is not None:
                 prop_l = None
                 if self.selected == self.parents[self.selected]:
                     prop_l = [None, None, None, 0, None, None]
