@@ -1,49 +1,41 @@
 ### TIMELINE ###
-1. solar system
-2. advanced orbital parameters - parabola, hyperbola
-3. inverse functions - parabola, hyperbola
-4. more advanced orbital parameters
-5. 2 keplerian orbit lines - predict leaving orbit
-6. separate physics models for vessels and planets
-7. Rotation
-8. Game GUI (Play, Multiplayer-WIP)
-9. body appearance when zoom out (no ap / pe, icons, rebuild selecting)
-10. collision with rotation for vessels
-11. enable GPU rendering
-12. STAR PHYSICS
-13. BODY TEXTURES
+1. advanced orbital parameters - parabola, hyperbola
+2. inverse functions - parabola, hyperbola
+3. more advanced orbital parameters
+4. 2 keplerian orbit lines - predict leaving orbit
+5. multi language
+6. body appearance when zoom out (no ap / pe, icons, rebuild selecting)
+7. full keplerian physics model
+8. Game: separate physics models for vessels and planets
+9. Rotation
+10. Game menu and basic GUI
+11. collision with rotation for vessels
+12. enable GPU rendering ???
+13. STAR PHYSICS
 14. GAME
-15. VESSEL TEXTURES
-16. MULTIPLAYER
-17. port to andrid
-18. multi language
+15. BODY TEXTURES
+16. VESSEL TEXTURES
+17. MULTIPLAYER
+18. port to andrid ???
+
+
 
 ### STAR PHYSICS ###
 calculate surface temp
 shadows
 calculate luminosity
-body classification - planet sizes and types (gas / solid), only main sequence and BH
+body classification
 star age - composition: H - He
 star physics tick warp system
 support non-main-sequence stars
 black holes
 simulation sizes adjustment
-
-
-
-### BODY TEXTURES ###
-stars
-black hole
-planets 
-atmosphere
-random life, water, ice
-special bodies (pulasar, neutron star, black hole...)
-surface rendering in high zoom
+star type
 
 
 
 ### GAME ###
-game GUI
+advanced game GUI
 vessel
 engine
 maneuvers
@@ -60,7 +52,17 @@ launch / staging
 heat
 comms
 electric power
-balancing
+
+
+
+### BODY TEXTURES ###
+stars
+black hole
+planets 
+atmosphere
+random life, water, ice
+special bodies (pulasar, neutron star, black hole...)
+surface rendering in high zoom
 
 
 

@@ -577,8 +577,7 @@ class Physics():
         # temperature from 10000 to 30000 - BLUE
         self.color[:, 0] = np.where(self.temp > 10000, 255 - ((255 * (self.temp - 10000) / 10000)), self.color[:, 0])   # transition from full red to no red
         self.color[:, 1] = np.where(self.temp > 10000, 255 - ((135 * (self.temp - 10000) / 20000)), self.color[:, 1])   # transition from full green to 120 green
-        self.color = np.where(self.color > 255, 255, self.color)   # limit values to be max 255
-        self.color = np.where(self.color < 0, 0, self.color)   # limit values to be min 0
+        self.color = np.clip(self.color, 0, 255)   # limit values to be 0 - 255
         return self.color   # return calculated color
     
     

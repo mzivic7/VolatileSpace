@@ -19,6 +19,8 @@ class Textinput():
         self.timer_blink = 0
         self.blinking_line_on = 0.7   # blinking line on delay
         self.blinking_line_off = 0.5   # blinking line delay off
+        self.timer_double_click = 0
+        self.double_click_time = 0.4   # delay for detecting double click
         self.disable_blinking_line = False
         self.backspace = False
         self.left = False
@@ -27,8 +29,6 @@ class Textinput():
         self.limit_len = None   # limit text length to n chars
         self.first_click = False   # used for detecting double click
         self.selected = False
-        self.timer_double_click = 0
-        self.double_click_time = 0.5   # delay for detecting double click
         
         self.fontbt = pygame.font.Font("fonts/LiberationSans-Regular.ttf", 22)   # button text font
         self.btn_w = 250   # button width

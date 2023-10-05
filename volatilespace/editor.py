@@ -376,9 +376,9 @@ class Editor():
                                     self.new_body_data["name"] = new_value
                                     self.check_new_name()   # check if name is already taken
                                 if self.input_value == 2:
-                                    self.new_body_data["mass"] = new_value
+                                    self.new_body_data["mass"] = abs(new_value)
                                 if self.input_value == 3:
-                                    self.new_body_data["density"] = new_value
+                                    self.new_body_data["density"] = abs(new_value)
                             elif self.input_value is not None:   # if input value is string (for color)
                                 color = self.new_body_data["color"]
                                 if self.input_value[-1] == "a":   # R
@@ -387,6 +387,7 @@ class Editor():
                                     color[1] = int(new_value)
                                 else:   # B
                                     color[2] = int(new_value)
+                                color = np.clip(color, 0, 255)   # limit values to be 0 - 255
                                 self.new_body_data["color"] = color
                             self.precalc_data = physics.precalculate(self.new_body_data)
                             self.new_body_data["type"] = self.precalc_data["type"]
@@ -399,11 +400,11 @@ class Editor():
                             true_anomaly = None
                             direction = self.orbit_data[6]
                             if self.input_value == 2:   # pe
-                                pe_d = new_value
+                                pe_d = abs(new_value)
                             if self.input_value == 3:   # ap
-                                ap_d = new_value
+                                ap_d = abs(new_value)
                             if self.input_value == 4:   # ecc
-                                ecc = new_value
+                                ecc = abs(new_value)
                             if self.input_value == 5:   # pe_arg
                                 omega_deg = new_value
                             if self.input_value == 6:   # Ma
@@ -421,9 +422,9 @@ class Editor():
                                         else:
                                             physics.set_body_name(self.selected, new_value)
                                 elif self.input_value == 2:   # mass
-                                    physics.set_body_mass(self.selected, new_value)
+                                    physics.set_body_mass(self.selected, abs(new_value))
                                 elif self.input_value == 3:   # density
-                                    physics.set_body_den(self.selected, new_value)
+                                    physics.set_body_den(self.selected, abs(new_value))
                                 elif int(self.types[self.selected]) in [0, 1, 2]:   # moon, planet, gas
                                     if self.input_value == 6:   # rotation period
                                         pass
@@ -438,10 +439,11 @@ class Editor():
                                     color[1] = int(new_value)
                                 else:   # B
                                     color[2] = int(new_value)
+                                color = np.clip(color, 0, 255)   # limit values to be 0 - 255
                                 physics.set_body_color(self.selected, color)
                         elif self.right_menu == 5:   # sim config
                             if self.input_value is not None:   # just in case
-                                self.sim_conf[list(self.sim_conf.keys())[self.input_value]] = new_value
+                                self.sim_conf[list(self.sim_conf.keys())[self.input_value]] = abs(new_value)
                                 physics.load_conf(self.sim_conf)
                     else:
                         graphics.timed_text_init(rgb.red, self.fontmd, "Entered value is invalid", (self.screen_x/2, self.screen_y-70), 2, True)
@@ -799,9 +801,9 @@ class Editor():
                                 self.new_body_data["name"] = new_value
                                 self.check_new_name()   # check if name is already taken
                             if self.input_value == 2:
-                                self.new_body_data["mass"] = new_value
+                                self.new_body_data["mass"] = abs(new_value)
                             if self.input_value == 3:
-                                self.new_body_data["density"] = new_value
+                                self.new_body_data["density"] = abs(new_value)
                         elif self.input_value is not None:   # if input value is string (for color)
                             color = self.new_body_data["color"]
                             if self.input_value[-1] == "a":   # R
@@ -810,11 +812,11 @@ class Editor():
                                 color[1] = int(new_value)
                             else:   # B
                                 color[2] = int(new_value)
+                            color = np.clip(color, 0, 255)   # limit values to be 0 - 255
                             self.new_body_data["color"] = color
                         self.precalc_data = physics.precalculate(self.new_body_data)
                         self.new_body_data["type"] = self.precalc_data["type"]
                     elif self.right_menu == 3:   # edit orbit
-                        
                         pe_d = self.orbit_data[0]
                         ap_d = None
                         ecc = self.orbit_data[2]
@@ -823,11 +825,11 @@ class Editor():
                         true_anomaly = None
                         direction = self.orbit_data[6]
                         if self.input_value == 2:   # pe
-                            pe_d = new_value
+                            pe_d = abs(new_value)
                         if self.input_value == 3:   # ap
-                            ap_d = new_value
+                            ap_d = abs(new_value)
                         if self.input_value == 4:   # ecc
-                            ecc = new_value
+                            ecc = abs(new_value)
                         if self.input_value == 5:   # pe_arg
                             omega_deg = new_value
                         if self.input_value == 6:   # Ma
@@ -845,9 +847,9 @@ class Editor():
                                     else:
                                         physics.set_body_name(self.selected, new_value)
                             elif self.input_value == 2:   # mass
-                                physics.set_body_mass(self.selected, new_value)
+                                physics.set_body_mass(self.selected, abs(new_value))
                             elif self.input_value == 3:   # density
-                                physics.set_body_den(self.selected, new_value)
+                                physics.set_body_den(self.selected, abs(new_value))
                             elif int(self.types[self.selected]) in [0, 1, 2]:   # moon, planet, gas
                                 if self.input_value == 6:   # rotation period
                                     pass
@@ -862,10 +864,11 @@ class Editor():
                                 color[1] = int(new_value)
                             else:   # B
                                 color[2] = int(new_value)
+                            color = np.clip(color, 0, 255)   # limit values to be 0 - 255
                             physics.set_body_color(self.selected, color)
                     elif self.right_menu == 5:   # sim config
                         if self.input_value is not None:   # just in case
-                            self.sim_conf[list(self.sim_conf.keys())[self.input_value]] = new_value
+                            self.sim_conf[list(self.sim_conf.keys())[self.input_value]] = abs(new_value)
                             physics.load_conf(self.sim_conf)
                     self.input_value = None
                 else:
@@ -988,6 +991,7 @@ class Editor():
                                                             color_componet = self.new_body_data["color"][2]
                                                         textinput.initial_text(str(color_componet), fixed_init_text, x_corr=-3, limit_len=3)
                                                         self.click = False
+                                                        self.first_click = True   # activate timer for double click
                                                         break_flag = True   # don't run code after this
                                                         break
                                                     x_pos += 59
@@ -998,7 +1002,7 @@ class Editor():
                                     self.input_value = num
                                     textinput.initial_text(init_values[num], text_merged[num])
                                     self.click = False
-                                    self.first_click = True   # timer for double click
+                                    self.first_click = True   # activate timer for double click
                             if editable in [3, 4]:
                                 y_pos += 12
                                 if self.r_menu_x_btn <= self.mouse_raw[0]-1 <= self.r_menu_x_btn + 280 and y_pos <= self.mouse_raw[1]-1 <= y_pos + 21:
@@ -1047,11 +1051,11 @@ class Editor():
                             if self.r_menu_x_btn <= self.mouse_raw[0]-1 <= self.r_menu_x_btn + 280 and y_pos <= self.mouse_raw[1]-1 <= y_pos + 21:
                                 if editable in [1, 2]:
                                     init_values = [self.names[self.selected],
-                                                    None,
-                                                    metric.format_si(self.mass[self.selected], 3),
-                                                    metric.format_si(self.density[self.selected], 3),
-                                                    metric.format_si(self.size[self.selected], 3),
-                                                    metric.format_si(self.coi[self.selected], 3)]
+                                                   None,
+                                                   metric.format_si(self.mass[self.selected], 3),
+                                                   metric.format_si(self.density[self.selected], 3),
+                                                   metric.format_si(self.size[self.selected], 3),
+                                                   metric.format_si(self.coi[self.selected], 3)]
                                     if num >= len(prop_edit_body):
                                         if int(self.types[self.selected]) in [0, 1, 2]:   # moon, planet, gas
                                             init_values += ["WIP", "WIP", "WIP", "WIP", "WIP"]
@@ -1073,6 +1077,7 @@ class Editor():
                                                             color_componet = self.colors[self.selected, 2]
                                                         textinput.initial_text(str(color_componet), fixed_init_text, x_corr=-3, limit_len=3)
                                                         self.click = False
+                                                        self.first_click = True
                                                         break_flag = True   # don't run code after this
                                                         break
                                                     x_pos += 59
@@ -1178,10 +1183,9 @@ class Editor():
         
         
         # follow body (this must be before drawing objects to prevent them from vibrating when moving)
-        if self.follow and self.selected is not False:   # if follow mode is enabled
+        if self.follow and self.selected is not None:   # if follow mode is enabled
             self.offset_x = - self.position[self.selected, 0] + self.screen_x / 2   # follow selected body
             self.offset_y = - self.position[self.selected, 1] + self.screen_y / 2
-        
         
         # screen movement
         if self.move:   # this is not in userevent to allow moving while paused
@@ -1380,7 +1384,7 @@ class Editor():
         # double click counter   # not graphics related, but must be outside of input functions
         if self.first_click is not None:
             self.click_timer += clock.get_fps() / 60
-            if self.click_timer >= 0.5 * 60:
+            if self.click_timer >= 0.4 * 60:
                 self.first_click = None
                 self.click_timer = 0
         
@@ -1468,7 +1472,7 @@ class Editor():
                     prop_merged.append(4)
                 graphics.text_list(screen, texts_merged, (self.r_menu_x_btn, 38), (280, 21), 26, imgs=self.body_imgs, prop=prop_merged, selected=new_body_type)
             
-            elif self.right_menu == 3 and self.selected is not False:   # edit orbit
+            elif self.right_menu == 3 and self.selected is not None:   # edit orbit
                 texts = text_edit_orb[:]
                 for num, text in enumerate(text_edit_orb):
                     if num == 0:
@@ -1486,7 +1490,7 @@ class Editor():
                         texts[num] = texts[num] + metric.format_si(self.orbit_data[num-2], 3)
                 graphics.text_list(screen, texts, (self.r_menu_x_btn, 38), (280, 21), 26, prop=prop_edit_orb)
                 
-            elif self.right_menu == 4 and self.selected is not False:   # edit body
+            elif self.right_menu == 4 and self.selected is not None:   # edit body
                 values_body = [self.names[self.selected],
                                body_types[int(self.types[self.selected])],
                                metric.format_si(self.mass[self.selected], 3),
