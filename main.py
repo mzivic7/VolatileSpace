@@ -18,10 +18,10 @@ def main():
         (screen_x, screen_y) = fileops.load_settings("graphics", "resolution")
     fullscreen = leval(fileops.load_settings("graphics", "fullscreen"))   # load screen mode setting
     vsync = leval(fileops.load_settings("graphics", "vsync"))
-    if fullscreen is True:
-        screen = pygame.display.set_mode((screen_x, screen_y), pygame.FULLSCREEN, vsync=vsync)   # set window size and fullscreen
+    if fullscreen is True:   # set window size and fullscreen
+        screen = pygame.display.set_mode((screen_x, screen_y), pygame.FULLSCREEN, vsync=vsync)
     else:
-        screen = pygame.display.set_mode((screen_x, screen_y), vsync=vsync)   # set window size and windowed
+        screen = pygame.display.set_mode((screen_x, screen_y), vsync=vsync)
     clock = pygame.time.Clock()   # start clock
     pygame.time.set_timer(pygame.USEREVENT, int(round(1000/60)))   # userevent is called every 1/60 of second (rounded to 17ms)
 

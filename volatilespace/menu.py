@@ -25,7 +25,7 @@ buttons_map_sel = ["Open in editor", "Rename", "Delete", "Export"]
 buttons_map_ui = ["Back", "New map", "Import map"]
 buttons_set_vid = ["Fullscreen", "Resolution", "Antialiasing", "Vsync", "Mouse wrap", "Background stars"]
 buttons_set_aud = ["WIP"]
-buttons_set_gam = ["Keybindings"]
+buttons_set_gam = ["Keybindings", "Autosave"]
 buttons_set_adv = ["Curve points", "Stars antialiasing", "New star color", "Star clusters", "New clusters"]
 buttons_set_ui = ["Accept", "Apply", "Cancel", "Load default"]
 buttons_about = ["Wiki", "Github", "Itch.io", "Report a bug", "Back"]
@@ -125,6 +125,7 @@ class Menu():
         self.new_color = leval(fileops.load_settings("background", "stars_new_color"))
         self.cluster_enable = leval(fileops.load_settings("background", "cluster_enable"))
         self.cluster_new = leval(fileops.load_settings("background", "cluster_new"))
+        self.autosave_time = int(fileops.load_settings("game", "autosave_time"))
     
     
     def gen_map_list(self):
@@ -403,6 +404,21 @@ class Menu():
                         if x_pos <= self.mouse[0]-1 <= x_pos + self.btn_w and y_pos <= self.mouse[1]-1 <= y_pos + self.btn_h:
                             if num == 0:   # Keybindings
                                 self.keybinding = True
+                            elif num == 1:   # autosave
+                                if x_pos <= self.mouse[0]-1 <= x_pos + 40:   # minus
+                                    if self.autosave_time < 15:
+                                        self.autosave_time -= 1
+                                    else:
+                                        self.autosave_time -=5
+                                    if self.autosave_time < 0:   # if autosave time is 0, it is disabled
+                                        self.autosave_time = 0
+                                if x_pos+self.btn_w-40 <= self.mouse[0]-1 <= x_pos + self.btn_w:   # plus
+                                    if self.autosave_time < 10:
+                                        self.autosave_time += 1
+                                    else:
+                                        self.autosave_time += 5
+                                    if self.autosave_time > 90:   # limit to 90min
+                                        self.autosave_time = 90
                         y_pos += self.btn_h + self.space
                     
                     # advanced
@@ -447,6 +463,7 @@ class Menu():
                                 fileops.save_settings("background", "stars_new_color", self.new_color)
                                 fileops.save_settings("background", "cluster_enable", self.cluster_enable)
                                 fileops.save_settings("background", "cluster_new", self.cluster_new)
+                                fileops.save_settings("game", "autosave_time", self.autosave_time)
                                 # change windowed/fullscreen
                                 if self.screen_change is True:
                                     
@@ -618,7 +635,8 @@ class Menu():
             
             # game
             graphics.text(screen, rgb.white, self.fonthd, "Game", (self.settings_section/2 * 5, 30), True)
-            prop_3 = [None]
+            prop_3 = [None, 3]
+            buttons_set_gam[1] = "Autosave: " + str(self.autosave_time) + "min"
             graphics.buttons_vertical(screen, buttons_set_gam, (self.set_x_3, self.top_margin), prop_3)
             
             # advanced

@@ -107,7 +107,7 @@ def gravity_one(body, parent, mass, rel_pos, gc):
         return np.array([0, 0], dtype=np.float64)
 
 
-def kepler_basic_one(body, parent, mass, pos, vel, gc):
+def kepler_basic_one(body, parent, mass, pos, vel, gc, coi_koef):
     """Basic keplerian orbit for one body."""
     if body:   # skip calculation for root
         rel_pos = pos[body] - pos[parent]
@@ -116,12 +116,13 @@ def kepler_basic_one(body, parent, mass, pos, vel, gc):
         semi_major = -1 * u / (2*(rel_vel.dot(rel_vel) / 2 - u / mag(rel_pos)))
         momentum = fast_cross(rel_pos, rel_vel)   # orbital momentum, since this is 2d, momentum is scalar
         # since this is 2d and momentum is scalar, cross product is not needed, so just multiply, swap axes and -y:
-        ecc_v = ([rel_vel[1], -rel_vel[0]] * momentum / u) - rel_pos / mag(rel_pos)
+        rel_vel[0], rel_vel[1] = rel_vel[1], -rel_vel[0]
+        ecc_v = (rel_vel * momentum / u) - rel_pos / mag(rel_pos)
         ecc = mag(ecc_v)
         periapsis_arg = ((3 * np.pi / 2) + math.atan2(-ecc_v[0], ecc_v[1])) % (2*np.pi)
         focus = semi_major * ecc
         semi_minor = math.sqrt(abs(focus**2 - semi_major**2))
-        coi = semi_major * (mass[body] / mass[parent])**(2/5)
+        coi = semi_major * (mass[body] / mass[parent])**(coi_koef)
         return focus, ecc_v, semi_major, semi_minor, periapsis_arg, coi
     else:
         return 0, np.zeros(2), 0, 0, 0, 0
@@ -169,6 +170,7 @@ class Physics():
         self.ecc_v = np.empty((0, 2), int)   # curve eccentricity vector
         self.gc = defaults.sim_config["gc"]   # newtonian constant of gravitation
         self.rad_mult = defaults.sim_config["rad_mult"]
+        self.coi_koef = defaults.sim_config["coi_koef"]
         self.reload_settings()
     
     def reload_settings(self):
@@ -184,6 +186,7 @@ class Physics():
         """Loads physics related config."""
         self.gc = conf["gc"]
         self.rad_mult = conf["rad_mult"]
+        self.coi_koef = conf["coi_koef"]
     
     def load_system(self, conf, names, mass, density, position, velocity, color):
         """Load new system."""
@@ -362,7 +365,7 @@ class Physics():
     
     def kepler_basic(self):
         """Basic keplerian orbit (only used in drawing orbit line)."""
-        values = list(map(kepler_basic_one, list(range(len(self.mass))), self.parents, repeat(self.mass), repeat(self.pos), repeat(self.vel), repeat(self.gc)))
+        values = list(map(kepler_basic_one, list(range(len(self.mass))), self.parents, repeat(self.mass), repeat(self.pos), repeat(self.vel), repeat(self.gc), repeat(self.coi_koef)))
         self.focus, self.ecc_v, self.semi_major, self.semi_minor, self.periapsis_arg, self.coi = list(map(np.array, zip(*values)))
     
     

@@ -130,6 +130,7 @@ class Editor():
         self.grid_enable = False   # background grid
         self.grid_mode = 0   # grid mode: 0 - global, 1 - selected body, 2 - parent
         
+        
         # icons
         menu_img = pygame.image.load("img/menu.png")
         body_list_img = pygame.image.load("img/body_list.png")
@@ -196,6 +197,9 @@ class Editor():
         self.right_menu = None
         self.enable_insert = False
         self.insert_body = False
+        self.autosave_event = pygame.USEREVENT + 1
+        autosave_time = int(fileops.load_settings("game", "autosave_time")) * 60 * 1000   # min to ms
+        pygame.time.set_timer(self.autosave_event, autosave_time)
     
     
     def gen_map_list(self):
@@ -239,7 +243,6 @@ class Editor():
         self.first = True
     
     
-    
     ###### --Help functions-- ######
     def focus_point(self, pos, zoom=None):
         """Claculate offset and zoom, used to focus on specific coordinates"""
@@ -264,7 +267,7 @@ class Editor():
         # y_on_screen = y_on_screen - screen_y   move origin from bottom-left to up-left. This is implemented in above line
         return [x_in_sim, y_in_sim]
     
-    def ask_load(self):
+    def load(self):
         """Loads system from "load" dialog."""
         if os.path.exists(self.selected_path):
             self.sim_name, self.sim_time, self.sim_conf, self.names, self.mass, self.density, self.position, self.velocity, self.color = fileops.load_system(self.selected_path)
@@ -273,14 +276,27 @@ class Editor():
             self.names, self.types, self.mass, self.density, self.temp, self.position, self.velocity, self.colors, self.size, self.rad_sc = physics.get_bodies()
             self.file_path = self.selected_path   # change currently active file
             graphics.timed_text_init(rgb.gray, self.fontmd, "Map loaded successfully", (self.screen_x/2, self.screen_y-70), 2, True)
-    
-    def ask_save(self):
-        """Savess system from "save" dialog."""
+        
+    def save(self, path):
+        """Saves map to file."""
         base_color = physics.get_base_color()
         date = time.strftime("%d.%m.%Y %H:%M")
-        fileops.save_system(self.selected_path, self.sim_name, date, self.sim_conf, self.sim_time/self.ptps, self.names, self.mass, self.density, self.position, self.velocity, base_color)
-        self.file_path = self.selected_path
+        fileops.save_system(path, self.sim_name, date, self.sim_conf, self.sim_time/self.ptps, self.names, self.mass, self.density, self.position, self.velocity, base_color)
         graphics.timed_text_init(rgb.gray, self.fontmd, "Map saved successfully", (self.screen_x/2, self.screen_y-70), 2, True)
+    
+    def quicksave(self):
+        """Saves map to quicksave file."""
+        base_color = physics.get_base_color()
+        date = time.strftime("%d.%m.%Y %H:%M")
+        fileops.save_system("Maps/quicksave.ini", "Quicksave - " + self.sim_name, date, self.sim_conf, self.sim_time/self.ptps, self.names, self.mass, self.density, self.position, self.velocity, base_color)
+        graphics.timed_text_init(rgb.gray2, self.fontmd, "Quicksave...", (self.screen_x/2, self.screen_y-70), 2, True)
+    
+    def autosave(self, e):
+        if e.type == self.autosave_event:
+            base_color = physics.get_base_color()
+            date = time.strftime("%d.%m.%Y %H:%M")
+            fileops.save_system("Maps/auosave.ini", "Autosave - " + self.sim_name, date, self.sim_conf, self.sim_time/self.ptps, self.names, self.mass, self.density, self.position, self.velocity, base_color)
+            graphics.timed_text_init(rgb.gray2, self.fontmd, "Autosave...", (self.screen_x/2, self.screen_y-70), 2, True)
     
     def check_new_name(self):
         """Check if new body name is already taken and append number to it"""
@@ -315,10 +331,8 @@ class Editor():
                     self.new_map = False
                     self.ask = None
                 elif e.key == pygame.K_RETURN:
-                    date = time.strftime("%d.%m.%Y %H:%M")
                     path = fileops.new_map(self.text, date)
-                    base_color = physics.get_base_color()
-                    fileops.save_system(path, self.text, date, self.sim_conf, self.sim_time/self.ptps, self.names, self.mass, self.density, self.position, self.velocity, base_color)
+                    self.save(path)
                     self.gen_map_list()
                     self.new_map = False
                     self.ask = None
@@ -337,9 +351,10 @@ class Editor():
                 if e.key == pygame.K_RETURN:
                     if self.ask:
                         if self.ask == "load":
-                            self.ask_load()
+                            self.load()
                         if self.ask == "save":
-                            self.ask_save()
+                            self.ask_save(self.selected_path)
+                            self.file_path = self.selected_path
                         self.menu = None
                         self.pause_menu = True
                         self.ask = None
@@ -504,6 +519,10 @@ class Editor():
                 
                 elif e.key == self.keys["toggle_labels_visibility"]:
                     self.disable_labels = not self.disable_labels
+                
+                elif e.key == self.keys["quicksave"]:
+                    self.quicksave()
+                
                 
                 # time warp
                 if e.key == self.keys["decrease_time_warp"]:
@@ -739,7 +758,12 @@ class Editor():
                                         self.selected_item = num
                                         self.selected_path = "Maps/" + self.maps[self.selected_item, 0]
                                         if self.first_click == num:   # detect double click
-                                            self.ask = "save"
+                                            if self.file_path == self.selected_path:   # don't ask to save over current file
+                                                self.save(self.file_path)
+                                                self.menu = None
+                                                self.pause_menu = True
+                                            else:
+                                                self.ask = "save"
                                             self.click = False   # dont carry click to ask window
                                         self.first_click = num
                                 y_pos += self.btn_h + self.space
@@ -752,7 +776,12 @@ class Editor():
                                     self.menu = None
                                     self.pause_menu = True
                                 elif num == 1:   # save
-                                    self.ask = "save"
+                                    if self.file_path == self.selected_path:   # don't ask to save over current file
+                                        self.save(self.file_path)
+                                        self.menu = None
+                                        self.pause_menu = True
+                                    else:
+                                        self.ask = "save"
                                 elif num == 2:   # new save
                                     self.new_map = True
                                     self.ask = True   # dirty shortcut to disable safe buttons
@@ -884,9 +913,10 @@ class Editor():
                                 pass
                             elif num == 1:   # yes
                                 if self.ask == "load":
-                                    self.ask_load()
+                                    self.load()
                                 if self.ask == "save":
-                                    self.ask_save()
+                                    self.ask_save(self.selected_path)
+                                    self.file_path = self.selected_path
                             self.menu = None
                             self.pause_menu = True
                             self.ask = None
@@ -1608,6 +1638,7 @@ class Editor():
                     pygame.quit()
                     sys.exit()
                 self.physics(e)
+                self.autosave(e)
             self.graphics(screen, clock)
             self.graphics_ui(screen, clock)
             pygame.display.flip()
