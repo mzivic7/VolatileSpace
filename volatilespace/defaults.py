@@ -27,7 +27,9 @@ settings = {"first_run": "True",
             "stars_zoom_max": 2,
             "zoom_mult": 5,
             "stars": "True",
-            "autosave_time": 5
+            "autosave_time": 5,
+            "numba": "True",
+            "fastmath": "False"
             }
 
 
@@ -53,7 +55,7 @@ keybindings = {"forward": pg.K_w,
 
 sim_config = {"gc": 1.0,
               "rad_mult": 10.0,
-              "coi_koef": 0.4
+              "coi_coef": 0.4
               }
 
 

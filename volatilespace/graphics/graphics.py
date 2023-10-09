@@ -207,15 +207,19 @@ class Graphics():
     def buttons_vertical(self, screen, buttons_txt, pos, prop=None, safe=False):
         """Draws buttons with mouseover and self.click effect.
         Properties are passed as list with value for each button.
-        Values can be: None - no effect, 0 - red color (OFF), 1 - green color (ON), 2 - add link icon on button, 3 - +/- buttons, 4 - highlighted"""
+        Values can be: None - no effect, 0 - red color (OFF), 1 - green color (ON),
+        2 - add link icon on button, 3 - +/- buttons, 4 - highlighted, 5 - disabled"""
         (x, y) = pos
         disable_buttons = False
         if safe is False:
             disable_buttons = self.disable_buttons
         for num, text in enumerate(buttons_txt):
-            color = rgb.black
-            color_l = color_r = rgb.gray3
-            if "WIP" not in text:   # black out WIP buttons
+            if prop is not None and prop[num] == 5:   # black out disabled buttons
+                color = rgb.black
+                color_text = rgb.gray
+            else:
+                color_l = color_r = rgb.gray3
+                color_text = rgb.white
                 if prop is not None and prop[num] == 0:   # depending on properties value, determine color
                     color = rgb.red_s1
                 elif prop is not None and prop[num] == 1:
@@ -223,9 +227,8 @@ class Graphics():
                 else:
                     color = rgb.gray3
                     
-            # mouse over button
-            if x <= self.mouse[0]-1 <= x + self.btn_w and y <= self.mouse[1]-1 <= y + self.btn_h and disable_buttons is False:
-                if "WIP" not in text:
+                # mouse over button
+                if x <= self.mouse[0]-1 <= x + self.btn_w and y <= self.mouse[1]-1 <= y + self.btn_h and disable_buttons is False:
                     if prop is not None and prop[num] == 0:
                         color = rgb.red_s2
                     elif prop is not None and prop[num] == 1:
@@ -237,10 +240,9 @@ class Graphics():
                             color_r = rgb.gray2
                     else:
                         color = rgb.gray2
-                    
-                # click on button
-                if self.click is True:
-                    if "WIP" not in text:
+                        
+                    # click on button
+                    if self.click is True:
                         if prop is not None and prop[num] == 0:
                             color = rgb.red_s3
                         elif prop is not None and prop[num] == 1:
@@ -265,8 +267,8 @@ class Graphics():
                 pygame.draw.rect(screen, rgb.white, (x+self.btn_w-40, y, 40, self.btn_h), 1)
             else:
                 pygame.draw.rect(screen, color, (x, y, self.btn_w, self.btn_h))
-            pygame.draw.rect(screen, rgb.white, (x, y, self.btn_w, self.btn_h), 1)
-            self.text(screen, rgb.white, self.fontbt, text, (x + self.btn_w/2, y + self.btn_h/2), True)
+            pygame.draw.rect(screen, color_text, (x, y, self.btn_w, self.btn_h), 1)
+            self.text(screen, color_text, self.fontbt, text, (x + self.btn_w/2, y + self.btn_h/2), True)
             if prop is not None and prop[num] == 2:   # from properties value add link icon
                 screen.blit(self.link, (x+self.btn_w-40, y))
             y += self.btn_h + self.space   # calculate position for next button

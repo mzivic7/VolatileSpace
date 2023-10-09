@@ -4,7 +4,6 @@ import os
 import sys
 import shutil
 import time
-import numpy as np
 from ast import literal_eval as leval
 
 from volatilespace import fileops
@@ -13,13 +12,17 @@ from volatilespace.graphics import graphics
 from volatilespace import editor
 from volatilespace import textinput
 from volatilespace.graphics import keybinding
-
+try:   # to allow building without numba
+    from numba import njit
+    numba_avail = True
+except ImportError:
+    numba_avail = False
 
 graphics = graphics.Graphics()
 textinput = textinput.Textinput()
 
 
-version = "0.3.6"
+version = "0.4.0"
 
 buttons_main = ["Play - WIP", "Multiplayer - WIP", "Map Editor", "Settings", "About", "Quit"]
 buttons_map_sel = ["Open in editor", "Rename", "Delete", "Export"]
@@ -27,7 +30,7 @@ buttons_map_ui = ["Back", "New map", "Import map"]
 buttons_set_vid = ["Fullscreen", "Resolution", "Antialiasing", "Vsync", "Mouse wrap", "Background stars"]
 buttons_set_aud = ["WIP"]
 buttons_set_gam = ["Keybindings", "Autosave"]
-buttons_set_adv = ["Curve points", "Stars antialiasing", "New star color", "Star clusters", "New clusters"]
+buttons_set_adv = ["Curve points", "Stars antialiasing", "New star color", "Star clusters", "New clusters", "Numba", "FastMath"]
 buttons_set_ui = ["Accept", "Apply", "Cancel", "Load default"]
 buttons_about = ["Wiki", "Github", "Itch.io", "Report a bug", "Back"]
 buttons_rename = ["Cancel", "Rename"]
@@ -126,6 +129,8 @@ class Menu():
         self.new_color = leval(fileops.load_settings("background", "stars_new_color"))
         self.cluster_enable = leval(fileops.load_settings("background", "cluster_enable"))
         self.cluster_new = leval(fileops.load_settings("background", "cluster_new"))
+        self.numba = leval(fileops.load_settings("game", "numba"))
+        self.fastmath = leval(fileops.load_settings("game", "fastmath"))
         self.autosave_time = int(fileops.load_settings("game", "autosave_time"))
     
     
@@ -411,7 +416,7 @@ class Menu():
                                     if self.autosave_time < 15:
                                         self.autosave_time -= 1
                                     else:
-                                        self.autosave_time -=5
+                                        self.autosave_time -= 5
                                     if self.autosave_time < 0:   # if autosave time is 0, it is disabled
                                         self.autosave_time = 0
                                 if x_pos+self.btn_w-40 <= self.mouse[0]-1 <= x_pos + self.btn_w:   # plus
@@ -443,6 +448,14 @@ class Menu():
                                 self.cluster_enable = not self.cluster_enable
                             elif num == 4:   # cluster new
                                 self.cluster_new = not self.cluster_new
+                            elif num == 5:   # numba
+                                if numba_avail:
+                                    self.numba = not self.numba
+                                    self.restart = True
+                            elif num == 6:   # FastMath
+                                if self.numba:
+                                    self.fastmath = not self.fastmath
+                                    self.restart = True
                         y_pos += self.btn_h + self.space
                     
                     # ui
@@ -459,12 +472,14 @@ class Menu():
                                 fileops.save_settings("graphics", "antialiasing", self.antial)
                                 fileops.save_settings("graphics", "vsync", self.vsync)
                                 fileops.save_settings("graphics", "mouse_wrap", self.mouse_wrap)
-                                fileops.save_settings("background", "stars", self.bg_stars_enable)
                                 fileops.save_settings("graphics", "curve_points", self.curve_points)
+                                fileops.save_settings("background", "stars", self.bg_stars_enable)
                                 fileops.save_settings("background", "stars_antialiasing", self.star_aa)
                                 fileops.save_settings("background", "stars_new_color", self.new_color)
                                 fileops.save_settings("background", "cluster_enable", self.cluster_enable)
                                 fileops.save_settings("background", "cluster_new", self.cluster_new)
+                                fileops.save_settings("game", "numba", self.numba)
+                                fileops.save_settings("game", "fastmath", self.fastmath)
                                 fileops.save_settings("game", "autosave_time", self.autosave_time)
                                 # change windowed/fullscreen
                                 if self.screen_change is True:
@@ -555,7 +570,7 @@ class Menu():
         # main menu
         if self.menu == 0:
             graphics.text(screen, rgb.white, self.fonttl, "Volatile Space", (self.screen_x/2, self.main_y - self.fonttl.get_height()), True)
-            graphics.buttons_vertical(screen, buttons_main, (self.main_x, self.main_y))
+            graphics.buttons_vertical(screen, buttons_main, (self.main_x, self.main_y), [5, 5, None, None, None, None])
         
         
         # play
@@ -608,7 +623,7 @@ class Menu():
                     buttons = buttons_rename
                 else:
                     menu_title = "New Map"
-                    buttons =buttons_new_map
+                    buttons = buttons_new_map
                 graphics.text(screen, rgb.white, self.fontbt, menu_title, (self.screen_x/2,  self.ask_y-20-self.btn_h), True)
                 textinput.graphics(screen, clock, self.fontbt, (self.ask_x, self.ask_y-self.btn_h), (self.btn_w_h*2+self.space, self.btn_h))
                 graphics.buttons_horizontal(screen, buttons, (self.ask_x, self.ask_y+self.space), safe=True)
@@ -632,7 +647,7 @@ class Menu():
             
             # audio
             graphics.text(screen, rgb.white, self.fonthd, "Audio", (self.settings_section/2 * 3, 30), True)
-            prop_2 = [None]
+            prop_2 = [5]
             graphics.buttons_vertical(screen, buttons_set_aud, (self.set_x_2, self.top_margin), prop_2)
             
             # game
@@ -644,7 +659,15 @@ class Menu():
             # advanced
             graphics.text(screen, rgb.white, self.fonthd, "Advanced", (self.settings_section/2 * 7, 30), True)
             buttons_set_adv[0] = "Curve: " + str(self.curve_points)
-            prop_4 = [3, int(self.star_aa), int(self.new_color), int(self.cluster_enable), int(self.cluster_new)]
+            if numba_avail:
+                numba_button = int(self.numba)
+            else:
+                numba_button = 5
+            if numba_avail and self.numba:
+                fastmath_button = int(self.fastmath)
+            else:
+                fastmath_button = 5
+            prop_4 = [3, int(self.star_aa), int(self.new_color), int(self.cluster_enable), int(self.cluster_new), numba_button, fastmath_button]
             graphics.buttons_vertical(screen, buttons_set_adv, (self.set_x_4, self.top_margin), prop_4)
             
             # ui

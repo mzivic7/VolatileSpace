@@ -8,9 +8,14 @@ First section called [config] i used for global variables in simulation. This se
 Section parameters:
 
 [config]
+name = New map   # map display name
+date = 08.10.2023 19:24   # date and time when map is created
 time = 0   # simulation time displayed on screen (in seconds)
+gc = 1.0   # gravitational constant
+rad_mult = 100.0   # radius multiplier
+coi_coef = 0.7   # COI coefficient: larger coef - smaller COI
 
-[body1]
+[body_name]
 mass = 100000   # body mass
 density = 1.0   # body density
 position = [0, 0]   # ABSOLUTE position
@@ -22,4 +27,4 @@ color = [70, 200, 200]   # body base color
 Notes:
 Changing time won't change orbits.
 Real color is calculated by temperature and base color.
-System must have at least 2 bodies.
+System must have at least 1 body.

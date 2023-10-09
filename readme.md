@@ -19,6 +19,11 @@ Written in Python with PyGame.
 5. Install requirements: `pipenv install`
 6. Run build script: `python build.py`
 
+### About numba
+build.py script by default builds with numba, to build without numba use: `python build.py nonumba`  
+Or just uninstall numba: `pip uninstall numba`  
+This also disables 'Numba' and 'FastMath' options in settings.  
+
 ## How it works?
 Head to [wiki](documentation/wiki.md).  
 

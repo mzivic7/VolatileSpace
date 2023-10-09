@@ -1,13 +1,6 @@
 import numpy as np
 import math
 from itertools import repeat
-from ast import literal_eval as leval
-try:   # to allow building without numba
-    from numba import njit, types, int32, int64, float64
-    numba_avail = True
-except ImportError:
-    numba_avail = False
-    
 
 
 from volatilespace import fileops
@@ -59,6 +52,21 @@ def orbit_time_to(mean_anomaly, target_angle, period):
     return period - (mean_anomaly + target_angle)*(period / (2 * np.pi)) % period
 
 
+def dot_2d(v1, v2):
+    """Fastest 2D dot product. It is slightly faster than built in: v1 @ v2."""
+    return v1[0] * v2[0] + v1[1] * v2[1]
+
+
+def mag(vector):
+    """Vector magnitude"""
+    return math.sqrt(dot_2d(vector, vector))
+
+
+def fast_cross(v1, v2):
+    """Faster than numpy's"""
+    return np.array([v1[0]*v2[1] - v1[1]*v2[0]])
+
+
 def rot_ellipse_by_y(x, a, b, p):
     """Rotatted ellipse by y, but only positive half"""
     y = (math.sqrt(a**2 * b**2 * (a**2 * math.cos(p)**2 + b**2 * math.sin(p)**2 - x**2 * math.sin(p)**4 - x**2 * math.cos(p)**4 - 2 * x**2 * math.sin(p)**2 * math.cos(p)**2)) + a**2 * x * math.sin(p) * math.cos(p) - b**2 * x * math.sin(p) * math.cos(p)) / (a**2 * math.cos(p)**2 + b**2 * math.sin(p)**2)
@@ -74,25 +82,10 @@ def swap_with_first(list_in, n):
     return list_in
 
 
-def dot_2d(v1, v2):
-    """Fastest 2D dot product. It is slightly faster than built in: v1 @ v2."""
-    return v1[0]*v2[0] + v1[1]*v2[1]
-
-
-def mag(vector):
-    """Vector magnitude"""
-    return math.sqrt(dot_2d(vector, vector))
-
-
-def cross_2d(v1, v2):
-    """Faster than numpy's"""
-    return np.array([v1[0]*v2[1] - v1[1]*v2[0]])
-
-
 def find_parent_one(body_s, bodies_sorted, pos, coi):
     """Finds parent for one body"""
     if body_s:
-        body = np.where(bodies_sorted == body_s)[0][0]   # sorted body index
+        body = np.where(bodies_sorted == body_s)[0][0]   # unsorted body index
         parent = 0   # parent is root, until other is found
         for numL in range(len(bodies_sorted[:body])):   # for previously calculated bodies:
             pot_parent = bodies_sorted[numL]   # potential parent index
@@ -119,15 +112,14 @@ def gravity_one(body, parent, mass, rel_pos, gc):
         return np.array([0, 0], dtype=np.float64)
 
 
-def kepler_basic_one(body, parent, mass, pos, vel, gc, coi_coef):
+def kepler_basic_one(body, parent, mass, pos, vel, gc, coi_koef):
     """Basic keplerian orbit for one body."""
-    #print(type(body), type(parent), type(mass), type(pos), type(vel), type(gc), type(coi_coef))
     if body:   # skip calculation for root
         rel_pos = pos[body] - pos[parent]
         rel_vel = vel[body] - vel[parent]
         u = gc * mass[parent]   # standard gravitational parameter
         semi_major = -1 * u / (2*(dot_2d(rel_vel, rel_vel) / 2 - u / mag(rel_pos)))
-        momentum = cross_2d(rel_pos, rel_vel)   # orbital momentum, since this is 2d, momentum is scalar
+        momentum = fast_cross(rel_pos, rel_vel)   # orbital momentum, since this is 2d, momentum is scalar
         # since this is 2d and momentum is scalar, cross product is not needed, so just multiply, swap axes and -y:
         rel_vel[0], rel_vel[1] = rel_vel[1], -rel_vel[0]
         ecc_v = (rel_vel * momentum / u) - rel_pos / mag(rel_pos)
@@ -135,10 +127,10 @@ def kepler_basic_one(body, parent, mass, pos, vel, gc, coi_coef):
         periapsis_arg = ((3 * np.pi / 2) + math.atan2(-ecc_v[0], ecc_v[1])) % (2*np.pi)
         focus = semi_major * ecc
         semi_minor = math.sqrt(abs(focus**2 - semi_major**2))
-        coi = semi_major * (mass[body] / mass[parent])**(coi_coef)
+        coi = semi_major * (mass[body] / mass[parent])**(coi_koef)
         return focus, ecc_v, semi_major, semi_minor, periapsis_arg, coi
     else:
-        return 0.0, np.zeros(2), 0.0, 0.0, 0.0, 0.0
+        return 0, np.zeros(2), 0, 0, 0, 0
 
 
 def check_collision_one(body1, mass, pos, rad):
@@ -154,20 +146,6 @@ def check_collision_one(body1, mass, pos, rad):
                 return body1, body2
             else:
                 return body2, body1
-
-
-# if numba is enabled, compile functions ahead of time
-use_numba = leval(fileops.load_settings("game", "numba"))
-if numba_avail and use_numba:
-    enable_fastmath = leval(fileops.load_settings("game", "fastmath"))
-    jitkw = {"cache": True, "fastmath": enable_fastmath}   # numba JIT setings
-    dot_2d = njit(float64(float64[:], float64[:]), **jitkw)(dot_2d)
-    mag = njit(float64(float64[:]), **jitkw)(mag)
-    cross_2d = njit(float64[:](float64[:], float64[:]), **jitkw)(cross_2d)
-    find_parent_one = njit(int32(int32, int64[:], float64[:, :], float64[:]), **jitkw)(find_parent_one)
-    gravity_one = njit(float64[:](int32, int64, float64[:], float64[:], float64), **jitkw)(gravity_one)
-    kepler_basic_one = njit((int32, int64, float64[:], float64[:, :], float64[:, :], float64, float64), **jitkw)(kepler_basic_one)
-    check_collision_one = njit((int32, float64[:], float64[:, :], float64[:]), **jitkw)(check_collision_one)
 
 
 
@@ -197,7 +175,7 @@ class Physics():
         self.ecc_v = np.empty((0, 2), int)   # curve eccentricity vector
         self.gc = defaults.sim_config["gc"]   # newtonian constant of gravitation
         self.rad_mult = defaults.sim_config["rad_mult"]
-        self.coi_coef = defaults.sim_config["coi_coef"]
+        self.coi_koef = defaults.sim_config["coi_koef"]
         self.reload_settings()
     
     def reload_settings(self):
@@ -213,7 +191,7 @@ class Physics():
         """Loads physics related config."""
         self.gc = conf["gc"]
         self.rad_mult = conf["rad_mult"]
-        self.coi_coef = conf["coi_coef"]
+        self.coi_koef = conf["coi_koef"]
     
     def load_system(self, conf, names, mass, density, position, velocity, color):
         """Load new system."""
@@ -310,7 +288,7 @@ class Physics():
             return 1
         
     def set_root(self, body):
-        """Make first body be root by swapping it with current first body. 
+        """Make first body be root by swapping it with current first body.
         BAD things happen if root is not first"""
         swap_with_first(self.names, body)
         swap_with_first(self.mass, body)
@@ -392,7 +370,7 @@ class Physics():
     
     def kepler_basic(self):
         """Basic keplerian orbit (only used in drawing orbit line)."""
-        values = list(map(kepler_basic_one, list(range(len(self.mass))), self.parents, repeat(self.mass), repeat(self.pos), repeat(self.vel), repeat(self.gc), repeat(self.coi_coef)))
+        values = list(map(kepler_basic_one, list(range(len(self.mass))), self.parents, repeat(self.mass), repeat(self.pos), repeat(self.vel), repeat(self.gc), repeat(self.coi_koef)))
         self.focus, self.ecc_v, self.semi_major, self.semi_minor, self.periapsis_arg, self.coi = list(map(np.array, zip(*values)))
     
     
@@ -409,7 +387,7 @@ class Physics():
         distance = mag(rel_pos)   # distance to parent
         speed_orb = mag(rel_vel)   # orbit speed
         true_anomaly = (periapsis_arg - (math.atan2(rel_pos[1], rel_pos[0]) - np.pi)) % (2*np.pi)  # true anomaly from relative position
-        moment = cross_2d(rel_pos, rel_vel)   # rotation moment
+        moment = fast_cross(rel_pos, rel_vel)   # rotation moment
         direction = int(math.copysign(1, moment[0]))   # if moment is negative, rotation is clockwise (-1)
         angle = 2*np.pi - true_anomaly + periapsis_arg
         speed_vert = (rel_vel[0] * math.cos(angle) + rel_vel[1] * math.sin(angle))   # vertical speed
@@ -691,7 +669,7 @@ class Physics():
         rel_vel = np.array(vel)
         u = self.gc * self.mass[parent]   # standard gravitational parameter
         semi_major = -1 * u / (2*(dot_2d(rel_vel, rel_vel) / 2 - u / mag(rel_pos)))   # semi-major axis
-        momentum = cross_2d(rel_pos, rel_vel)   # orbital momentum, since this is 2d, momentum is scalar
+        momentum = fast_cross(rel_pos, rel_vel)   # orbital momentum, since this is 2d, momentum is scalar
         ecc_v = ([rel_vel[1], -rel_vel[0]] * momentum / u) - rel_pos / mag(rel_pos)   # eccentricity vector
         ecc = mag(ecc_v)   # eccentricity
         periapsis_arg = ((3 * np.pi / 2) + math.atan2(-ecc_v[0], ecc_v[1])) % (2*np.pi)   # argument of periapsis
