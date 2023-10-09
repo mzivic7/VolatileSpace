@@ -17,4 +17,5 @@ Escape             Pause menu
 F1                 Screenshot
 F2                 Toggle UI visibility
 F3                 Toggle labels visibility
+F4                 Quicksave
 Delete             Delete selected body in editor

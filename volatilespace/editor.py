@@ -90,6 +90,7 @@ class Editor():
         self.selected_path = ""   # path to selected file
         self.input_value = None   # which value is being text-inputed
         self.new_value_raw = ""   # when inputting new value
+        self.edited_orbit = False   # if orbit is edited, on first click call kepler_inverse, but don't on next clicks
         self.gen_map_list()
         self.reload_settings()
         graphics.antial = self.antial
@@ -277,11 +278,11 @@ class Editor():
             self.file_path = self.selected_path   # change currently active file
             graphics.timed_text_init(rgb.gray, self.fontmd, "Map loaded successfully", (self.screen_x/2, self.screen_y-70), 2, True)
         
-    def save(self, path):
-        """Saves map to file."""
+    def save(self, path, name=None):
+        """Saves map to file. If name is None, name is not changed."""
         base_color = physics.get_base_color()
         date = time.strftime("%d.%m.%Y %H:%M")
-        fileops.save_system(path, self.sim_name, date, self.sim_conf, self.sim_time/self.ptps, self.names, self.mass, self.density, self.position, self.velocity, base_color)
+        fileops.save_system(path, name, date, self.sim_conf, self.sim_time/self.ptps, self.names, self.mass, self.density, self.position, self.velocity, base_color)
         graphics.timed_text_init(rgb.gray, self.fontmd, "Map saved successfully", (self.screen_x/2, self.screen_y-70), 2, True)
     
     def quicksave(self):
@@ -353,7 +354,7 @@ class Editor():
                         if self.ask == "load":
                             self.load()
                         if self.ask == "save":
-                            self.ask_save(self.selected_path)
+                            self.save(self.selected_path)
                             self.file_path = self.selected_path
                         self.menu = None
                         self.pause_menu = True
@@ -427,6 +428,7 @@ class Editor():
                             if self.input_value == 7:   # Ta
                                 true_anomaly = new_value
                             physics.kepler_inverse(self.selected, ecc, omega_deg, pe_d, mean_anomaly, true_anomaly, ap_d, direction)
+                            self.edited_orbit = False
                         elif self.right_menu == 4:   # edit body
                             # replace original values
                             if type(self.input_value) is int:
@@ -846,26 +848,28 @@ class Editor():
                         self.precalc_data = physics.precalculate(self.new_body_data)
                         self.new_body_data["type"] = self.precalc_data["type"]
                     elif self.right_menu == 3:   # edit orbit
-                        pe_d = self.orbit_data[0]
-                        ap_d = None
-                        ecc = self.orbit_data[2]
-                        omega_deg = self.orbit_data[3]
-                        mean_anomaly = self.orbit_data[4]
-                        true_anomaly = None
-                        direction = self.orbit_data[6]
-                        if self.input_value == 2:   # pe
-                            pe_d = abs(new_value)
-                        if self.input_value == 3:   # ap
-                            ap_d = abs(new_value)
-                        if self.input_value == 4:   # ecc
-                            ecc = abs(new_value)
-                        if self.input_value == 5:   # pe_arg
-                            omega_deg = new_value
-                        if self.input_value == 6:   # Ma
-                            mean_anomaly = new_value
-                        if self.input_value == 7:   # Ta
-                            true_anomaly = new_value
-                        physics.kepler_inverse(self.selected, ecc, omega_deg, pe_d, mean_anomaly, true_anomaly, ap_d, direction)
+                        if self.edited_orbit:   # do this only at first click after changing orbit parameters
+                            pe_d = self.orbit_data[0]
+                            ap_d = None
+                            ecc = self.orbit_data[2]
+                            omega_deg = self.orbit_data[3]
+                            mean_anomaly = self.orbit_data[4]
+                            true_anomaly = None
+                            direction = self.orbit_data[6]
+                            if self.input_value == 2:   # pe
+                                pe_d = abs(new_value)
+                            if self.input_value == 3:   # ap
+                                ap_d = abs(new_value)
+                            if self.input_value == 4:   # ecc
+                                ecc = abs(new_value)
+                            if self.input_value == 5:   # pe_arg
+                                omega_deg = new_value
+                            if self.input_value == 6:   # Ma
+                                mean_anomaly = new_value
+                            if self.input_value == 7:   # Ta
+                                true_anomaly = new_value
+                            physics.kepler_inverse(self.selected, ecc, omega_deg, pe_d, mean_anomaly, true_anomaly, ap_d, direction)
+                            self.edited_orbit = False
                     elif self.right_menu == 4:   # edit body
                         # replace original values
                         if type(self.input_value) is int:
@@ -915,7 +919,7 @@ class Editor():
                                 if self.ask == "load":
                                     self.load()
                                 if self.ask == "save":
-                                    self.ask_save(self.selected_path)
+                                    self.save(self.selected_path)
                                     self.file_path = self.selected_path
                             self.menu = None
                             self.pause_menu = True
@@ -1058,9 +1062,11 @@ class Editor():
                                         direction = -direction
                                         self.input_value = None
                                         physics.kepler_inverse(self.selected, ecc, omega_deg, pe_d, mean_anomaly, true_anomaly, ap_d, direction)
+                                        self.edited_orbit = False
                                         break
                                     else:
                                         init_value = metric.format_si(self.orbit_data[num - 2], 3)
+                                    self.edited_orbit = True   # on first click or enter call kepler_inverse, but don't on next clicks
                                     textinput.initial_text(init_value, text_edit_orb[num])
                                     self.click = False
                                     self.first_click = True
@@ -1194,11 +1200,12 @@ class Editor():
                         self.follow = True   # follow it
         
         if body_del is not None:   # if there is collision
-            if body_del == self.selected:   # if selected body is deleted:
-                self.selected = None   # exit from select mode
-            if body_del < self.selected:   # if body before selected one is deleted
-                self.selected -= 1   # on list move selected body back
-            self.direction = None   # reset wasd if not false
+            if self.selected is not None:
+                if body_del == self.selected:   # if selected body is deleted:
+                    self.selected = None   # exit from select mode
+                elif body_del < self.selected:   # if body before selected one is deleted
+                    self.selected -= 1   # on list move selected body back
+                self.direction = None   # reset wasd if not false
         self.names, self.types, self.mass, self.density, self.temp, self.position, self.velocity, self.colors, self.size, self.rad_sc = physics.get_bodies()
         physics.kepler_basic()   # calculate basic keplerian elements
         self.semi_major, self.semi_minor, self.coi, self.parents = physics.get_body_orbits()   # get basic keplerian elements
@@ -1246,7 +1253,6 @@ class Editor():
                 if self.mouse_raw[1] <= 0:
                     pygame.mouse.set_pos(self.mouse_raw[0], self.screen_y-1)    # ### BUG ###
                     self.mouse_fix_y = True
-                
             self.mouse_old = self.mouse
         
         
@@ -1510,7 +1516,7 @@ class Editor():
                     elif num == 1:
                         texts[1] = texts[1] + self.names[self.parents[self.selected]]
                     elif num == 8:
-                        if self.orbit_data[6] == 1:
+                        if self.orbit_data[6] == -1:
                             texts[8] = texts[8] + "Clockwise"
                         else:
                             texts[8] = texts[8] + "Counter-clockwise"

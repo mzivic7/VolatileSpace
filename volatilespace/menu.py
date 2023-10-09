@@ -4,6 +4,7 @@ import os
 import sys
 import shutil
 import time
+import numpy as np
 from ast import literal_eval as leval
 
 from volatilespace import fileops
@@ -18,7 +19,7 @@ graphics = graphics.Graphics()
 textinput = textinput.Textinput()
 
 
-version = "0.3.5"
+version = "0.3.6"
 
 buttons_main = ["Play - WIP", "Multiplayer - WIP", "Map Editor", "Settings", "About", "Quit"]
 buttons_map_sel = ["Open in editor", "Rename", "Delete", "Export"]
@@ -328,6 +329,7 @@ class Menu():
                                         date = time.strftime("%d.%m.%Y %H:%M")
                                         path = fileops.new_map(self.text, date)
                                         self.gen_map_list()
+                                    self.selected_item = np.where(self.maps[:, 1] == self.text)[0][0]
                                 self.new_map = False
                                 self.rename = False
                                 self.disable_buttons = False
@@ -667,8 +669,8 @@ class Menu():
             graphics.buttons_vertical(screen, buttons_about, (self.about_x, self.about_y), [2, 2, 2, 2, None])
         
         
-        graphics.text(screen, rgb.gray, self.fontmd, "v" + version, (self.screen_x - 110, self.screen_y - 20))
-        graphics.text(screen, rgb.gray, self.fontmd, "fps: " + str(int(clock.get_fps())), (self.screen_x - 50, self.screen_y - 20))
+        # version number
+        graphics.text(screen, rgb.gray1, self.fontmd, "v" + version, (self.screen_x - 50, self.screen_y - 20))
     
     
     
@@ -693,4 +695,3 @@ class Menu():
             pygame.display.flip()
             clock.tick(60)
         return self.state
-

@@ -71,8 +71,7 @@ vr_angle = vr_angle % 2pi   # put it in (0, 2pi) range
 
 # -Calculate velocity vector (vr)- #
 a = 1 / ((2 / |Pr|) - (|vr|^2 / u))   # solve semi-major axis formula for |vr|:
-|vr| = -direction * sqrt((2 * a * u - |Pr| * u) / (a * |Pr|))   # velocity vector magnitude
-# because clockwise direction is negative, here is -direction
+|vr| = direction * sqrt((2 * a * u - |Pr| * u) / (a * |Pr|))   # velocity vector magnitude
 # now vr vector can be calculated knowing its magnitude and angle:
 vr_x = |vr| * cos(vr_a)
 vr_y = |vr| * sin(vr_a)

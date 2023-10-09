@@ -3,6 +3,7 @@ Maps/
 Screenshots/
 settings.ini
 keybindings.ini
+maps_builtin/
 
 # Kdevelop
 *.kate-swp

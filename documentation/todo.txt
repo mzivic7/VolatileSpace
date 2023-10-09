@@ -1,10 +1,10 @@
 ### TIMELINE ###
-1. advanced orbital parameters - parabola, hyperbola
-2. inverse functions - parabola, hyperbola
-3. more advanced orbital parameters
+1. body appearance when zoom out
+2. advanced orbital parameters - parabola, hyperbola
+3. inverse functions - parabola, hyperbola
 4. 2 keplerian orbit lines - predict leaving orbit
-5. multi language
-6. body appearance when zoom out (no ap / pe, icons, rebuild selecting)
+5. more advanced orbital parameters (time to point with mouse, warp to it, time to leave COI)
+6. multi language
 7. full keplerian physics model
 8. Game: separate physics models for vessels and planets
 9. Rotation

@@ -45,11 +45,13 @@ def gen_map_list():
         os.mkdir("Maps")
     files_list = os.listdir("Maps")   # generate list of files
     
+    # filter only files with .ini extension
     map_files = []
     for file_name in files_list:
-        if file_name[-4:] == ".ini":   # filter only files with .ini extension
+        if file_name[-4:] == ".ini":
             map_files.append(file_name)
     
+    # get data
     maps = np.empty((0, 3), dtype=object)
     for num, map_file in enumerate(map_files):
         map_save = ConfigParser()
@@ -61,8 +63,19 @@ def gen_map_list():
         except Exception:
             pass
     
-    maps = maps[maps[:, 2].argsort()]   # sort by name then by date
+    # sort by name then by date
+    maps = maps[maps[:, 2].argsort()]
     maps = maps[maps[:, 1].argsort(kind='mergesort')]
+    
+    # move quicksave and autosave at end
+    for savetype in ["quicksave", "autosave"]:
+        save_lst = np.where((maps[:, 0] == savetype + ".ini"))[0]
+        if len(save_lst) > 0:
+            save_ind = save_lst[0]
+            save_row = maps[save_ind]
+            maps = np.delete(maps, save_ind, 0)
+            maps = np.vstack((maps, save_row))
+    
     return maps
 
 
@@ -109,8 +122,15 @@ def save_system(path, name, date, conf, time, body_names, mass, density, positio
         os.mkdir("Maps")
     if name == "":   # there must be name
         name = "Unnamed"
-    if os.path.exists(path):   # when overwriting, delete file
-        open(path, "w").close()
+    if os.path.exists(path):   # when overwriting
+        if name is None:   # keep old name
+            map_name = ConfigParser()
+            map_name.read(path)
+            try:
+                name = map_name.get("config", "name").strip('"')
+            except Exception:
+                name = "New map"
+        open(path, "w").close()   # delete file
     system = ConfigParser()   # load config class
     system.read(path)   # load system
     

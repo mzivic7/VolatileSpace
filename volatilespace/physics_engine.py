@@ -52,9 +52,14 @@ def orbit_time_to(mean_anomaly, target_angle, period):
     return period - (mean_anomaly + target_angle)*(period / (2 * np.pi)) % period
 
 
+def dot_2d(v1, v2):
+    """Fastest 2D dot product. It is slightly faster than built in: v1 @ v2."""
+    return v1[0] * v2[0] + v1[1] * v2[1]
+
+
 def mag(vector):
     """Vector magnitude"""
-    return math.sqrt(vector.dot(vector))
+    return math.sqrt(dot_2d(vector, vector))
 
 
 def fast_cross(v1, v2):
@@ -73,7 +78,7 @@ def swap_with_first(list_in, n):
     if list_in.ndim == 1:
         list_in[0], list_in[n] = list_in[n], list_in[0]
     elif list_in.ndim == 2:
-        list_in[0, n] = list_in[n, 0]
+        list_in[[0, n]] = list_in[[n, 0]]
     return list_in
 
 
@@ -113,7 +118,7 @@ def kepler_basic_one(body, parent, mass, pos, vel, gc, coi_koef):
         rel_pos = pos[body] - pos[parent]
         rel_vel = vel[body] - vel[parent]
         u = gc * mass[parent]   # standard gravitational parameter
-        semi_major = -1 * u / (2*(rel_vel.dot(rel_vel) / 2 - u / mag(rel_pos)))
+        semi_major = -1 * u / (2*(dot_2d(rel_vel, rel_vel) / 2 - u / mag(rel_pos)))
         momentum = fast_cross(rel_pos, rel_vel)   # orbital momentum, since this is 2d, momentum is scalar
         # since this is 2d and momentum is scalar, cross product is not needed, so just multiply, swap axes and -y:
         rel_vel[0], rel_vel[1] = rel_vel[1], -rel_vel[0]
@@ -283,7 +288,7 @@ class Physics():
             return 1
         
     def set_root(self, body):
-        """Make first body be root by swapping it with current first body. 
+        """Make first body be root by swapping it with current first body.
         BAD things happen if root is not first"""
         swap_with_first(self.names, body)
         swap_with_first(self.mass, body)
@@ -328,7 +333,7 @@ class Physics():
             rel_pos = self.pos[parent] - self.pos[body]   # relative position
             rel_vel = self.vel[parent] - self.vel[body]   # relative velocity
             u = self.gc * self.mass[parent]   # standard gravitational parameter
-            semi_major = -1 * u / (2*(rel_vel.dot(rel_vel) / 2 - u / mag(rel_pos)))   # semi-major axis
+            semi_major = -1 * u / (2*(dot_2d(rel_vel, rel_vel) / 2 - u / mag(rel_pos)))   # semi-major axis
             self.coi[body] = semi_major * (body_mass / self.mass[parent])**(2/5)   # calculate its COI and save to index
     
     
@@ -383,12 +388,13 @@ class Physics():
         speed_orb = mag(rel_vel)   # orbit speed
         true_anomaly = (periapsis_arg - (math.atan2(rel_pos[1], rel_pos[0]) - np.pi)) % (2*np.pi)  # true anomaly from relative position
         moment = fast_cross(rel_pos, rel_vel)   # rotation moment
-        direction = -1 * int(math.copysign(1, moment))   # if moment is negative, rotation is clockwise (-1)
-        if direction == -1:   # if direction is clockwise
-            true_anomaly = 2*np.pi - true_anomaly   # invert Ta to be calculated in opposite directio
-        speed_vert = (rel_vel[0] * math.cos(true_anomaly) + rel_vel[1] * math.sin(true_anomaly))   # vertical speed
-        speed_hor = abs(rel_vel[0] * math.sin(true_anomaly) - rel_vel[1] * math.cos(true_anomaly))   # horizontal speed
+        direction = int(math.copysign(1, moment[0]))   # if moment is negative, rotation is clockwise (-1)
+        angle = 2*np.pi - true_anomaly + periapsis_arg
+        speed_vert = (rel_vel[0] * math.cos(angle) + rel_vel[1] * math.sin(angle))   # vertical speed
+        speed_hor = abs(rel_vel[0] * math.sin(angle) - rel_vel[1] * math.cos(angle))   # horizontal speed
         
+        if direction == -1:   # if direction is clockwise
+            true_anomaly = 2*np.pi - true_anomaly   # invert Ta to be calculated in opposite direction
         if ecc != 0:   # if orbit is not circle
             pe_d = semi_major * (1 - ecc)   # periapsis distance and coordinate:
             periapsis = np.array([pe_d * math.cos(periapsis_arg - np.pi), pe_d * math.sin(periapsis_arg - np.pi)]) + self.pos[parent]
@@ -479,7 +485,7 @@ class Physics():
         vr_angle = vr_angle % (2*np.pi)   # put it in (0, 2pi) range
         
         prm = mag(pr)   # relative position vector magnitude
-        vrm = -direction * math.sqrt((2 * a * u - prm * u) / (a * prm))   # velocity vector from semi-major axis equation
+        vrm = direction * math.sqrt((2 * a * u - prm * u) / (a * prm))   # velocity vector from semi-major axis equation
         
         vr_x = vrm * math.cos(vr_angle)   # eccentricity vector from angle of velocity
         vr_y = vrm * math.sin(vr_angle)
@@ -503,7 +509,7 @@ class Physics():
         # calculate curves points # curve[axis, body, point]
         curves = np.zeros((2, len(self.ecc_v), self.curve_points))
         for num in range(len(self.ecc_v)):
-            ecc = np.sqrt(self.ecc_v[num].dot(self.ecc_v[num]))   # eccentricity
+            ecc = mag(self.ecc_v[num])   # eccentricity
             if ecc < 1:   # ellipse
                 curves[:, num, :] = np.array([self.semi_major[num] * np.cos(self.ell_t), self.semi_minor[num] * np.sin(self.ell_t)])   # raw ellipses
             else:
@@ -662,7 +668,7 @@ class Physics():
         rel_pos = pos - self.pos[parent]
         rel_vel = np.array(vel)
         u = self.gc * self.mass[parent]   # standard gravitational parameter
-        semi_major = -1 * u / (2*(rel_vel.dot(rel_vel) / 2 - u / mag(rel_pos)))   # semi-major axis
+        semi_major = -1 * u / (2*(dot_2d(rel_vel, rel_vel) / 2 - u / mag(rel_pos)))   # semi-major axis
         momentum = fast_cross(rel_pos, rel_vel)   # orbital momentum, since this is 2d, momentum is scalar
         ecc_v = ([rel_vel[1], -rel_vel[0]] * momentum / u) - rel_pos / mag(rel_pos)   # eccentricity vector
         ecc = mag(ecc_v)   # eccentricity
@@ -677,7 +683,7 @@ class Physics():
         
         # curve[axis, point]
         curve = np.zeros((2, self.curve_points))
-        ecc = np.sqrt(ecc_v.dot(ecc_v))
+        ecc = mag(ecc_v)
         if ecc < 1:
             curve[:, :] = np.array([semi_major * np.cos(self.ell_t), semi_minor * np.sin(self.ell_t)])   # raw ellipse
         else:

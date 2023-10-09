@@ -1,2 +1,23 @@
-In find_parents():
+In find_parent_one():
 Bodies are not sorted by coi, but by mass, because small bodies can get large coi with large semi-major axis and intersect with larger ones that have smaller semi-major axis. This will result in more massive body orbiting around less massive body.
+This body index is index in UNSORTED list.
+First get this body index in sorted list.
+Parent is root, if other is not found.
+For this and every other body in sorted list BEFORE this body (bodies that have found parents):
+Calculate relative position then distance
+Tf distance is smaller than other bodys COI:
+That body is parent
+This loop continues until smallest parent body is found
+
+In gravity():
+This is because relative velocity is used.
+when body is leaving its parent COI:
+add velocity of previous parent to body relative velocity
+when entering COI:
+subtract velocity of new parent to body relative velocity
+
+In check_collision_one():
+For this and every other body check following:
+calculate relative position, then distance
+If distance is less or equal to sum of radiuses of this two bodies:
+return those two bodies, ordered bu mass, so smaller is first (this will be deleted)

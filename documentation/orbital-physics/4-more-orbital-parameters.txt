@@ -13,7 +13,11 @@ if direction is -1:
 Lat = (Ta - omega) * 180 / pi   # latitude
 d = |Pr|   # distance
 vo = |vr|   # orbit speed
-vv = (vr_x * cos(Ta) + vr_y * sin(Ta))   # vertical speed
-vh = abs(vr_x * sin(Ta) - vr_y * cos(Ta))   # horizontal speed
-# Vertical and horizontal speeds are calculated as components of vr, but coordinate system is rotated by pi/2 - true anomaly - to be normal with body position vector relative to orbiting mass.
+angle = 2pi - Ta + omega
+vv = (vr_x * cos(angle) + vr_y * sin(angle))   # vertical speed
+vh = abs(vr_x * sin(angle) - vr_y * cos(angle))   # horizontal speed
+# Vertical and horizontal speeds are calculated as components of vr, but coordinate system is rotated by pi/2-true_anomaly - to be normal with body position vector relative to orbiting mass.
 
+# if direction is clockwise invert Ta to be calculated in opposite direction
+if direction == -1:
+    true_anomaly = 2pi - true_anomaly
