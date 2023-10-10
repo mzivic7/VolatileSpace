@@ -259,7 +259,7 @@ class Editor():
         x_on_screen = (coords_in_sim[0] + self.offset_x - self.zoom_x) * self.zoom   # correction for zoom, screen movement offset
         y_on_screen = (coords_in_sim[1] + self.offset_y - self.zoom_y) * self.zoom
         y_on_screen = self.screen_y - y_on_screen   # move origin from up-left to bottom-left
-        return [x_on_screen, y_on_screen]
+        return np.array([x_on_screen, y_on_screen])
     
     def sim_coords(self, coords_on_screen):
         """Converts from screen coords to sim coords. Adds zoom, view move, and moves origin from bottom-left to up-left"""
@@ -293,6 +293,7 @@ class Editor():
         graphics.timed_text_init(rgb.gray2, self.fontmd, "Quicksave...", (self.screen_x/2, self.screen_y-70), 2, True)
     
     def autosave(self, e):
+        """Automatically saves current map to autosave.ini at predefined interval.""" 
         if e.type == self.autosave_event:
             base_color = physics.get_base_color()
             date = time.strftime("%d.%m.%Y %H:%M")
@@ -640,13 +641,20 @@ class Editor():
                     self.move = False   # disable move move
                     mouse_move = math.dist(self.mouse_raw, self.mouse_raw_old)   # mouse move dist
                     self.select_toggle = False
-                    if e.button != 2:   # don't select body with middle click when in insert mode 
+                    if e.button != 2:   # don't select body with middle click when in insert mode
                         if mouse_move < self.select_sens:   # if mouse moved less than n pixels:
-                            for self.body, self.body_pos in enumerate(self.position):   # for each body:
-                                # if mouse is inside body radius on its location: (body_x - mouse_x)**2 + (body_y - mouse_y)**2 < radius**2
-                                if sum(np.square(self.body_pos - self.sim_coords(self.mouse_raw))) < (self.size[self.body])**2:
-                                    self.selected = self.body  # this body is selected
-                                    self.select_toggle = True   # do not exit select mode
+                            curves = physics.curve()
+                            for body, body_pos in enumerate(self.position):   # for each body:
+                                curve = np.column_stack(self.screen_coords(curves[:, body]))   # get line coords on screen
+                                diff = np.amax(curve, 0) - np.amin(curve, 0)
+                                if body == 0 or diff[0]+diff[1] > 32:   # skip hidden bodies with too small orbits
+                                    scr_radius = self.size[body]*self.zoom
+                                    if scr_radius < 5:   # if body is small on screen, there is marker
+                                        scr_radius = 8
+                                    # if mouse is inside body radius on its location: (body_x - mouse_x)**2 + (body_y - mouse_y)**2 < radius**2
+                                    if sum(np.square(self.screen_coords(body_pos) - self.mouse_raw)) < (scr_radius)**2:
+                                        self.selected = body  # this body is selected
+                                        self.select_toggle = True   # do not exit select mode
                             if self.select_toggle is False and self.right_menu not in [3, 4]:   # if inside select mode and not in edit right menus
                                 self.selected = None   # exit select mode
                                 if self.right_menu in [3, 4]:
@@ -1286,21 +1294,72 @@ class Editor():
             graphics.draw_grid(screen, self.grid_mode, origin, self.zoom)
         
         
-        # draw orbit curve lines
+        # bodies drawing
         curves = physics.curve()   # calculate all curves
         for body in range(len(self.mass)):   # for each body:
-            if body != 0:   # skip root
-                curve = np.column_stack(self.screen_coords(curves[:, body]))   # get line coords on screen
-                line_color = np.where(self.colors[body] > 255, 255, self.colors[body])   # get line color and limit values to top 255
-                graphics.draw_lines(screen, tuple(line_color), curve, 2)   # draw that line
-
-        
-        # draw bodies
-        for body in range(len(self.mass)):   # for all bodies:
-            body_size = self.size[body]   # get body size
-            body_color = tuple(self.colors[body])   # get color
-            graphics.draw_circle_fill(screen, body_color, self.screen_coords(self.position[body]), body_size * self.zoom)   # draw circles
-            
+            curve = np.column_stack(self.screen_coords(curves[:, body]))   # get line coords on screen
+            diff = np.amax(curve, 0) - np.amin(curve, 0)
+            if body == 0 or diff[0]+diff[1] > 32:   # skip bodies with too small orbits
+                
+                # draw orbit curve lines
+                if body != 0:   # skip root
+                    line_color = np.where(self.colors[body] > 255, 255, self.colors[body])   # get line color and limit values to top 255
+                    graphics.draw_lines(screen, tuple(line_color), curve, 2)   # draw that line
+                
+                # draw bodies
+                scr_body_size = self.size[body] * self.zoom   # get body screen size
+                body_color = tuple(self.colors[body])   # get color
+                if scr_body_size >= 5:
+                    graphics.draw_circle_fill(screen, body_color, self.screen_coords(self.position[body]), scr_body_size)
+                else:   # if body is too small, draw marker with fixed size
+                    graphics.draw_circle_fill(screen, rgb.gray1, self.screen_coords(self.position[body]), 6)
+                    graphics.draw_circle_fill(screen, rgb.gray2, self.screen_coords(self.position[body]), 5)
+                    graphics.draw_circle_fill(screen, body_color, self.screen_coords(self.position[body]), 4)
+                
+                # select body
+                if self.selected is not None and self.selected == body:
+                    parent = self.parents[body]      # get selected body parent
+                    body_pos = self.position[body, :]      # get selected body position
+                    ecc, periapsis, pe_d, pe_t, apoapsis, ap_d, ap_t, pe_arg, ma, ta, direction, distance, period, speed_orb, speed_hor, speed_vert = physics.kepler_advanced(body)   # get advanced kepler parameters for selected body
+                    if self.right_menu == 3:
+                        self.orbit_data = [pe_d, ap_d, ecc, pe_arg, ma, ta, direction, distance, period, speed_orb, speed_hor, speed_vert]
+                    
+                    # circles
+                    if not self.disable_labels:
+                        if scr_body_size >= 5:
+                            graphics.draw_circle(screen, rgb.cyan, self.screen_coords(body_pos), self.size[body] * self.zoom + 4, 2)   # selection circle
+                        else:
+                            graphics.draw_circle(screen, rgb.cyan, self.screen_coords(body_pos), 8, 2)   # for body marker
+                        if self.size[body] < self.coi[body]:
+                            if self.coi[body] * self.zoom >= 8:
+                                graphics.draw_circle(screen, rgb.gray1, self.screen_coords(body_pos), self.coi[body] * self.zoom, 1)   # circle of influence
+                        if body != 0:
+                            parent_scr = self.screen_coords(self.position[parent])
+                            if self.size[parent] * self.zoom >= 5:
+                                graphics.draw_circle(screen, rgb.red1, parent_scr, self.size[parent] * self.zoom + 4, 1)   # parent circle
+                            else:
+                                graphics.draw_circle(screen, rgb.red1, parent_scr, 8, 1)   # for body marker
+                            if parent != 0:
+                                if self.coi[parent] * self.zoom >= 8:
+                                    graphics.draw_circle(screen, rgb.red1, parent_scr, self.coi[parent] * self.zoom, 1)   # parent circle of influence
+                            
+                            # ap and pe
+                            ap_scr = self.screen_coords(apoapsis)   # apoapsis with zoom and offset
+                            scr_dist = abs(parent_scr - ap_scr)
+                            if scr_dist[0] > 5 and scr_dist[1] > 5:   # dont draw Ap and Pe if Ap is too close to parent
+                                if not ecc > 1:   # if orbit is not parabola or hyperbola
+                                    if ecc != 0:   # if orbit is not circle
+                                        # periapsis location marker, text: distance and time to it
+                                        pe_scr = self.screen_coords(periapsis)   # periapsis screen coords
+                                        graphics.draw_circle_fill(screen, rgb.lime1, pe_scr, 3)   # periapsis marker
+                                        graphics.text(screen, rgb.lime1, self.fontsm, "Periapsis: " + str(round(pe_d, 1)), (pe_scr[0], pe_scr[1] + 7), True)
+                                        graphics.text(screen, rgb.lime1, self.fontsm, "T - " + str(datetime.timedelta(seconds=round(pe_t/self.ptps))), (pe_scr[0], pe_scr[1] + 17), True)
+                                    
+                                    if ecc < 1:   # if orbit is ellipse
+                                        # apoapsis location marker, text: distance and time to it
+                                        graphics.draw_circle_fill(screen, rgb.lime1, ap_scr, 3)   # apoapsis marker
+                                        graphics.text(screen, rgb.lime1, self.fontsm, "Apoapsis: " + str(round(ap_d, 1)), (ap_scr[0], ap_scr[1] + 7), True)
+                                        graphics.text(screen, rgb.lime1, self.fontsm, "T - " + str(datetime.timedelta(seconds=round(ap_t/self.ptps))), (ap_scr[0], ap_scr[1] + 17), True)
         
         # inserting new body
         if self.enable_insert is True:
@@ -1324,40 +1383,6 @@ class Editor():
                 curve = np.column_stack(self.screen_coords(curve))
                 graphics.draw_lines(screen, rgb.gray2, curve, 2)
         
-        
-        # select body
-        if self.selected is not None:
-            parent = self.parents[self.selected]      # get selected body parent
-            body_pos = self.position[self.selected, :]      # get selected body position
-            ecc, periapsis, pe_d, pe_t, apoapsis, ap_d, ap_t, pe_arg, ma, ta, direction, distance, period, speed_orb, speed_hor, speed_vert = physics.kepler_advanced(self.selected)   # get advanced kepler parameters for selected body
-            if self.right_menu == 3:
-                self.orbit_data = [pe_d, ap_d, ecc, pe_arg, ma, ta, direction, distance, period, speed_orb, speed_hor, speed_vert]
-            
-            # circles
-            if not self.disable_labels:
-                graphics.draw_circle(screen, rgb.cyan, self.screen_coords(body_pos), self.size[self.selected] * self.zoom + 4, 2)   # selection circle
-                if self.size[self.selected] < self.coi[self.selected]:   # if there is circle of influence, draw it
-                    graphics.draw_circle(screen, rgb.gray1, self.screen_coords(body_pos), self.coi[self.selected] * self.zoom + 4, 1)
-                if self.selected != 0:   # skip root, draw parent circle
-                    graphics.draw_circle(screen, rgb.red1, self.screen_coords(self.position[parent]), self.size[parent] * self.zoom + 4, 1)
-                    if parent != 0:   # if parent is not root, draw parent circle of influence
-                        graphics.draw_circle(screen, rgb.red1, self.screen_coords(self.position[parent]), self.coi[parent] * self.zoom + 4, 1)
-                    
-                    # ap and pe
-                    if not ecc > 1:   # if orbit is not parabola or hyperbola
-                        if ecc != 0:   # if orbit is not circle
-                            # periapsis location marker, text: distance and time to it
-                            pe_scr = self.screen_coords(periapsis)   # periapsis screen coords
-                            graphics.draw_circle_fill(screen, rgb.lime1, pe_scr, 3)   # periapsis marker
-                            graphics.text(screen, rgb.lime1, self.fontsm, "Periapsis: " + str(round(pe_d, 1)), (pe_scr[0], pe_scr[1] + 7), True)
-                            graphics.text(screen, rgb.lime1, self.fontsm, "T - " + str(datetime.timedelta(seconds=round(pe_t/self.ptps))), (pe_scr[0], pe_scr[1] + 17), True)
-                        
-                        if ecc < 1:   # if orbit is ellipse
-                            # apoapsis location marker, text: distance and time to it
-                            ap_scr = self.screen_coords(apoapsis)   # apoapsis with zoom and offset
-                            graphics.draw_circle_fill(screen, rgb.lime1, ap_scr, 3)   # apoapsis marker
-                            graphics.text(screen, rgb.lime1, self.fontsm, "Apoapsis: " + str(round(ap_d, 1)), (ap_scr[0], ap_scr[1] + 7), True)
-                            graphics.text(screen, rgb.lime1, self.fontsm, "T - " + str(datetime.timedelta(seconds=round(ap_t/self.ptps))), (ap_scr[0], ap_scr[1] + 17), True)
     
     
     

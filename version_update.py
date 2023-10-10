@@ -2,7 +2,7 @@ import os
 
 
 extensions = [".py", ".ini"]
-extensions_bl = [".pyc"]
+extensions_bl = [".pyc", ".nbc", ".nbi"]
 
 with open("VersionNumber") as f:
     version = f.readline()
