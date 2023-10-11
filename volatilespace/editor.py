@@ -1344,22 +1344,24 @@ class Editor():
                                     graphics.draw_circle(screen, rgb.red1, parent_scr, self.coi[parent] * self.zoom, 1)   # parent circle of influence
                             
                             # ap and pe
-                            ap_scr = self.screen_coords(apoapsis)   # apoapsis with zoom and offset
+                            if ap_d > 0:
+                                ap_scr = self.screen_coords(apoapsis)   # apoapsis with zoom and offset
+                            else:   # in case of hyperbola/parabola (ap_d is negative)
+                                ap_scr = self.screen_coords(periapsis)
                             scr_dist = abs(parent_scr - ap_scr)
-                            if scr_dist[0] > 5 and scr_dist[1] > 5:   # dont draw Ap and Pe if Ap is too close to parent
-                                if not ecc > 1:   # if orbit is not parabola or hyperbola
-                                    if ecc != 0:   # if orbit is not circle
-                                        # periapsis location marker, text: distance and time to it
-                                        pe_scr = self.screen_coords(periapsis)   # periapsis screen coords
-                                        graphics.draw_circle_fill(screen, rgb.lime1, pe_scr, 3)   # periapsis marker
-                                        graphics.text(screen, rgb.lime1, self.fontsm, "Periapsis: " + str(round(pe_d, 1)), (pe_scr[0], pe_scr[1] + 7), True)
-                                        graphics.text(screen, rgb.lime1, self.fontsm, "T - " + str(datetime.timedelta(seconds=round(pe_t/self.ptps))), (pe_scr[0], pe_scr[1] + 17), True)
-                                    
-                                    if ecc < 1:   # if orbit is ellipse
-                                        # apoapsis location marker, text: distance and time to it
-                                        graphics.draw_circle_fill(screen, rgb.lime1, ap_scr, 3)   # apoapsis marker
-                                        graphics.text(screen, rgb.lime1, self.fontsm, "Apoapsis: " + str(round(ap_d, 1)), (ap_scr[0], ap_scr[1] + 7), True)
-                                        graphics.text(screen, rgb.lime1, self.fontsm, "T - " + str(datetime.timedelta(seconds=round(ap_t/self.ptps))), (ap_scr[0], ap_scr[1] + 17), True)
+                            if scr_dist[0] > 5 or scr_dist[1] > 5:   # dont draw Ap and Pe if Ap is too close to parent
+                                
+                                # periapsis location marker, text: distance and time to it
+                                pe_scr = self.screen_coords(periapsis)   # periapsis screen coords
+                                graphics.draw_circle_fill(screen, rgb.lime1, pe_scr, 3)   # periapsis marker
+                                graphics.text(screen, rgb.lime1, self.fontsm, "Periapsis: " + str(round(pe_d, 1)), (pe_scr[0], pe_scr[1] + 7), True)
+                                graphics.text(screen, rgb.lime1, self.fontsm, "T - " + str(datetime.timedelta(seconds=round(pe_t/self.ptps))), (pe_scr[0], pe_scr[1] + 17), True)
+                                
+                                if ecc < 1:   # if orbit is ellipse
+                                    # apoapsis location marker, text: distance and time to it
+                                    graphics.draw_circle_fill(screen, rgb.lime1, ap_scr, 3)   # apoapsis marker
+                                    graphics.text(screen, rgb.lime1, self.fontsm, "Apoapsis: " + str(round(ap_d, 1)), (ap_scr[0], ap_scr[1] + 7), True)
+                                    graphics.text(screen, rgb.lime1, self.fontsm, "T - " + str(datetime.timedelta(seconds=round(ap_t/self.ptps))), (ap_scr[0], ap_scr[1] + 17), True)
         
         # inserting new body
         if self.enable_insert is True:

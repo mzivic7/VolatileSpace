@@ -4,6 +4,7 @@ import os
 import sys
 import shutil
 import time
+import numpy as np
 from ast import literal_eval as leval
 
 from volatilespace import fileops
@@ -22,7 +23,7 @@ graphics = graphics.Graphics()
 textinput = textinput.Textinput()
 
 
-version = "0.4.1"
+version = "0.4.2"
 
 buttons_main = ["Play - WIP", "Multiplayer - WIP", "Map Editor", "Settings", "About", "Quit"]
 buttons_map_sel = ["Open in editor", "Rename", "Delete", "Export"]

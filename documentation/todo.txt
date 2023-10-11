@@ -1,21 +1,23 @@
 ### TIMELINE ###
-1. advanced orbital parameters - parabola, hyperbola
-2. inverse functions - parabola, hyperbola
-3. 2 keplerian orbit lines - predict leaving orbit
-4. more advanced orbital parameters (time to point with mouse, warp to it, time to leave COI)
-5. multi language
-6. full keplerian physics model
-7. Game: separate physics models for vessels and planets
-8. Rotation
-9. Game menu and basic GUI
-10. collision with rotation for vessels
-11. enable GPU rendering ???
-12. STAR PHYSICS
-13. GAME
-14. BODY TEXTURES
-15. VESSEL TEXTURES
-16. MULTIPLAYER
-17. port to andrid ???
+1. inverse functions - parabola, hyperbola
+2. 2 keplerian orbit lines - predict leaving orbit
+3. more advanced orbital parameters (time to point with mouse, warp to it, time to leave COI)
+- v0.5.0
+4. multi language
+5. full keplerian physics model
+6. Game: separate physics models for vessels and planets
+- v0.6.0
+7. Rotation
+8. Game menu and basic GUI
+9. collision with rotation for vessels
+10. enable GPU rendering ???
+- v0.7.0
+11. STAR PHYSICS
+12. GAME
+13. BODY TEXTURES
+14. VESSEL TEXTURES
+15. MULTIPLAYER
+16. port to andrid ???
 
 
 

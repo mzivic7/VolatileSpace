@@ -19,3 +19,7 @@ a1 = semi-major axis of smaller objects orbit around larger one
 m1 = mass of smaller body
 m2 = mass of larger body
 
+
+References:
+[8] https://en.wikipedia.org/wiki/Sphere_of_influence_(astrodynamics)
+

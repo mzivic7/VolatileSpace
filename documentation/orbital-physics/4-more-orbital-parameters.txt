@@ -21,3 +21,8 @@ vh = abs(vr_x * sin(angle) - vr_y * cos(angle))   # horizontal speed
 # if direction is clockwise invert Ta to be calculated in opposite direction
 if direction == -1:
     true_anomaly = 2pi - true_anomaly
+
+
+References:
+[7] https://en.wikipedia.org/wiki/Orbital_period#Small_body_orbiting_a_central_body
+

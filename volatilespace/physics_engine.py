@@ -135,7 +135,10 @@ def kepler_basic_one(body, parent, mass, pos, vel, gc, coi_coef):
         periapsis_arg = ((3 * np.pi / 2) + math.atan2(-ecc_v[0], ecc_v[1])) % (2*np.pi)
         focus = semi_major * ecc
         semi_minor = math.sqrt(abs(focus**2 - semi_major**2))
-        coi = semi_major * (mass[body] / mass[parent])**(coi_coef)
+        if semi_major > 0:   # if eccentricity is larger than 1, semi major will be negative
+            coi = semi_major * (mass[body] / mass[parent])**(coi_coef)
+        else:
+            coi = 0
         return focus, ecc_v, semi_major, semi_minor, periapsis_arg, coi
     else:
         return 0.0, np.zeros(2), 0.0, 0.0, 0.0, 0.0
@@ -356,7 +359,11 @@ class Physics():
             rel_vel = self.vel[parent] - self.vel[body]   # relative velocity
             u = self.gc * self.mass[parent]   # standard gravitational parameter
             semi_major = -1 * u / (2*(dot_2d(rel_vel, rel_vel) / 2 - u / mag(rel_pos)))   # semi-major axis
-            self.coi[body] = semi_major * (body_mass / self.mass[parent])**(2/5)   # calculate its COI and save to index
+            if semi_major > 0:   # if eccentricity is larger than 1, semi major will be negative
+                self.coi[body] = semi_major * (body_mass / self.mass[parent])**(2/5)   # calculate its COI and save to index
+            else:
+                self.coi[body] = 0   # if orbit is hyperbola or parabola, body has no COI, otherwise it would be infinite
+            
     
     
     def find_parents(self):
@@ -419,32 +426,42 @@ class Physics():
             true_anomaly = 2*np.pi - true_anomaly   # invert Ta to be calculated in opposite direction
         if ecc != 0:   # if orbit is not circle
             pe_d = semi_major * (1 - ecc)   # periapsis distance and coordinate:
-            periapsis = np.array([pe_d * math.cos(periapsis_arg - np.pi), pe_d * math.sin(periapsis_arg - np.pi)]) + self.pos[parent]
             if ecc < 1:   # if orbit is ellipse
-                ecc_anomaly = (2 * np.arctan(math.sqrt((1 - ecc)/(1 + ecc)) * math.tan(true_anomaly / 2))) % (2*np.pi)   # eccentric from true anomaly
+                ecc_anomaly = math.acos((ecc + math.cos(true_anomaly))/(1 + (ecc * math.cos(true_anomaly))))   # eccentric from true anomaly
+                if np.pi < true_anomaly < 2*np.pi:
+                    ecc_anomaly = 2*np.pi - ecc_anomaly   # quadrant problems
                 mean_anomaly = (ecc_anomaly - ecc * math.sin(ecc_anomaly)) % (2*np.pi)   # mean anomaly from Keplers equation
                 period = (2 * np.pi * math.sqrt(semi_major**3 / u))   # orbital period
-                pe_t = orbit_time_to(mean_anomaly, 0, period)  # time to periapsis
+                pe_t = orbit_time_to(mean_anomaly, 0, period)   # time to periapsis
                 ap_d = semi_major * (1 + ecc)   # apoapsis distance
                 apoapsis = np.array([ap_d * math.cos(periapsis_arg), ap_d * math.sin(periapsis_arg)]) + self.pos[parent]   # coordinates
-                ap_t = orbit_time_to(mean_anomaly, np.pi, period)  # time to apoapsi
-                
-            else:   # parabola and hyperbola
-                pe_t = 0
+                ap_t = orbit_time_to(mean_anomaly, np.pi, period)   # time to apoapsis
+            else:
+                if ecc > 1:   # hyperbola
+                    ecc_anomaly = math.acosh((ecc + math.cos(true_anomaly))/(1 + (ecc * math.cos(true_anomaly))))   # eccentric from true anomaly
+                    mean_anomaly = ecc * math.sinh(ecc_anomaly) - ecc_anomaly
+                    pe_d = semi_major * (1 - ecc)
+                    pe_t = math.sqrt((-semi_major)**3 / u) * mean_anomaly
+                else:   # parabola
+                    ecc_anomaly = math.tan(true_anomaly/2)
+                    mean_anomaly = ecc_anomaly + (ecc_anomaly**3)/3
+                    pe_d = semi_major
+                    pe_t = math.sqrt(2(semi_major/2)**3) * mean_anomaly
+                period = 0   # period is undefined
+                # there is no apoapsis
                 apoapsis = np.array([0, 0])
                 ap_d = 0
                 ap_t = 0
-                mean_anomaly = 0
-                period = 0
         else:   # circle
-            mean_anomaly = 0
-            periapsis = np.array([0, 0])
-            pe_d = 0
-            pe_t = 0
+            mean_anomaly = true_anomaly
+            period = (2 * np.pi * math.sqrt(semi_major**3 / u)) / 10   # orbital period
+            pe_d = semi_major * (1 - ecc)   # periapsis distance and coordinate:
+            pe_t = orbit_time_to(mean_anomaly, 0, period)   # time to periapsis
+            # there is no apoapsis
             apoapsis = np.array([0, 0])
             ap_d = 0
             ap_t = 0
-            period = (2 * np.pi * math.sqrt(semi_major**3 / u)) / 10   # orbital period
+        periapsis = np.array([pe_d * math.cos(periapsis_arg - np.pi), pe_d * math.sin(periapsis_arg - np.pi)]) + self.pos[parent]
         omega_deg = periapsis_arg * 180 / np.pi
         ma_deg = mean_anomaly * 180 / np.pi
         ta_deg = true_anomaly * 180 / np.pi

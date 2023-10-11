@@ -86,3 +86,7 @@ Pn += mov
 v = vr + v_p   # absolute vel from relative vel and parents absolute vel
 
 
+References:
+[3]  https://orbital-mechanics.space/time-since-periapsis-and-keplers-equation/elliptical-orbits.html#newton-s-method-to-solve-kepler-s-equation
+[11] https://en.wikipedia.org/wiki/True_anomaly#From_the_eccentric_anomaly
+

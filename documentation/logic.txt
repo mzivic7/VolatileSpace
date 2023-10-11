@@ -21,3 +21,9 @@ For this and every other body check following:
 calculate relative position, then distance
 If distance is less or equal to sum of radiuses of this two bodies:
 return those two bodies, ordered bu mass, so smaller is first (this will be deleted)
+
+In simplified_orbit_coi() and kepler_basic_one():
+If eccentricity is greater than 1 (it is hyperbola or parabola), there is no apoapsis.
+Therefore COI cannot be calculated.
+In that case, calculated apoapsis is negative.
+So, when apoapsis distance is negative - COI is 0.
