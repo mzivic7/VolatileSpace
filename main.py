@@ -54,10 +54,22 @@ def main():
                             menu.gen_map_list()
                         if state == 2:
                             editor.load_system(selected_path)
+                elif state == 3:
+                    game.reload_settings()
+                    selected_path = menu.selected_path
+                    if selected_path is not None:
+                        try:   # check if file exists
+                            with open(selected_path) as f:
+                                text = f.read()
+                        except Exception:
+                            state = 1
+                            menu.gen_map_list()
+                        if state == 3:
+                            game.load_system(selected_path)
             elif state == 2:   # editor
                 state = editor.main(screen, clock)
             elif state == 3:   # game
-                pass
+                state = game.main(screen, clock)
             elif state == 4:   # settings from game/editor
                 state = menu.main(screen, clock, True)
                 if state == 2:

@@ -233,7 +233,7 @@ class Physics():
         self.types = np.array([])
         self.pos = position
         self.vel = velocity
-        self.parents = np.array([0, 0, 1], dtype=int)   # parents indices
+        self.parents = np.array([], dtype=int)   # parents indices
         self.simplified_orbit_coi()   # calculate COIs
         self.find_parents()   # find parents for all bodies
         self.rel_vel = velocity - velocity[self.parents]
@@ -476,7 +476,7 @@ class Physics():
         mean_anomaly = mean_anomaly_deg * np.pi / 180
         if ecc == 0:   # to avoid division by zero
             ecc = 0.00001
-        if ecc >= 1:   # ### TODO ### for now limited on ecc < 1
+        if ecc >= 1:   # limit ti ellipses
             ecc = 0.95
         
         if ap_d:   # if there is value for appapsis distance:
@@ -493,16 +493,9 @@ class Physics():
             ea = newton_root(keplers_eq, keplers_eq_derivative, 0.0, {'Ma': mean_anomaly, 'e': ecc})   # newton root for keplers equation
             ta = 2 * math.atan(math.sqrt((1+ecc) / (1-ecc)) * math.tan(ea/2)) % (2*np.pi)   # true anomaly from eccentric anomaly
         
-        k = math.tan(ta)   # line at angle Ta (y = kx + n)
-        n = -(k * f)   # line at angle Ta containing focus point
-        # Solve system for this line and orbit ellipse to get intercept points:
-        d = math.sqrt(a**2 * k**2 + b**2 - n**2)   # discriminant
-        if ta < np.pi/2 or ta > 3*np.pi/2:   # there are 2 points, pick one at correct angle Ta
-            pr_x = (-a**2 * k * n + a * b * d) / (a**2 * k**2 + b**2) - f   # intersect point coordinates of line and ellipse
-            pr_y = direction * (-b**2 * n - a * b * k * d) / (a**2 * k**2 + b**2)   # if direction is clockwise invert y axis
-        else:
-            pr_x = (-a**2 * k * n - a * b * d) / (a**2 * k**2 + b**2) - f
-            pr_y = direction * (-b**2 * n + a * b * k * d) / (a**2 * k**2 + b**2)
+        # calculate position vector
+        pr_x = a * math.cos(ea) - f
+        pr_y = b * math.sin(ea)
         pr = np.array([pr_x * math.cos(omega - np.pi) - pr_y * math.sin(omega - np.pi),
                        pr_x * math.sin(omega - np.pi) + pr_y * math.cos(omega - np.pi)])   # rotate point by argument of Pe
         
@@ -513,6 +506,7 @@ class Physics():
              (a**2 * p_y * math.cos(omega)**2 + b**2 * p_y * math.sin(omega)**2 +
               b**2 * p_x * math.sin(omega) * math.cos(omega) - a**2 * p_x * math.sin(omega) * math.cos(omega)))
         
+        # aaaacalcualte angle of velocity vector
         # calculate domain of function and substract some small value (10**-6) so y can be calculated
         x_max = math.sqrt(a**2 * math.cos(2*omega) + a**2 - b**2 * math.cos(2*omega) + b**2)/math.sqrt(2) - 10**-6
         y_max = rot_ellipse_by_y(x_max, a, b, omega)   # calculate y

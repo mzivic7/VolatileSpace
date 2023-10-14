@@ -1,13 +1,13 @@
 ### Inverse equations from orbital parameters to positional and velocity vectors ###
-# ecc < 1
-# Inputs: e, omega_deg, Pe, Ma, Ap, direction
+# ecc > 1
+# Inputs: e, omega_deg, Pe, Ma, direction
 # clockwise direction is negative
+# Ma can be negative, and can go over 2pi
 
 u = G * m   # standard gravitational parameter
 a = - Pe / (e - 1)   # semi-major axis from periapsis
-e = (Ap / a) - 1   # eccentricity from apoapsis
-b = a * sqrt(1-e^2)   # semi minor axis
-f = sqrt(a^2 - b^2)   # focus distance from center of ellipse
+f = a * ecc   # focus distance from center of ellipse [13]
+b = sqrt(f^2 - a^2)   # semi-minor [13]
 omega = omega_deg * pi / 180   # periapsis argument from deg to rad
 if e = 0:   # if eccentricity is set to 0 (it is circle):
     omega = 0   # disable omega input
@@ -18,9 +18,9 @@ This is so orbiting body doesn't change position.
 Because anomalies are positive in orbiting direction.
 
 Get Ea from Ma using Newtons method for finding equation roots [3]. Plug this in Newton root solver:
-0 = Ea - e * sin(Ea) - Ma   # Keplers equation
-d(f(Ea))/dEa = 1 - e * cos(Ea)   # derivative from Keplers equation
-Ta = 2 * arctan(sqrt((1+e) / (1-e)) * tan(Ea/2))%(2pi)   # true anomaly from eccentric anomaly [11]
+0 = e * sinh(Ea) - Ea - Ma   # Keplers equation
+d(f(Ea))/dE = e * cosh(Ea) - 1   # derivative from Keplers equation
+ta = acos((cosh(ea) - ecc) / (1 - ecc * cosh(ea))) % (2*np.pi)   # true anomaly from eccentric anomaly [11]
 
 
 
@@ -32,7 +32,7 @@ Pr = [Pr_x * cos(omega - pi) - Pr_y * sin(omega - pi), Pr_x * sin(omega - pi) + 
 
 
 
-# -calcualte angle of velocity vector (vr_a)- #
+# -Calculate angle of velocity vector (vr_a)- #
 # angle of velocity vector is calculated from slope of tangent on rotated ellipse, in point Pr, from implicit derivative
 (((x*cos(p)+y*sin(p))^2)/a^2) + (((x*sin(p)-y*cos(p))^2)/b^2) = 1   # Rotated ellipse implicit formula
 # Implicit derivative in respect to x:
@@ -80,3 +80,5 @@ v = vr + v_p   # absolute vel from relative vel and parents absolute vel
 References:
 [3]  https://orbital-mechanics.space/time-since-periapsis-and-keplers-equation/elliptical-orbits.html#newton-s-method-to-solve-kepler-s-equation
 [11] https://en.wikipedia.org/wiki/True_anomaly#From_the_eccentric_anomaly
+[13] https://mathcurve.com/courbes2d.gb/hyperbole/hyperbole.shtml
+

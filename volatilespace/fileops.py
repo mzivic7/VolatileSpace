@@ -39,6 +39,46 @@ def load_file(filetype=[("All Files", "*.*")]):
     return file_path
 
 
+def gen_game_list():
+    """Generate list of maps in "Maps" dir. Name and edit date are read from file"""
+    if not os.path.exists("Saves"):   # if maps dir is deleted
+        os.mkdir("Saves")
+    files_list = os.listdir("Saves")   # generate list of files
+    
+    # filter only files with .ini extension
+    game_files = []
+    for file_name in files_list:
+        if file_name[-4:] == ".ini":
+            game_files.append(file_name)
+    
+    # get data
+    games = np.empty((0, 3), dtype=object)
+    for num, game_file in enumerate(game_files):
+        game_save = ConfigParser()
+        game_save.read("Saves/" + game_file)
+        try:
+            name = game_save.get("config", "name").strip('"')
+            date = game_save.get("config", "date").strip('"')
+            games = np.vstack((games, [game_file, name, date]))
+        except Exception:
+            pass
+
+    # sort by name then by date
+    games = games[games[:, 2].argsort()]
+    games = games[games[:, 1].argsort(kind='mergesort')]
+    
+    # move quicksave and autosave at end
+    for savetype in ["quicksave", "autosave"]:
+        save_lst = np.where((games[:, 0] == savetype + ".ini"))[0]
+        if len(save_lst) > 0:
+            save_ind = save_lst[0]
+            save_row = games[save_ind]
+            games = np.delete(games, save_ind, 0)
+            games = np.vstack((games, save_row))
+    
+    return games
+
+
 def gen_map_list():
     """Generate list of maps in "Maps" dir. Name and edit date are read from file"""
     if not os.path.exists("Maps"):   # if maps dir is deleted
@@ -62,7 +102,7 @@ def gen_map_list():
             maps = np.vstack((maps, [map_file, name, date]))
         except Exception:
             pass
-    
+
     # sort by name then by date
     maps = maps[maps[:, 2].argsort()]
     maps = maps[maps[:, 1].argsort(kind='mergesort')]
@@ -212,14 +252,74 @@ def rename_map(path, name):
     map_list = gen_map_list()
     new_name = name
     num = 1
-    while new_name in map_list[:, 1] or new_name + ".ini" in map_list[:, 0]:
+    while new_name in map_list[:, 1]:
         new_name = name + " " + str(num)
         num += 1
     
     system.set("config", "name", new_name)
     with open(path, 'w') as f:
         system.write(f)
+
+
+def new_game(name, date):
+    """Creates new game with initial body and saves to file."""
+    if not os.path.exists("Saves"):
+        os.mkdir("Saves")
+    if name == "":   # there must be name
+        name = "New Map"
     
+    # prevent having same name maps
+    game_list = gen_game_list()
+    new_name = name
+    num = 1
+    while new_name in game_list[:, 1] or new_name + ".ini" in game_list[:, 0]:
+        new_name = name + " " + str(num)
+        num += 1
+    
+    path = "Saves/" + new_name + ".ini"
+    if os.path.exists(path):   # when overwriting, delete file
+        open(path, "w").close()
+    system = ConfigParser()   # load config class
+    system.read(new_name + ".ini")   # load system
+    
+    system.add_section("config")   # special section for config
+    system.set("config", "name", new_name)
+    system.set("config", "date", date)
+    system.set("config", "time", "0")
+    
+    for key in defaults.sim_config.keys():   # physics related config
+        value = str(defaults.sim_config[key])
+        system.set("config", key, value)
+    
+    system.add_section("root")   # add body
+    system.set("root", "mass", "10000.0")   # add body parameters
+    system.set("root", "density", "1.0")
+    system.set("root", "position", "[0.0, 0.0]")
+    system.set("root", "velocity", "[0.0, 0.0]")
+    system.set("root", "color", "[255, 255, 255]")
+    
+    with open(path, 'w') as f:
+        system.write(f)
+    
+    return path
+
+
+def rename_game(path, name):
+    game = ConfigParser()
+    game.read(path)
+    if name == "":   # there must be name
+        name = "Unnamed"
+    
+    # prevent having same name games
+    game_list = gen_game_list()
+    new_name = name
+    num = 1
+    while new_name in game_list[:, 1]:
+        new_name = name + " " + str(num)
+        num += 1
+    game.set("config", "name", new_name)
+    with open(path, 'w') as f:
+        game.write(f)
 
 
 def save_settings(header, key, value):

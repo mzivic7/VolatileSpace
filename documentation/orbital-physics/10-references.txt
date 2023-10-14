@@ -11,3 +11,4 @@
 [10] https://en.wikipedia.org/wiki/Eccentricity_vector
 [11] https://en.wikipedia.org/wiki/True_anomaly#From_the_eccentric_anomaly
 [12] https://www.bogan.ca/orbits/kepler/orbteqtn.html
+[13] https://mathcurve.com/courbes2d.gb/hyperbole/hyperbole.shtml

@@ -11,7 +11,7 @@ import copy
 from itertools import repeat
 
 from volatilespace import fileops
-from volatilespace import physics_engine
+from volatilespace import physics_editor
 from volatilespace.graphics import rgb
 from volatilespace.graphics import graphics
 from volatilespace.graphics import bg_stars
@@ -20,7 +20,7 @@ from volatilespace import metric
 from volatilespace import defaults
 
 
-physics = physics_engine.Physics()
+physics = physics_editor.Physics()
 graphics = graphics.Graphics()
 bg_stars = bg_stars.Bg_Stars()
 textinput = textinput.Textinput()
@@ -307,7 +307,7 @@ class Editor():
             # check if number already exists and continue it
             last_space = body_name.rfind(" ")
             last_word = body_name[last_space+1:]
-            try: 
+            try:
                 num = int(last_word) + 1
             except Exception:
                 body_name = self.new_body_data["name"] + " " + "1"
@@ -638,7 +638,7 @@ class Editor():
                     
             if e.type == pygame.MOUSEBUTTONUP:
                 if (not self.enable_insert and e.button == 1) or (self.enable_insert and e.button == 2):
-                    self.move = False   # disable move move
+                    self.move = False   # disable move
                     mouse_move = math.dist(self.mouse_raw, self.mouse_raw_old)   # mouse move dist
                     self.select_toggle = False
                     if e.button != 2:   # don't select body with middle click when in insert mode
@@ -660,7 +660,7 @@ class Editor():
                                 if self.right_menu in [3, 4]:
                                     self.right_menu = None   # disable orbit and body edit
             
-                
+            
             # mouse wheel: change zoom
             if not self.disable_input:
                 if e.type == pygame.MOUSEWHEEL:   # change zoom
@@ -683,7 +683,7 @@ class Editor():
             self.click = True
             
             # scroll bar
-            if self.menu == 0 or self.menu == 1:
+            if self.menu in [0, 1]:
                 scrollable_len = max(0, self.map_list_size - self.list_limit)
                 scrollbar_limit = self.list_limit - 40 + 4
                 if scrollable_len != 0:
