@@ -1,18 +1,16 @@
 ### TIMELINE ###
-1. new physics for game
-2. 2 keplerian orbit lines - predict leaving orbit
-3. more advanced orbital parameters
-4. multi language
-5. Rotation
+1. multi language
+2. separate physics for vessel
+3. rotation
+4. more advanced orbital parameters
+5. 2 keplerian orbit lines - predict leaving orbit
 6. collision with rotation for vessels
-7. enable GPU rendering ???
-8. STAR PHYSICS
-9. GAME
-10. BODY TEXTURES
-11. VESSEL TEXTURES
-12. MULTIPLAYER
-13. port to andrid ???
-
+7. STAR PHYSICS
+8. GAME
+9. BODY TEXTURES
+10. VESSEL TEXTURES
+11. MULTIPLAYER
+12. port to andrid ???
 
 
 ### STAR PHYSICS ###

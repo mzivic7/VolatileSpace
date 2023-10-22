@@ -18,7 +18,7 @@ from volatilespace import defaults
 c = 299792458   # speed of light in vacuum
 k = 1.381 * 10**-23   # boltzman constant
 m_h = 1.674 * 10**-27    # hydrogen atom mass in kg
-m_he = 6.646 * 10**-27   # helimum atom mass in kg
+m_he = 6.646 * 10**-27   # helium atom mass in kg
 mp = (m_h * 99 + m_he * 1) / 100   # average particle mass   # depends on star age
 mass_sim_mult = 10**24  # mass simulation multiplier, since real values are needed in core temperature equation
 rad_sim_mult = 10**6   # radius sim multiplier
@@ -121,7 +121,6 @@ def gravity_one(body, parent, mass, rel_pos, gc):
 
 def kepler_basic_one(body, parent, mass, pos, vel, gc, coi_coef):
     """Basic keplerian orbit for one body."""
-    #print(type(body), type(parent), type(mass), type(pos), type(vel), type(gc), type(coi_coef))
     if body:   # skip calculation for root
         rel_pos = pos[body] - pos[parent]
         rel_vel = vel[body] - vel[parent]
@@ -218,7 +217,7 @@ class Physics():
         self.rad_mult = conf["rad_mult"]
         self.coi_coef = conf["coi_coef"]
     
-    def load_system(self, conf, names, mass, density, position, velocity, color):
+    def load_system(self, conf, names, mass, density, color, orb_data):
         """Load new system."""
         self.load_conf(conf)
         self.names = names
@@ -231,12 +230,12 @@ class Physics():
         self.rad = self.rad_mult * np.cbrt(3 * volume / (4 * np.pi))   # calculate radius from volume
         self.rad_sc = np.array([])
         self.types = np.array([])
-        self.pos = position
-        self.vel = velocity
+        self.pos = orb_data["pos"]
+        self.vel = orb_data["vel"]
         self.parents = np.array([], dtype=int)   # parents indices
         self.simplified_orbit_coi()   # calculate COIs
         self.find_parents()   # find parents for all bodies
-        self.rel_vel = velocity - velocity[self.parents]
+        self.rel_vel = orb_data["vel"] - orb_data["vel"][self.parents]
         self.focus = np.zeros(len(mass))
         self.semi_major = np.zeros(len(mass))
         self.semi_minor = np.zeros(len(mass))
@@ -360,7 +359,7 @@ class Physics():
             u = self.gc * self.mass[parent]   # standard gravitational parameter
             semi_major = -1 * u / (2*(dot_2d(rel_vel, rel_vel) / 2 - u / mag(rel_pos)))   # semi-major axis
             if semi_major > 0:   # if eccentricity is larger than 1, semi major will be negative
-                self.coi[body] = semi_major * (body_mass / self.mass[parent])**(2/5)   # calculate its COI and save to index
+                self.coi[body] = semi_major * (body_mass / self.mass[parent])**self.coi_coef   # calculate its COI and save to index
             else:
                 self.coi[body] = 0   # if orbit is hyperbola or parabola, body has no COI, otherwise it would be infinite
             
@@ -416,8 +415,8 @@ class Physics():
         distance = mag(rel_pos)   # distance to parent
         speed_orb = mag(rel_vel)   # orbit speed
         true_anomaly = (periapsis_arg - (math.atan2(rel_pos[1], rel_pos[0]) - np.pi)) % (2*np.pi)  # true anomaly from relative position
-        moment = cross_2d(rel_pos, rel_vel)   # rotation moment
-        direction = int(math.copysign(1, moment[0]))   # if moment is negative, rotation is clockwise (-1)
+        momentum = cross_2d(rel_pos, rel_vel)    # orbital momentum, since this is 2d, momentum is scalar
+        direction = int(math.copysign(1, momentum[0]))   # if moment is negative, rotation is clockwise (-1)
         angle = 2*np.pi - true_anomaly + periapsis_arg
         speed_vert = (rel_vel[0] * math.cos(angle) + rel_vel[1] * math.sin(angle))   # vertical speed
         speed_hor = abs(rel_vel[0] * math.sin(angle) - rel_vel[1] * math.cos(angle))   # horizontal speed
@@ -489,9 +488,9 @@ class Physics():
         f_rot = [f * math.cos(omega), f * math.sin(omega)]   # focus rotated by omega
         if true_anomaly_deg:   # if there is value for ta
             ta = true_anomaly_deg * np.pi / 180   # use it
+            # ### ea from ta ###
         else:
             ea = newton_root(keplers_eq, keplers_eq_derivative, 0.0, {'Ma': mean_anomaly, 'e': ecc})   # newton root for keplers equation
-            ta = 2 * math.atan(math.sqrt((1+ecc) / (1-ecc)) * math.tan(ea/2)) % (2*np.pi)   # true anomaly from eccentric anomaly
         
         # calculate position vector
         pr_x = a * math.cos(ea) - f
@@ -506,7 +505,7 @@ class Physics():
              (a**2 * p_y * math.cos(omega)**2 + b**2 * p_y * math.sin(omega)**2 +
               b**2 * p_x * math.sin(omega) * math.cos(omega) - a**2 * p_x * math.sin(omega) * math.cos(omega)))
         
-        # aaaacalcualte angle of velocity vector
+        # calcualte angle of velocity vector
         # calculate domain of function and substract some small value (10**-6) so y can be calculated
         x_max = math.sqrt(a**2 * math.cos(2*omega) + a**2 - b**2 * math.cos(2*omega) + b**2)/math.sqrt(2) - 10**-6
         y_max = rot_ellipse_by_y(x_max, a, b, omega)   # calculate y
@@ -523,7 +522,6 @@ class Physics():
         vr_x = vrm * math.cos(vr_angle)   # eccentricity vector from angle of velocity
         vr_y = vrm * math.sin(vr_angle)
         vr = [vr_x, vr_y]
-        abs_pos = self.pos[parent] + pr
         self.move_parent(body, self.pos[parent] + pr)   # move thiss body and all bodies orbiting it
         self.rel_vel[body] = vr   # update relative velocity vector
         # this is copied from simplified_orbit_coi end, to allow changes to take effect smoothly, in this iteration, even if paused

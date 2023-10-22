@@ -12,6 +12,7 @@ from itertools import repeat
 
 from volatilespace import fileops
 from volatilespace import physics_editor
+from volatilespace import physics_convert
 from volatilespace.graphics import rgb
 from volatilespace.graphics import graphics
 from volatilespace.graphics import bg_stars
@@ -225,9 +226,13 @@ class Editor():
     
     
     def load_system(self, system):
-        self.sim_name, self.sim_time, self.sim_conf, self.names, self.mass, self.density, self.position, self.velocity, self.color = fileops.load_system(system)
+        self.sim_name, self.sim_time, self.sim_conf, self.names, self.mass, self.density, self.color, orb_data = fileops.load_file(system)
         self.sim_time *= self.ptps   # convert from seconds to userevent iterations
-        physics.load_system(self.sim_conf, self.names, self.mass, self.density, self.position, self.velocity, self.color)   # add it to physics class
+        if orb_data["kepler"]:   # convert to newtonian model
+            coi_coef = self.sim_conf["coi_coef"]
+            gc = self.sim_conf["gc"]
+            orb_data = physics_convert.to_newton(self.mass, orb_data, gc, coi_coef)
+        physics.load_system(self.sim_conf, self.names, self.mass, self.density, self.color, orb_data)   # add it to physics class
         self.file_path = system   # this path will be used for load/save
         self.disable_input = False
         self.disable_ui = False
@@ -271,9 +276,7 @@ class Editor():
     def load(self):
         """Loads system from "load" dialog."""
         if os.path.exists(self.selected_path):
-            self.sim_name, self.sim_time, self.sim_conf, self.names, self.mass, self.density, self.position, self.velocity, self.color = fileops.load_system(self.selected_path)
-            self.sim_time *= self.ptps   # convert from seconds to userevent iterations
-            physics.load_system(self.sim_conf, self.names, self.mass, self.density, self.position, self.velocity, self.color)
+            self.load_system(self.selected_path)
             self.names, self.types, self.mass, self.density, self.temp, self.position, self.velocity, self.colors, self.size, self.rad_sc = physics.get_bodies()
             self.file_path = self.selected_path   # change currently active file
             graphics.timed_text_init(rgb.gray, self.fontmd, "Map loaded successfully", (self.screen_x/2, self.screen_y-70), 2, True)
@@ -282,14 +285,16 @@ class Editor():
         """Saves map to file. If name is None, name is not changed."""
         base_color = physics.get_base_color()
         date = time.strftime("%d.%m.%Y %H:%M")
-        fileops.save_system(path, name, date, self.sim_conf, self.sim_time/self.ptps, self.names, self.mass, self.density, self.position, self.velocity, base_color)
+        orb_data = {"kepler": False, "pos": self.position, "vel": self.velocity}
+        fileops.save_file(path, name, date, self.sim_conf, self.sim_time/self.ptps, self.names, self.mass, self.density, base_color, orb_data)
         graphics.timed_text_init(rgb.gray, self.fontmd, "Map saved successfully", (self.screen_x/2, self.screen_y-70), 2, True)
     
     def quicksave(self):
         """Saves map to quicksave file."""
         base_color = physics.get_base_color()
         date = time.strftime("%d.%m.%Y %H:%M")
-        fileops.save_system("Maps/quicksave.ini", "Quicksave - " + self.sim_name, date, self.sim_conf, self.sim_time/self.ptps, self.names, self.mass, self.density, self.position, self.velocity, base_color)
+        orb_data = {"kepler": False, "pos": self.position, "vel": self.velocity}
+        fileops.save_file("Maps/quicksave.ini", "Quicksave - " + self.sim_name, date, self.sim_conf, self.sim_time/self.ptps, self.names, self.mass, self.density, base_color, orb_data)
         graphics.timed_text_init(rgb.gray2, self.fontmd, "Quicksave...", (self.screen_x/2, self.screen_y-70), 2, True)
     
     def autosave(self, e):
@@ -297,7 +302,8 @@ class Editor():
         if e.type == self.autosave_event:
             base_color = physics.get_base_color()
             date = time.strftime("%d.%m.%Y %H:%M")
-            fileops.save_system("Maps/auosave.ini", "Autosave - " + self.sim_name, date, self.sim_conf, self.sim_time/self.ptps, self.names, self.mass, self.density, self.position, self.velocity, base_color)
+            orb_data = {"kepler": False, "pos": self.position, "vel": self.velocity}
+            fileops.save_file("Maps/autosave.ini", "Autosave - " + self.sim_name, date, self.sim_conf, self.sim_time/self.ptps, self.names, self.mass, self.density, base_color, orb_data)
             graphics.timed_text_init(rgb.gray2, self.fontmd, "Autosave...", (self.screen_x/2, self.screen_y-70), 2, True)
     
     def check_new_name(self):
@@ -333,6 +339,7 @@ class Editor():
                     self.new_map = False
                     self.ask = None
                 elif e.key == pygame.K_RETURN:
+                    date = time.strftime("%d.%m.%Y %H:%M")
                     path = fileops.new_map(self.text, date)
                     self.save(path)
                     self.gen_map_list()
@@ -727,7 +734,8 @@ class Editor():
                             elif num == 5:   # save and quit
                                 base_color = physics.get_base_color()
                                 date = time.strftime("%d.%m.%Y %H:%M")
-                                fileops.save_system(self.file_path, self.sim_name, date, self.sim_conf, self.sim_time/self.ptps, self.names, self.mass, self.density, self.position, self.velocity, base_color)
+                                orb_data = {"kepler": False, "pos": self.position, "vel": self.velocity}
+                                fileops.save_file(self.file_path, self.sim_name, date, self.sim_conf, self.sim_time/self.ptps, self.names, self.mass, self.density, base_color, orb_data)
                                 self.state = 1
                                 self.pause_menu = False
                                 self.disable_input = False
@@ -752,7 +760,8 @@ class Editor():
                                     date = time.strftime("%d.%m.%Y %H:%M")
                                     path = fileops.new_map(self.text, date)
                                     base_color = physics.get_base_color()
-                                    fileops.save_system(path, self.text, date, self.sim_conf, self.sim_time/self.ptps, self.names, self.mass, self.density, self.position, self.velocity, base_color)
+                                    orb_data = {"kepler": False, "pos": self.position, "vel": self.velocity}
+                                    fileops.save_file(path, self.text, date, self.sim_conf, self.sim_time/self.ptps, self.names, self.mass, self.density, base_color, orb_data)
                                     self.gen_map_list()
                                 self.new_map = False
                                 self.ask = None
@@ -1271,8 +1280,10 @@ class Editor():
             self.offset_old = np.array([self.offset_x, self.offset_y])
             if not self.first:
                 speed = math.sqrt(offset_diff.dot(offset_diff))/3   # speed as movement vector magnitude
-            while speed > 300:   # limits speed when view is jumping (focus home, distant body...)
-                speed = math.sqrt(speed)
+                while speed > 300:   # limits speed when view is jumping (focus home, distant body...)
+                    speed = math.sqrt(speed)
+            else:
+                speed = 0
             direction = math.atan2(offset_diff[1], offset_diff[0])   # movement vector angle from atan2
             bg_stars.draw_bg(screen, speed, direction, self.zoom)
         

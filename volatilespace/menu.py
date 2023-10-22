@@ -366,7 +366,7 @@ class Menu():
                                         self.are_you_sure = True
                                         self.disable_buttons = True
                                     elif num == 3:   # export
-                                        save_path = fileops.save_file(self.games[self.selected_item, 1], [("Text Files", "*.ini")])
+                                        save_path = fileops.export_file(self.games[self.selected_item, 1], [("Text Files", "*.ini")])
                                         if save_path != "":
                                             shutil.copy2(self.selected_path, save_path)
                             y_pos += self.btn_h + self.space
@@ -382,9 +382,10 @@ class Menu():
                                     self.new_game = True
                                     self.disable_buttons = True
                                     self.scroll_maps = 0
-                                    textinput.initial_text("New Map", selected=True)
+                                    self.selected_ng_item = 0
+                                    self.selected_ng_path = "Maps/" + self.maps[0, 0]
                                 elif num == 2:   # import game
-                                    file_path = fileops.load_file([("Text Files", "*.ini")])
+                                    file_path = fileops.import_file([("Text Files", "*.ini")])
                                     if file_path != "":
                                         shutil.copy2(file_path, "Saves")
                                         self.gen_game_list()
@@ -443,7 +444,7 @@ class Menu():
                                         pass
                                     self.click = False   # dont carry click to ask window
                                 elif num == 2:   # import map
-                                    file_path = fileops.load_file([("Text Files", "*.ini")])
+                                    file_path = fileops.import_file([("Text Files", "*.ini")])
                                     if file_path != "":
                                         shutil.copy2(file_path, "Maps")
                                         self.gen_map_list()
@@ -511,7 +512,7 @@ class Menu():
                                         self.are_you_sure = True
                                         self.disable_buttons = True
                                     elif num == 3:   # export
-                                        save_path = fileops.save_file(self.maps[self.selected_item, 1], [("Text Files", "*.ini")])
+                                        save_path = fileops.export_file(self.maps[self.selected_item, 1], [("Text Files", "*.ini")])
                                         if save_path != "":
                                             shutil.copy2(self.selected_path, save_path)
                             y_pos += self.btn_h + self.space
@@ -528,7 +529,7 @@ class Menu():
                                     self.disable_buttons = True
                                     textinput.initial_text("New Map", selected=True)
                                 elif num == 2:   # import map
-                                    file_path = fileops.load_file([("Text Files", "*.ini")])
+                                    file_path = fileops.import_file([("Text Files", "*.ini")])
                                     if file_path != "":
                                         shutil.copy2(file_path, "Maps")
                                         self.gen_map_list()

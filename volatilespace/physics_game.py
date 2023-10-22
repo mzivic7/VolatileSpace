@@ -18,7 +18,7 @@ from volatilespace import defaults
 c = 299792458   # speed of light in vacuum
 k = 1.381 * 10**-23   # boltzman constant
 m_h = 1.674 * 10**-27    # hydrogen atom mass in kg
-m_he = 6.646 * 10**-27   # helimum atom mass in kg
+m_he = 6.646 * 10**-27   # helium atom mass in kg
 mp = (m_h * 99 + m_he * 1) / 100   # average particle mass   # depends on star age
 mass_sim_mult = 10**24  # mass simulation multiplier, since real values are needed in core temperature equation
 rad_sim_mult = 10**6   # radius sim multiplier
@@ -88,3 +88,36 @@ if numba_avail and use_numba:
 class Physics():
     def __init__(self):
         pass
+    
+    
+    def reload_settings(self):
+        self.curve_points = int(fileops.load_settings("graphics", "curve_points"))   # number of points from which curve is drawn
+        # parameters
+        self.ell_t = np.linspace(-np.pi, np.pi, self.curve_points)   # ellipse parameter
+        self.par_t = np.linspace(- np.pi - 1, np.pi + 1, self.curve_points)   # parabola parameter
+        hyp_t_1 = np.linspace(- np.pi, - np.pi/2 - 0.1, int(self.curve_points/2))   # (-pi, -pi/2]
+        hyp_t_2 = np.linspace(np.pi/2 + 0.1, np.pi, int(self.curve_points/2))   # [pi/2, pi)
+        self.hyp_t = np.concatenate([hyp_t_2, hyp_t_1])   # hyperbola parameter [pi/2, pi) U (-pi, -pi/2]
+    
+    
+    def load_conf(self, conf):
+        """Loads physics related config."""
+        self.gc = conf["gc"]
+        self.rad_mult = conf["rad_mult"]
+        self.coi_coef = conf["coi_coef"]
+    
+    
+    def load_system(self, conf, names, mass, density, color, orb_data):
+        """Load new system."""
+        self.load_conf(conf)
+    
+    
+    def body(self):
+        """Do all body related physics, this should be done only if something changed on body or it's orbit."""
+        pass
+    
+    
+    def body_move(self):
+        """Move body with mean motion"""
+        pass
+    
