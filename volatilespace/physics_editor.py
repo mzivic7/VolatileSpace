@@ -176,27 +176,27 @@ if numba_avail and use_numba:
 class Physics():
     def __init__(self):
         # body
-        self.names = np.array([])   # body names
-        self.mass = np.array([])  # mass
-        self.den = np.array([])  # density
-        self.temp = np.array([])  # temperature
+        self.names = np.array([])
+        self.mass = np.array([])
+        self.den = np.array([])
+        self.temp = np.array([])
         self.color = np.empty((0, 3), int)   # dynamic color
         self.base_color = np.empty((0, 3), int)   # base color (original color unaffected by temperature)
         self.rad = np.array([])  # radius
         self.rad_sc = np.array([])  # Schwarzschild radius
         self.types = np.array([])  # what is this body
         # orbit:
-        self.pos = np.empty((0, 2), int)   # position
-        self.vel = np.empty((0, 2), int)   # velocity
-        self.rel_vel = np.empty((0, 2), int)   # relative velocity
+        self.pos = np.empty((0, 2), int)
+        self.vel = np.empty((0, 2), int)
+        self.rel_vel = np.empty((0, 2), int)
         self.coi = np.array([])   # circle of influence
         self.parents = np.array([], dtype=int)   # parents indices
         self.largest = 0   # most massive body (root)
         self.focus = np.array([])   # focus distance from center of ellipse
-        self.semi_major = np.array([])   # ellipse semi major axis
-        self.semi_minor = np.array([])   # ellipse semi minor axis
-        self.periapsis_arg = np.array([])   # curve periapsis argument
-        self.ecc_v = np.empty((0, 2), int)   # curve eccentricity vector
+        self.semi_major = np.array([])
+        self.semi_minor = np.array([])
+        self.periapsis_arg = np.array([])
+        self.ecc_v = np.empty((0, 2), int)   # eccentricity vector
         self.gc = defaults.sim_config["gc"]   # newtonian constant of gravitation
         self.rad_mult = defaults.sim_config["rad_mult"]
         self.coi_coef = defaults.sim_config["coi_coef"]
@@ -522,7 +522,7 @@ class Physics():
         vr_x = vrm * math.cos(vr_angle)   # eccentricity vector from angle of velocity
         vr_y = vrm * math.sin(vr_angle)
         vr = [vr_x, vr_y]
-        self.move_parent(body, self.pos[parent] + pr)   # move thiss body and all bodies orbiting it
+        self.move_parent(body, self.pos[parent] + pr)   # move this body and all bodies orbiting it
         self.rel_vel[body] = vr   # update relative velocity vector
         # this is copied from simplified_orbit_coi end, to allow changes to take effect smoothly, in this iteration, even if paused
         bodies_sorted = np.argsort(self.mass)[-1::-1]
@@ -531,7 +531,7 @@ class Physics():
     
     
     def curve(self):
-        """Calculate all conic curves line coordinates."""
+        """Calculate all conic curves line points coordinates."""
         focus_x = self.focus * np.cos(self.periapsis_arg)   # focus coords from focus magnitude and angle
         focus_y = self.focus * np.sin(self.periapsis_arg)
         # 2D rotation matrix # rot[rotation, rotation, body]
@@ -547,7 +547,7 @@ class Physics():
                 if ecc == 1:   # parabola
                     curves[:, num, :] = np.array([self.semi_major[num] * self.par_t**2, 2 * self.semi_major[num] * self.par_t])   # raw parabolas
                     curves[0, num, :] = curves[0, num, :] - self.semi_major[num, np.newaxis]   # translate parabola by semi_major, since its center is not in 0,0
-                if ecc > 1:   # hyperbola
+                elif ecc > 1:   # hyperbola
                     curves[:, num, :] = np.array([self.semi_major[num] * 1/np.cos(self.hyp_t), self.semi_minor[num] * np.tan(self.hyp_t)])   # raw hyperbolas
                 # parametric equation for circle is same as for ellipse, just semi_major = semi_minor, thus it is not required
         
@@ -607,18 +607,18 @@ class Physics():
         """Set color depending on temperature."""
         # temperature to 1000 - BASE
         # temperature from 1000 to 3000 - RED
-        self.color[:, 0] = np.where(self.temp > 1000, self.base_color[:, 0] + ((255 - self.base_color[:, 0]) * (self.temp - 1000)) / 2000, self.base_color[:, 0])   # transition from base red to full red
-        self.color[:, 1] = np.where(self.temp > 1000, self.base_color[:, 1] - ((self.base_color[:, 1]) * (self.temp - 1000)) / 2000, self.base_color[:, 1])   # transition from base green to no green
-        self.color[:, 2] = np.where(self.temp > 1000, self.base_color[:, 2] - ((self.base_color[:, 2]) * (self.temp - 1000)) / 2000, self.base_color[:, 2])   # transition from base blue to no blue
+        self.color[:, 0] = np.where(self.temp > 1000, self.base_color[:, 0] + ((255 - self.base_color[:, 0]) * (self.temp - 1000)) / 2000, self.base_color[:, 0])   # base red to full red
+        self.color[:, 1] = np.where(self.temp > 1000, self.base_color[:, 1] - ((self.base_color[:, 1]) * (self.temp - 1000)) / 2000, self.base_color[:, 1])   # base green to no green
+        self.color[:, 2] = np.where(self.temp > 1000, self.base_color[:, 2] - ((self.base_color[:, 2]) * (self.temp - 1000)) / 2000, self.base_color[:, 2])   # base blue to no blue
         # temperature from 3000 to 6000 - YELLOW
-        self.color[:, 1] = np.where(self.temp > 3000, (255 * (self.temp - 3000)) / 3000, self.color[:, 1])   # transition from no green to full green
+        self.color[:, 1] = np.where(self.temp > 3000, (255 * (self.temp - 3000)) / 3000, self.color[:, 1])   # no green to full green
         # temperature from 6000 to 10000 - WHITE
-        self.color[:, 2] = np.where(self.temp > 6000, (255 * (self.temp - 6000)) / 4000, self.color[:, 2])   # transition from no blue to full blue
+        self.color[:, 2] = np.where(self.temp > 6000, (255 * (self.temp - 6000)) / 4000, self.color[:, 2])   # no blue to full blue
         # temperature from 10000 to 30000 - BLUE
-        self.color[:, 0] = np.where(self.temp > 10000, 255 - ((255 * (self.temp - 10000) / 10000)), self.color[:, 0])   # transition from full red to no red
-        self.color[:, 1] = np.where(self.temp > 10000, 255 - ((135 * (self.temp - 10000) / 20000)), self.color[:, 1])   # transition from full green to 120 green
+        self.color[:, 0] = np.where(self.temp > 10000, 255 - ((255 * (self.temp - 10000) / 10000)), self.color[:, 0])   # full red to no red
+        self.color[:, 1] = np.where(self.temp > 10000, 255 - ((135 * (self.temp - 10000) / 20000)), self.color[:, 1])   # full green to 120 green
         self.color = np.clip(self.color, 0, 255)   # limit values to be 0 - 255
-        return self.color   # return calculated color
+        return self.color
     
     
     def classify(self):

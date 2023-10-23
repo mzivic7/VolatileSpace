@@ -74,6 +74,64 @@ def cross_2d(v1, v2):
     return np.array([v1[0]*v2[1] - v1[1]*v2[0]])
 
 
+def calc_body_orb_one(body, ref, mass, gc, coi_coef, a, ecc, pea):
+    """Additional body orbital parameters."""
+    if body:   # skip calculation for root
+        u = gc * mass[ref]   # standard gravitational parameter
+        f = a * ecc
+        b = math.sqrt(abs(f**2 - a**2))
+        if a > 0:   # if eccentricity is larger than 1, semi major will be negative
+            coi = a * (mass[body] / mass[ref])**(coi_coef)
+        else:
+            coi = 0
+        
+        if ecc != 0:   # if orbit is not circle
+            pe_d = a * (1 - ecc)   # periapsis distance and coordinate:
+            if ecc < 1:   # if orbit is ellipse
+                period = (2 * np.pi * math.sqrt(a**3 / u))   # orbital period
+                ap_d = a * (1 + ecc)   # apoapsis distance
+            else:
+                if ecc > 1:   # hyperbola
+                    pe_d = a * (1 - ecc)
+                else:   # parabola
+                    pe_d = a
+                period = 0   # period is undefined
+                # there is no apoapsis
+                ap_d = 0
+        else:   # circle
+            period = (2 * np.pi * math.sqrt(a**3 / u)) / 10   # orbital period
+            pe_d = a * (1 - ecc)   # periapsis distance and coordinate:
+            # there is no apoapsis
+            ap_d = 0
+        # pe = np.array([pe_d * math.cos(pea - np.pi), pe_d * math.sin(pea - np.pi)]) + pos[ref]
+        # if ecc != 0 and ecc < 1:
+        #     ap = np.array([ap_d * math.cos(pea), ap_d * math.sin(pea)]) + pos[ref]
+        # else:
+        #     ap = np.array([0, 0])
+        return b, f, coi, pe_d, ap_d, period
+    else:
+        return 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
+
+
+def body_color(temp, base_color):
+    """Set color depending on temperature."""
+    color = base_color[:]
+    # temperature to 1000 - BASE
+    # temperature from 1000 to 3000 - RE
+    color[:, 0] = np.where(temp > 1000, base_color[:, 0] + ((255 - base_color[:, 0]) * (temp - 1000)) / 2000, base_color[:, 0])   # base red to full red
+    color[:, 1] = np.where(temp > 1000, base_color[:, 1] - ((base_color[:, 1]) * (temp - 1000)) / 2000, base_color[:, 1])   # base green to no green
+    color[:, 2] = np.where(temp > 1000, base_color[:, 2] - ((base_color[:, 2]) * (temp - 1000)) / 2000, base_color[:, 2])   # base blue to no blue
+    # temperature from 3000 to 6000 - YELLOW
+    color[:, 1] = np.where(temp > 3000, (255 * (temp - 3000)) / 3000, color[:, 1])   # no green to full green
+    # temperature from 6000 to 10000 - WHITE
+    color[:, 2] = np.where(temp > 6000, (255 * (temp - 6000)) / 4000, color[:, 2])   # no blue to full blue
+    # temperature from 10000 to 30000 - BLUE
+    color[:, 0] = np.where(temp > 10000, 255 - ((255 * (temp - 10000) / 10000)), color[:, 0])   # full red to no red
+    color[:, 1] = np.where(temp > 10000, 255 - ((135 * (temp - 10000) / 20000)), color[:, 1])   # full green to 120 green
+    color = np.clip(color, 0, 255)   # limit values to be 0 - 255
+    return color
+
+
 # if numba is enabled, compile functions ahead of time
 use_numba = leval(fileops.load_settings("game", "numba"))
 if numba_avail and use_numba:
@@ -87,7 +145,27 @@ if numba_avail and use_numba:
 
 class Physics():
     def __init__(self):
-        pass
+        # body internal
+        self.names = np.array([])
+        self.mass = np.array([])
+        self.den = np.array([])
+        self.base_color = np.empty((0, 3), int)   # base color (original color unaffected by temperature)
+        self.types = np.array([])  # what is this body
+        # body orbit main
+        self.a = np.array([])
+        self.ecc = np.array([])
+        self.pea = np.array([])
+        self.ma = np.array([])
+        self.ref = np.array([])
+        self.dr = np.array([])
+        # body orbit extra
+        self.b = np.array([])
+        self.f = np.array([])
+        self.pos = np.array([])
+        self.ped_d = np.array([])
+        self.ap_d = np.array([])
+        self.curves_rot = np.array([])
+        self.reload_settings()
     
     
     def reload_settings(self):
@@ -110,14 +188,81 @@ class Physics():
     def load_system(self, conf, names, mass, density, color, orb_data):
         """Load new system."""
         self.load_conf(conf)
+        self.names = names
+        self.mass = mass
+        self.den = density
+        self.base_color = color
+        # body orbit
+        self.a = orb_data["a"]
+        self.ecc = orb_data["ecc"]
+        self.pea = orb_data["pe_arg"]
+        self.ma = orb_data["ma"]
+        self.ref = orb_data["ref"]
+        self.dr = orb_data["dir"]
+        self.body()
     
     
     def body(self):
-        """Do all body related physics, this should be done only if something changed on body or it's orbit."""
-        pass
+        """Do all body related physics. This should be done only if something changed on body or it's orbit."""
+        
+        # BODY DATA #
+        volume = self.mass / self.den   # volume from mass and density
+        size = self.rad_mult * np.cbrt(3 * volume / (4 * np.pi))   # calculate radius from volume
+        core_temp = (self.gc * mp * self.mass * mass_sim_mult) / ((3/2) * k * size * rad_sim_mult)   # core temperature
+        temp = 0 / core_temp   # surface temperature # ### temporarily ###
+        rad_sc = 2 * self.mass * mass_sim_mult * self.gc / c**2   # Schwarzschild radius
+        color = body_color(temp, self.base_color)
+        body_data = {"names": self.names, "types": self.types, "mass": self.mass, "den": self.den, "temp": temp, "color_b": self.base_color, "color": color, "size": size, "rad_sc": rad_sc}
+        
+        
+        # ORBIT DATA #
+        values = list(map(calc_body_orb_one, list(range(len(self.mass))), self.ref, repeat(self.mass), repeat(self.gc), repeat(self.coi_coef), self.a, self.ecc, self.pea))
+        self.b, self.f, coi, self.pe_d, self.ap_d, period = list(map(np.array, zip(*values)))
+        body_orb = {"a": self.a, "b": self.b, "f": self.f, "coi": coi, "ref": self.ref, "ecc": self.ecc, "pe_d": self.pe_d, "ap_d": self.ap_d, "pea": self.pea, "dir": self.dr, "per": period}
+        
+        return body_data, body_orb
     
     
     def body_move(self):
-        """Move body with mean motion"""
+        """Move body with mean motion."""
+        return self.pos
+    
+    
+    def curve(self):
+        """Calculate all RELATIVE conic curves line points coordinates. This should be done only if something changed on body or it's orbit."""
+        
+        # calculate curves points # curve[axis, body, point]
+        curves = np.zeros((2, len(self.mass), self.curve_points))
+        for num in range(len(self.mass)):
+            ecc = self.ecc[num]
+            if ecc < 1:   # ellipse
+                curves[:, num, :] = np.array([self.a[num] * np.cos(self.ell_t), self.b[num] * np.sin(self.ell_t)])   # raw ellipses
+            else:
+                if ecc == 1:   # parabola
+                    curves[:, num, :] = np.array([self.a[num] * self.par_t**2, 2 * self.a[num] * self.par_t])   # raw parabolas
+                    curves[0, num, :] = curves[0, num, :] - self.a[num, np.newaxis]   # translate parabola by semi_major, since its center is not in 0,0
+                elif ecc > 1:   # hyperbola
+                    curves[:, num, :] = np.array([self.a[num] * 1/np.cos(self.hyp_t), self.b[num] * np.tan(self.hyp_t)])   # raw hyperbolas
+                # parametric equation for circle is same as for ellipse, just semi_major = semi_minor, thus it is not required
+        
+        # 2D rotation matrix # rot[rotation, rotation, body]
+        rot = np.array([[np.cos(self.pea), - np.sin(self.pea)], [np.sin(self.pea), np.cos(self.pea)]])
+        self.curves_rot = np.zeros((2, curves.shape[1], curves.shape[2]))   # empty array for new rotated curve
+        for body in range(curves.shape[1]):   # for each body
+            self.curves_rot[:, body, :] = np.dot(rot[:, :, body], curves[:, body, :])   # apply rotation matrix to all curve points
+    
+    
+    def body_selected(self):
+        """Do physics for selected body. This should be done every tick after body_move()."""
+        # position, pe, pe_t, ap, ap_t, distance, speed_orb, speed_hor, speed_vert
         pass
     
+    
+    def curve_move(self):
+        """Move all orbit curves to parent position. This should be done every tick after body_move()."""
+        focus_x = self.f * np.cos(self.pea)   # focus coords from focus magnitude and angle
+        focus_y = self.f * np.sin(self.pea)
+        curves_x = self.curves_rot[0, :, :] + focus_x[:, np.newaxis] + self.pos[self.ref, 0, np.newaxis]   # translate to align focus and parent
+        curves_y = self.curves_rot[1, :, :] + focus_y[:, np.newaxis] + self.pos[self.ref, 1, np.newaxis]
+        curves = np.stack([curves_x, curves_y])
+        return curves

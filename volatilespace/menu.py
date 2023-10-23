@@ -203,10 +203,10 @@ class Menu():
                     else:
                         date = time.strftime("%d.%m.%Y %H:%M")
                         if self.menu == 1:
-                            path = fileops.new_game(self.text, date)
+                            _ = fileops.new_game(self.text, date)
                             self.gen_game_list()
                         else:
-                            path = fileops.new_map(self.text, date)
+                            _ = fileops.new_map(self.text, date)
                             self.gen_map_list()
                         self.new_map = False
                     self.disable_buttons = False
@@ -418,13 +418,17 @@ class Menu():
                                         self.selected_ng_path = "Maps/" + self.maps[self.selected_ng_item, 0]
                                         if self.first_click == num:   # detect double click
                                             try:
-                                                shutil.copy2(self.selected_ng_path, self.selected_ng_path.replace("Maps/", "Saves/"))    # copy map to games
-                                                self.selected_path = self.selected_ng_path.replace("Maps/", "Saves/")   # select new created game
+                                                date = time.strftime("%d.%m.%Y %H:%M")
+                                                game_path = self.selected_ng_path.replace("Maps/", "Saves/").replace(".ini", "") + " " + date + ".ini"
+                                                game_name = self.maps[self.selected_ng_item, 1] + " " + date
+                                                shutil.copy2(self.selected_ng_path, game_path)    # copy map to games
+                                                fileops.rename_game(game_path, game_name)
+                                                self.selected_path = game_path   # select new created game
                                                 self.state = 3
                                                 self.menu = 0   # return to main menu instead load menu
                                             except Exception:
                                                 pass
-                                            self.click = False   # dont carry click to ask window
+                                            self.click = False   # don't carry click to ask window
                                         self.first_click = num
                                 y_pos += self.btn_h + self.space
                         
@@ -436,13 +440,17 @@ class Menu():
                                     self.disable_buttons = False
                                 elif num == 1:   # play
                                     try:
-                                        shutil.copy2(self.selected_ng_path, self.selected_ng_path.replace("Maps/", "Saves/"))    # copy map to games
-                                        self.selected_path = self.selected_ng_path.replace("Maps/", "Saves/")   # select new created game
+                                        date = time.strftime("%d.%m.%Y %H:%M")
+                                        game_path = self.selected_ng_path.replace("Maps/", "Saves/").replace(".ini", "") + " " + date + ".ini"
+                                        game_name = self.maps[self.selected_ng_item, 1] + " " + date
+                                        shutil.copy2(self.selected_ng_path, game_path)    # copy map to games
+                                        fileops.rename_game(game_path, game_name)
+                                        self.selected_path = game_path   # select new created game
                                         self.state = 3
                                         self.menu = 0   # return to main menu instead load menu
                                     except Exception:
                                         pass
-                                    self.click = False   # dont carry click to ask window
+                                    self.click = False   # don't carry click to ask window
                                 elif num == 2:   # import map
                                     file_path = fileops.import_file([("Text Files", "*.ini")])
                                     if file_path != "":
@@ -548,7 +556,7 @@ class Menu():
                                         self.gen_map_list()
                                     elif self.new_map:
                                         date = time.strftime("%d.%m.%Y %H:%M")
-                                        path = fileops.new_map(self.text, date)
+                                        _ = fileops.new_map(self.text, date)
                                         self.gen_map_list()
                                     self.selected_item = np.where(self.maps[:, 1] == self.text)[0][0]
                                 self.new_map = False

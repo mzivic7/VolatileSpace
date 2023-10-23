@@ -149,7 +149,7 @@ def load_file(path):
     ecc = np.array([])
     pe_arg = np.array([])
     ma = np.array([])
-    parents = np.array([])
+    parents = np.array([], dtype=int)
     direction = np.array([])
     
     for body in system.sections():   # for each body:
@@ -171,7 +171,7 @@ def load_file(path):
                 ecc = np.append(ecc, float(system.get(body, "ecc")))
                 pe_arg = np.append(pe_arg, float(system.get(body, "lpe")))
                 ma = np.append(ma, float(system.get(body, "mna")))
-                parents = np.append(parents, float(system.get(body, "ref")))
+                parents = np.append(parents, int(system.get(body, "ref")))
                 direction = np.append(direction, float(system.get(body, "dir")))
             
     if kepler:

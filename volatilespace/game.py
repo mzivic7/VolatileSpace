@@ -11,7 +11,7 @@ import copy
 from itertools import repeat
 
 from volatilespace import fileops
-from volatilespace import physics_editor
+from volatilespace import physics_game
 from volatilespace import physics_convert
 from volatilespace.graphics import rgb
 from volatilespace.graphics import graphics
@@ -21,7 +21,7 @@ from volatilespace import metric
 from volatilespace import defaults
 
 
-physics = physics_editor.Physics()
+physics = physics_game.Physics()
 graphics = graphics.Graphics()
 bg_stars = bg_stars.Bg_Stars()
 textinput = textinput.Textinput()
@@ -109,7 +109,12 @@ class Game():
         self.mouse_fix_y = False
         self.zoom_step = 0.05   # initial zoom step
         self.warp = self.warp_range[self.warp_index]   # load current warp
-        self.orbit_data = []   # additional data for right_menu when body is selected
+        self.orbit_data_menu = []   # additional data for right_menu when body is selected
+        self.pos = np.array([])
+        self.body_data = {}
+        self.body_orb = {}
+        self.curves = {}
+        
         
         self.offset_old = np.array([self.offset_x, self.offset_y])
         self.grid_enable = False   # background grid
@@ -227,7 +232,7 @@ class Game():
         self.first = True
         
         # userevent may not been run in first iteration, but this values are needed in graphics section:
-        self.names, self.types, self.mass, self.density, self.temp, self.position, self.velocity, self.colors, self.size, self.rad_sc = physics.get_bodies()
+        # physics.body()
         self.first = True
     
     
@@ -259,7 +264,7 @@ class Game():
         """Loads system from "load" dialog."""
         if os.path.exists(self.selected_path):
             self.load_system(self.selected_path)
-            self.names, self.types, self.mass, self.density, self.temp, self.position, self.velocity, self.colors, self.size, self.rad_sc = physics.get_bodies()
+            # physics.body()
             self.file_path = self.selected_path   # change currently active file
             graphics.timed_text_init(rgb.gray, self.fontmd, "Map loaded successfully", (self.screen_x/2, self.screen_y-70), 2, True)
         
@@ -441,7 +446,7 @@ class Game():
             # moving and selecting with lclick
             if e.type == pygame.MOUSEBUTTONDOWN:
                 if e.button == 1:
-                    self.names, self.types, self.mass, self.density, self.temp, self.position, self.velocity, self.colors, self.size, self.rad_sc = physics.get_bodies()
+                    # physics.body_selected()
                     self.move = True   # enable view move
                     self.mouse_old = self.mouse   # initial mouse position for movement
                     self.mouse_raw_old = self.mouse_raw   # initial mouse position for movement
@@ -453,8 +458,7 @@ class Game():
                     self.select_toggle = False
                     if e.button != 2:   # don't select body with middle click when in insert mode
                         if mouse_move < self.select_sens:   # if mouse moved less than n pixels:
-                            curves = physics.curve()
-                            for body, body_pos in enumerate(self.position):   # for each body:
+                            for body, body_pos in enumerate(self.pos):   # for each body:
                                 curve = np.column_stack(self.screen_coords(curves[:, body]))   # get line coords on screen
                                 diff = np.amax(curve, 0) - np.amin(curve, 0)
                                 if body == 0 or diff[0]+diff[1] > 32:   # skip hidden bodies with too small orbits
@@ -727,22 +731,15 @@ class Game():
     def physics(self, e):
         if e.type == pygame.USEREVENT:   # event for calculations
             if self.pause is False:   # if it is not paused:
-                for num in range(self.warp):
-                    physics.gravity()   # do gravity physics
-                    physics.body()   # do body related physics (size, thermal, bh...)
-                    self.sim_time += 1   # iterate sim_time
-                    
-                    if self.first:   # this is run only once at userevent start
-                        self.first = False   # do not run it again
-                        self.focus_point([0, 0], 0.5)   # initial zoom and point
-                        self.selected = 0   # select body
-                        self.follow = True   # follow it
-        
-        self.names, self.types, self.mass, self.density, self.temp, self.position, self.velocity, self.colors, self.size, self.rad_sc = physics.get_bodies()
-        physics.kepler_basic()   # calculate basic keplerian elements
-        self.semi_major, self.semi_minor, self.coi, self.parents = physics.get_body_orbits()   # get basic keplerian elements
-        self.colors = physics.body_color()   # calculate colors from temperature
-        physics.classify()   # classify bodies
+                self.pos = physics.body_move()
+                self.sim_time += 1   # iterate sim_time
+                
+                if self.first:   # this is run only once at userevent start
+                    # physics.body()
+                    self.first = False   # do not run it again
+                    self.focus_point([0, 0], 0.5)   # initial zoom and point
+                    self.selected = 0   # select body
+                    self.follow = True   # follow it
     
     
     
@@ -753,8 +750,8 @@ class Game():
         
         # follow body (this must be before drawing objects to prevent them from vibrating when moving)
         if self.follow and self.selected is not None:   # if follow mode is enabled
-            self.offset_x = - self.position[self.selected, 0] + self.screen_x / 2   # follow selected body
-            self.offset_y = - self.position[self.selected, 1] + self.screen_y / 2
+            self.offset_x = - self.pos[self.selected, 0] + self.screen_x / 2   # follow selected body
+            self.offset_y = - self.pos[self.selected, 1] + self.screen_y / 2
         
         # screen movement
         if self.move:   # this is not in userevent to allow moving while paused
@@ -810,18 +807,17 @@ class Game():
             if self.selected is not None:
                 if self.grid_mode == 1:      # grid mode: selected body
                     if self.follow is False:
-                        origin = self.screen_coords(self.position[self.selected])
+                        origin = self.screen_coords(self.pos[self.selected])
                     else:   # When following body, origin is in center of screen
                         origin = [(- self.zoom_x + self.screen_x/2) * self.zoom, self.screen_y - (- self.zoom_y + self.screen_y/2) * self.zoom]
                 if self.grid_mode == 2:   # grid mode: parent of selected body
-                    origin = self.screen_coords(self.position[self.parents[self.selected]])
+                    origin = self.screen_coords(self.pos[self.parents[self.selected]])
             else:
                 origin = self.screen_coords([0, 0])
             graphics.draw_grid(screen, self.grid_mode, origin, self.zoom)
         
         
         # bodies drawing
-        curves = physics.curve()   # calculate all curves
         for body in range(len(self.mass)):   # for each body:
             curve = np.column_stack(self.screen_coords(curves[:, body]))   # get line coords on screen
             diff = np.amax(curve, 0) - np.amin(curve, 0)
@@ -836,19 +832,19 @@ class Game():
                 scr_body_size = self.size[body] * self.zoom   # get body screen size
                 body_color = tuple(self.colors[body])   # get color
                 if scr_body_size >= 5:
-                    graphics.draw_circle_fill(screen, body_color, self.screen_coords(self.position[body]), scr_body_size)
+                    graphics.draw_circle_fill(screen, body_color, self.screen_coords(self.pos[body]), scr_body_size)
                 else:   # if body is too small, draw marker with fixed size
-                    graphics.draw_circle_fill(screen, rgb.gray1, self.screen_coords(self.position[body]), 6)
-                    graphics.draw_circle_fill(screen, rgb.gray2, self.screen_coords(self.position[body]), 5)
-                    graphics.draw_circle_fill(screen, body_color, self.screen_coords(self.position[body]), 4)
+                    graphics.draw_circle_fill(screen, rgb.gray1, self.screen_coords(self.pos[body]), 6)
+                    graphics.draw_circle_fill(screen, rgb.gray2, self.screen_coords(self.pos[body]), 5)
+                    graphics.draw_circle_fill(screen, body_color, self.screen_coords(self.pos[body]), 4)
                 
                 # select body
                 if self.selected is not None and self.selected == body:
                     parent = self.parents[body]      # get selected body parent
-                    body_pos = self.position[body, :]      # get selected body position
-                    ecc, periapsis, pe_d, pe_t, apoapsis, ap_d, ap_t, pe_arg, ma, ta, direction, distance, period, speed_orb, speed_hor, speed_vert = physics.kepler_advanced(body)   # get advanced kepler parameters for selected body
+                    body_pos = self.pos[body, :]      # get selected body position
+                    # physics.body_selected()
                     if self.right_menu == 3:
-                        self.orbit_data = [pe_d, ap_d, ecc, pe_arg, ma, ta, direction, distance, period, speed_orb, speed_hor, speed_vert]
+                        self.orbit_data_menu = [pe_d, ap_d, ecc, pe_arg, ma, ta, direction, distance, period, speed_orb, speed_hor, speed_vert]
                     
                     # circles
                     if not self.disable_labels:
@@ -860,7 +856,7 @@ class Game():
                             if self.coi[body] * self.zoom >= 8:
                                 graphics.draw_circle(screen, rgb.gray1, self.screen_coords(body_pos), self.coi[body] * self.zoom, 1)   # circle of influence
                         if body != 0:
-                            parent_scr = self.screen_coords(self.position[parent])
+                            parent_scr = self.screen_coords(self.pos[parent])
                             if self.size[parent] * self.zoom >= 5:
                                 graphics.draw_circle(screen, rgb.red1, parent_scr, self.size[parent] * self.zoom + 4, 1)   # parent circle
                             else:
@@ -995,14 +991,14 @@ class Game():
                     elif num == 1:
                         texts[1] = texts[1] + self.names[self.parents[self.selected]]
                     elif num == 8:
-                        if self.orbit_data[6] == -1:
+                        if self.orbit_data_menu[6] == -1:
                             texts[8] = texts[8] + "Clockwise"
                         else:
                             texts[8] = texts[8] + "Counter-clockwise"
                     elif num == 10:
-                        texts[10] = texts[10] + str(datetime.timedelta(seconds=round(self.orbit_data[8]/self.ptps)))
+                        texts[10] = texts[10] + str(datetime.timedelta(seconds=round(self.orbit_data_menu[8]/self.ptps)))
                     else:
-                        texts[num] = texts[num] + metric.format_si(self.orbit_data[num-2], 3)
+                        texts[num] = texts[num] + metric.format_si(self.orbit_data_menu[num-2], 3)
                 graphics.text_list(screen, texts, (self.r_menu_x_btn, 38), (280, 21), 26)
                 
             elif self.right_menu == 3 and self.selected is not None:   # data body
