@@ -205,11 +205,8 @@ class Physics():
     def reload_settings(self):
         self.curve_points = int(fileops.load_settings("graphics", "curve_points"))   # number of points from which curve is drawn
         # parameters
-        self.ell_t = np.linspace(-np.pi, np.pi, self.curve_points)   # ellipse parameter
+        self.ell_t = np.linspace(-np.pi, np.pi, self.curve_points)   # ellipse and hyperbola parameter
         self.par_t = np.linspace(- np.pi - 1, np.pi + 1, self.curve_points)   # parabola parameter
-        hyp_t_1 = np.linspace(- np.pi, - np.pi/2 - 0.1, int(self.curve_points/2))   # (-pi, -pi/2]
-        hyp_t_2 = np.linspace(np.pi/2 + 0.1, np.pi, int(self.curve_points/2))   # [pi/2, pi)
-        self.hyp_t = np.concatenate([hyp_t_2, hyp_t_1])   # hyperbola parameter [pi/2, pi) U (-pi, -pi/2]
     
     def load_conf(self, conf):
         """Loads physics related config."""
@@ -390,7 +387,7 @@ class Physics():
                     if self.mass[parent] < self.mass[parents_old[body]]:   # if body is entering orbit:
                         self.rel_vel[body] -= self.rel_vel[parent]   # subtract velocity of new parent to body relative velocity
         
-        bodies_sorted = np.argsort(self.mass)[-1::-1]   # get indices from above sort
+        bodies_sorted = np.argsort(self.mass)[-1::-1]
         for body in bodies_sorted[1:]:   # for sorted bodies by mass except first one (root)
             self.vel[body] = self.rel_vel[body] + self.vel[self.parents[body]]   # absolute vel from relative and parents absolute
         self.pos += self.vel   # update positions
@@ -475,7 +472,7 @@ class Physics():
         mean_anomaly = mean_anomaly_deg * np.pi / 180
         if ecc == 0:   # to avoid division by zero
             ecc = 0.00001
-        if ecc >= 1:   # limit ti ellipses
+        if ecc >= 1:   # limit to only ellipses
             ecc = 0.95
         
         if ap_d:   # if there is value for appapsis distance:
@@ -548,7 +545,7 @@ class Physics():
                     curves[:, num, :] = np.array([self.semi_major[num] * self.par_t**2, 2 * self.semi_major[num] * self.par_t])   # raw parabolas
                     curves[0, num, :] = curves[0, num, :] - self.semi_major[num, np.newaxis]   # translate parabola by semi_major, since its center is not in 0,0
                 elif ecc > 1:   # hyperbola
-                    curves[:, num, :] = np.array([self.semi_major[num] * 1/np.cos(self.hyp_t), self.semi_minor[num] * np.tan(self.hyp_t)])   # raw hyperbolas
+                    curves[:, num, :] = np.array([-self.semi_major[num] * np.cosh(self.ell_t), self.semi_minor[num] * np.sinh(self.ell_t)])   # raw hyperbolas
                 # parametric equation for circle is same as for ellipse, just semi_major = semi_minor, thus it is not required
         
         curves_rot = np.zeros((2, curves.shape[1], curves.shape[2]))   # empty array for new rotated curve
@@ -722,7 +719,7 @@ class Physics():
                 curve[:, :] = np.array([semi_major * self.par_t**2, 2 * semi_major * self.par_t])   # raw parabola
                 curve[0, :] = curve[0, :] - semi_major[np.newaxis]
             if ecc > 1:
-                curve[:, :] = np.array([semi_major * 1/np.cos(self.hyp_t), semi_minor * np.tan(self.hyp_t)])   # raw hyperbola
+                curve[:, :] = np.array([-semi_major * np.cosh(self.ell_t), semi_minor * np.sinh(self.ell_t)])   # raw hyperbola
         
         curve_rot = np.zeros((2, curve.shape[1]))   # empty array for new rotated curve
         curve_rot[:, :] = np.dot(rot[:, :], curve[:, :])   # apply rotation matrix to all curve points

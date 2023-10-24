@@ -113,7 +113,7 @@ class Game():
         self.pos = np.array([])
         self.body_data = {}
         self.body_orb = {}
-        self.curves = {}
+        self.curves = np.array([])
         
         
         self.offset_old = np.array([self.offset_x, self.offset_y])
@@ -232,7 +232,9 @@ class Game():
         self.first = True
         
         # userevent may not been run in first iteration, but this values are needed in graphics section:
-        # physics.body()
+        self.body_data, self.body_orb = physics.body()
+        self.pos = physics.body_move()
+        physics.body_curve()
         self.first = True
     
     
@@ -264,7 +266,9 @@ class Game():
         """Loads system from "load" dialog."""
         if os.path.exists(self.selected_path):
             self.load_system(self.selected_path)
-            # physics.body()
+            self.body_data, self.body_orb = physics.body()
+            self.pos = physics.body_move()
+            physics.body_curve()
             self.file_path = self.selected_path   # change currently active file
             graphics.timed_text_init(rgb.gray, self.fontmd, "Map loaded successfully", (self.screen_x/2, self.screen_y-70), 2, True)
         
@@ -459,7 +463,7 @@ class Game():
                     if e.button != 2:   # don't select body with middle click when in insert mode
                         if mouse_move < self.select_sens:   # if mouse moved less than n pixels:
                             for body, body_pos in enumerate(self.pos):   # for each body:
-                                curve = np.column_stack(self.screen_coords(curves[:, body]))   # get line coords on screen
+                                curve = np.column_stack(self.screen_coords(self.curves[:, body]))   # get line coords on screen
                                 diff = np.amax(curve, 0) - np.amin(curve, 0)
                                 if body == 0 or diff[0]+diff[1] > 32:   # skip hidden bodies with too small orbits
                                     scr_radius = self.size[body]*self.zoom
@@ -732,6 +736,7 @@ class Game():
         if e.type == pygame.USEREVENT:   # event for calculations
             if self.pause is False:   # if it is not paused:
                 self.pos = physics.body_move()
+                self.curves = physics.body_curve_move()
                 self.sim_time += 1   # iterate sim_time
                 
                 if self.first:   # this is run only once at userevent start
@@ -819,7 +824,7 @@ class Game():
         
         # bodies drawing
         for body in range(len(self.mass)):   # for each body:
-            curve = np.column_stack(self.screen_coords(curves[:, body]))   # get line coords on screen
+            curve = np.column_stack(self.screen_coords(self.curves[:, body]))   # get line coords on screen
             diff = np.amax(curve, 0) - np.amin(curve, 0)
             if body == 0 or diff[0]+diff[1] > 32:   # skip bodies with too small orbits
                 

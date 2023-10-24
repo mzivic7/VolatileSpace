@@ -448,9 +448,9 @@ class Menu():
                                         self.selected_path = game_path   # select new created game
                                         self.state = 3
                                         self.menu = 0   # return to main menu instead load menu
+                                        self.click = False   # don't carry click to ask window
                                     except Exception:
                                         pass
-                                    self.click = False   # don't carry click to ask window
                                 elif num == 2:   # import map
                                     file_path = fileops.import_file([("Text Files", "*.ini")])
                                     if file_path != "":
