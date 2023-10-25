@@ -415,8 +415,9 @@ class Physics():
         momentum = cross_2d(rel_pos, rel_vel)    # orbital momentum, since this is 2d, momentum is scalar
         direction = int(math.copysign(1, momentum[0]))   # if moment is negative, rotation is clockwise (-1)
         angle = 2*np.pi - true_anomaly + periapsis_arg
-        speed_vert = (rel_vel[0] * math.cos(angle) + rel_vel[1] * math.sin(angle))   # vertical speed
-        speed_hor = abs(rel_vel[0] * math.sin(angle) - rel_vel[1] * math.cos(angle))   # horizontal speed
+        speed_vert = (rel_vel[0] * math.cos(angle) + rel_vel[1] * math.sin(angle))
+        speed_hor = abs(rel_vel[0] * math.sin(angle) - rel_vel[1] * math.cos(angle))
+        
         
         if direction == -1:   # if direction is clockwise
             true_anomaly = 2*np.pi - true_anomaly   # invert Ta to be calculated in opposite direction
@@ -514,7 +515,7 @@ class Physics():
         vr_angle = vr_angle % (2*np.pi)   # put it in (0, 2pi) range
         
         prm = mag(pr)   # relative position vector magnitude
-        vrm = direction * math.sqrt((2 * a * u - prm * u) / (a * prm))   # velocity vector from semi-major axis equation
+        vrm = direction * math.sqrt((2 * a * u - prm * u) / (a * prm))   # velocity vector magnitude from semi-major axis equation
         
         vr_x = vrm * math.cos(vr_angle)   # eccentricity vector from angle of velocity
         vr_y = vrm * math.sin(vr_angle)

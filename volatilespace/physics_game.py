@@ -109,9 +109,9 @@ def calc_body_orb_one(body, ref, mass, gc, coi_coef, a, ecc, pea):
         #     ap = np.array([ap_d * math.cos(pea), ap_d * math.sin(pea)]) + pos[ref]
         # else:
         #     ap = np.array([0, 0])
-        return b, f, coi, pe_d, ap_d, period, n
+        return b, f, coi, pe_d, ap_d, period, n, u
     else:
-        return 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
+        return 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
 
 
 def body_color(temp, base_color):
@@ -170,6 +170,7 @@ class Physics():
         self.curves_rot = np.array([])
         self.pos = np.array([])
         self.ea = np.array([])
+        self.u = np.array([])
         self.reload_settings()
     
     
@@ -216,13 +217,31 @@ class Physics():
         temp = 0 / core_temp   # surface temperature # ### temporarily ###
         rad_sc = 2 * self.mass * mass_sim_mult * self.gc / c**2   # Schwarzschild radius
         color = body_color(temp, self.base_color)
-        body_data = {"names": self.names, "types": self.types, "mass": self.mass, "den": self.den, "temp": temp, "color_b": self.base_color, "color": color, "size": size, "rad_sc": rad_sc}
+        body_data = {"name": self.names,
+                     "type": self.types,
+                     "mass": self.mass,
+                     "den": self.den,
+                     "temp": temp,
+                     "color_b": self.base_color,
+                     "color": color,
+                     "size": size,
+                     "rad_sc": rad_sc}
         
         
         # ORBIT DATA #
         values = list(map(calc_body_orb_one, list(range(len(self.mass))), self.ref, repeat(self.mass), repeat(self.gc), repeat(self.coi_coef), self.a, self.ecc, self.pea))
-        self.b, self.f, self.coi, self.pe_d, self.ap_d, self.period, self.n = list(map(np.array, zip(*values)))
-        body_orb = {"a": self.a, "b": self.b, "f": self.f, "coi": self.coi, "ref": self.ref, "ecc": self.ecc, "pe_d": self.pe_d, "ap_d": self.ap_d, "pea": self.pea, "dir": self.dr, "per": self.period}
+        self.b, self.f, self.coi, self.pe_d, self.ap_d, self.period, self.n, self.u = list(map(np.array, zip(*values)))
+        body_orb = {"a": self.a,
+                    "b": self.b,
+                    "f": self.f,
+                    "coi": self.coi,
+                    "ref": self.ref,
+                    "ecc": self.ecc,
+                    "pe_d": self.pe_d,
+                    "ap_d": self.ap_d,
+                    "pea": self.pea,
+                    "dir": self.dr,
+                    "per": self.period}
         
         return body_data, body_orb
     
@@ -272,15 +291,57 @@ class Physics():
                            pr_x * math.sin(pea - np.pi) + pr_y * math.cos(pea - np.pi)])
             self.pos[body] = self.pos[self.ref[body]] + pr
             self.ea[body] = ea
-            
         
         return self.pos
     
     
-    def body_selected(self):
+    def body_selected(self, body):
         """Do physics for selected body. This should be done every tick after body_move()."""
-        # position, pe, pe_t, ap, ap_t, distance, speed_orb, speed_hor, speed_vert
-        pass
+        ref = self.ref[body]  # get parent body
+        periapsis_arg = self.pea[body]
+        a = self.a[body]
+        ecc = self.ecc[body]
+        ea = self.ea[body]
+        ma = self.ma[body]
+        period = self.period[body]
+        u = self.u[body]
+        ap_d = self.ap_d[body]
+        pe_d = self.pe_d[body]
+        
+        rel_pos = self.pos[body] - self.pos[ref]
+        distance = mag(rel_pos)   # distance to parent
+        speed_orb = self.dr * math.sqrt((2 * a * u - distance * u) / (a * distance))   # velocity vector magnitude from semi-major axis equation
+        ta = (periapsis_arg - (math.atan2(rel_pos[1], rel_pos[0]) - np.pi)) % (2*np.pi)  # true anomaly from relative position
+        angle = 2*np.pi - ta + periapsis_arg
+        speed_vert = 0
+        speed_hor = 0
+        
+        if ecc != 0:   # if orbit is not circle
+            if ecc < 1:   # if orbit is ellipse
+                if np.pi < ta < 2*np.pi:
+                    ea = 2*np.pi - ea   # quadrant problems
+                pe_t = orbit_time_to(ma, 0, period)   # time to periapsis
+                ap = np.array([ap_d * math.cos(periapsis_arg), ap_d * math.sin(periapsis_arg)]) + self.pos[ref]   # coordinates
+                ap_t = orbit_time_to(ma, np.pi, period)   # time to apoapsis
+            else:
+                if ecc > 1:   # hyperbola
+                    pe_t = math.sqrt((-a)**3 / u) * ma
+                else:   # parabola
+                    pe_t = math.sqrt(2(a/2)**3) * ma
+                period = 0   # period is undefined
+                # there is no apoapsis
+                ap = np.array([0, 0])
+                ap_t = 0
+        else:   # circle
+            ma = ta
+            period = (2 * np.pi * math.sqrt(a**3 / u)) / 10   # orbital periodp
+            pe_t = orbit_time_to(ma, 0, period)   # time to periapsis
+            # there is no apoapsis
+            ap = np.array([0, 0])
+            ap_t = 0
+        pe = np.array([pe_d * math.cos(periapsis_arg - np.pi), pe_d * math.sin(periapsis_arg - np.pi)]) + self.pos[ref]
+        
+        return pe, pe_t, ap, ap_t, distance, speed_orb, speed_hor, speed_vert
     
     
     def body_curve_move(self):

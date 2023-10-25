@@ -242,8 +242,8 @@ def save_file(path, name, date, conf, time, body_names, mass, density, color, or
             system.set(body_name, "ecc", str(ecc[body]))
             system.set(body_name, "lpe", str(pe_arg[body]))
             system.set(body_name, "mna", str(ma[body]))
-            system.set(body_name, "ref", str(parents[body]))
-            system.set(body_name, "dir", str(direction[body]))
+            system.set(body_name, "ref", str(int(parents[body])))
+            system.set(body_name, "dir", str(int(direction[body])))
     
     with open(path, 'w') as f:
         system.write(f)
