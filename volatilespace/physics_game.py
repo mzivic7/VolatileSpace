@@ -217,6 +217,13 @@ class Physics():
         temp = 0 / core_temp   # surface temperature # ### temporarily ###
         rad_sc = 2 * self.mass * mass_sim_mult * self.gc / c**2   # Schwarzschild radius
         color = body_color(temp, self.base_color)
+        # CLASSIFICATION #
+        self.types = np.zeros(len(self.mass))  # it is moon
+        self.types = np.where(self.mass > 200, 1, self.types)    # if it has high enough mass: it is solid planet
+        self.types = np.where(self.den < 1, 2, self.types)    # if it is not dense enough: it is gas planet
+        self.types = np.where(self.mass > 5000, 3, self.types)   # ### temporarily ###
+        # self.types = np.where(self.temp > 1000, 3, self.types)    # if temperature is over 1000 degrees: it is a star
+        # self.types = np.where(self.rad_sc > self.rad, 4, self.types)   # if schwarzschild radius is greater than radius: it is black hole
         body_data = {"name": self.names,
                      "type": self.types,
                      "mass": self.mass,
@@ -260,7 +267,7 @@ class Physics():
                     curves[:, num, :] = np.array([self.a[num] * self.par_t**2, 2 * self.a[num] * self.par_t])   # raw parabolas
                     curves[0, num, :] = curves[0, num, :] - self.a[num, np.newaxis]   # translate parabola by semi_major, since its center is not in 0,0
                 elif ecc > 1:   # hyperbola
-                    curves[:, num, :] = np.array([-self.semi_major[num] * np.cosh(self.ell_t), self.semi_minor[num] * np.sinh(self.ell_t)])   # raw hyperbolas
+                    curves[:, num, :] = np.array([-self.a[num] * np.cosh(self.ell_t), self.a[num] * np.sinh(self.ell_t)])   # raw hyperbolas
                 # parametric equation for circle is same as for ellipse, just semi_major = semi_minor, thus it is not required
         
         # 2D rotation matrix # rot[rotation, rotation, body]
@@ -270,11 +277,13 @@ class Physics():
             self.curves_rot[:, body, :] = np.dot(rot[:, :, body], curves[:, body, :])   # apply rotation matrix to all curve points
     
     
-    def body_move(self):
+    def body_move(self, warp):
         """Move body with mean motion."""
-        self.ma += self.n
+        self.ma += self.dr * self.n * warp
+        self.ma = np.where(self.ma > 2*np.pi, self.ma - 2*np.pi, self.ma)
+        self.ma = np.where(self.ma < 0, self.ma + 2*np.pi, self.ma)
         bodies_sorted = np.argsort(self.coi)[-1::-1]
-        for body in bodies_sorted[1:]:
+        for body in bodies_sorted:
             ea = newton_root(keplers_eq, keplers_eq_derivative, 0.0, {'Ma': self.ma[body], 'e': self.ecc[body]})
             pea = self.pea[body]
             ecc = self.ecc[body]
@@ -292,7 +301,7 @@ class Physics():
             self.pos[body] = self.pos[self.ref[body]] + pr
             self.ea[body] = ea
         
-        return self.pos
+        return self.pos, self.ma
     
     
     def body_selected(self, body):
@@ -310,9 +319,11 @@ class Physics():
         
         rel_pos = self.pos[body] - self.pos[ref]
         distance = mag(rel_pos)   # distance to parent
-        speed_orb = self.dr * math.sqrt((2 * a * u - distance * u) / (a * distance))   # velocity vector magnitude from semi-major axis equation
+        speed_orb = math.sqrt((2 * a * u - distance * u) / (a * distance))   # velocity vector magnitude from semi-major axis equation
         ta = (periapsis_arg - (math.atan2(rel_pos[1], rel_pos[0]) - np.pi)) % (2*np.pi)  # true anomaly from relative position
+        # not calculating ta from ea since it is more complicated
         angle = 2*np.pi - ta + periapsis_arg
+        
         speed_vert = 0
         speed_hor = 0
         
@@ -327,7 +338,7 @@ class Physics():
                 if ecc > 1:   # hyperbola
                     pe_t = math.sqrt((-a)**3 / u) * ma
                 else:   # parabola
-                    pe_t = math.sqrt(2(a/2)**3) * ma
+                    pe_t = math.sqrt(2*(a/2)**3) * ma
                 period = 0   # period is undefined
                 # there is no apoapsis
                 ap = np.array([0, 0])
@@ -341,7 +352,7 @@ class Physics():
             ap_t = 0
         pe = np.array([pe_d * math.cos(periapsis_arg - np.pi), pe_d * math.sin(periapsis_arg - np.pi)]) + self.pos[ref]
         
-        return pe, pe_t, ap, ap_t, distance, speed_orb, speed_hor, speed_vert
+        return ta, pe, pe_t, ap, ap_t, distance, speed_orb, speed_hor, speed_vert
     
     
     def body_curve_move(self):

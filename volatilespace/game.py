@@ -96,7 +96,7 @@ class Game():
         self.pause = False   # program paused
         self.move = False    # move view mode
         self.selected = None   # selected body
-        self.direction = None   # keyboard buttons wasd
+        self.dr = None   # keyboard buttons wasd
         self.follow = False   # follow selected body
         self.first = True   # is this first iteration
         self.mouse = [0, 0]   # mouse position in simulation
@@ -111,6 +111,7 @@ class Game():
         self.warp = self.warp_range[self.warp_index]   # load current warp
         self.orbit_data_menu = []   # additional data for right_menu when body is selected
         self.pos = np.array([])
+        self.ma = np.array([])
         self.curves = np.array([])
         
         
@@ -217,7 +218,7 @@ class Game():
             os.remove(system)
             date = time.strftime("%d.%m.%Y %H:%M")
             fileops.save_file(system, self.sim_name, date, self.sim_conf, self.sim_time/self.ptps, self.names, self.mass, self.density, self.color, orb_data)
-
+        
         physics.load_system(self.sim_conf, self.names, self.mass, self.density, self.color, orb_data)
         self.file_path = system   # this path will be used for load/save
         self.disable_input = False
@@ -232,8 +233,9 @@ class Game():
         # userevent may not been run in first iteration, but this values are needed in graphics section:
         body_data, body_orb = physics.body()
         self.unpack_body(body_data, body_orb)
-        self.pos = physics.body_move()
+        self.pos, self.ma = physics.body_move(self.warp)
         physics.body_curve()
+        self.curves = physics.body_curve_move()
         self.first = True
     
     
@@ -294,15 +296,16 @@ class Game():
             self.load_system(self.selected_path)
             body_data, body_orb = physics.body()
             self.unpack_body(body_data, body_orb)
-            self.pos = physics.body_move()
+            self.pos, self.ma = physics.body_move(self.warp)
             physics.body_curve()
+            self.curves = physics.body_curve_move()
             self.file_path = self.selected_path   # change currently active file
             graphics.timed_text_init(rgb.gray, self.fontmd, "Map loaded successfully", (self.screen_x/2, self.screen_y-70), 2, True)
         
     def save(self, path, name=None, silent=False):
         """Saves game to file. If name is None, name is not changed."""
         date = time.strftime("%d.%m.%Y %H:%M")
-        orb_data = {"a": self.a, "ecc": self.ecc, "pe_arg": self.pea, "ma": self.ma, "ref": self.ref, "dir": self.direction}
+        orb_data = {"a": self.a, "ecc": self.ecc, "pe_arg": self.pea, "ma": self.ma, "ref": self.ref, "dir": self.dr}
         fileops.save_file(path, name, date, self.sim_conf, self.sim_time/self.ptps, self.names, self.mass, self.density, self.base_color, orb_data)
         if not silent:
             graphics.timed_text_init(rgb.gray, self.fontmd, "Map saved successfully", (self.screen_x/2, self.screen_y-70), 2, True)
@@ -310,7 +313,7 @@ class Game():
     def quicksave(self):
         """Saves game to quicksave file."""
         date = time.strftime("%d.%m.%Y %H:%M")
-        orb_data = {"a": self.a, "ecc": self.ecc, "pe_arg": self.pea, "ma": self.ma, "ref": self.ref, "dir": self.direction}
+        orb_data = {"a": self.a, "ecc": self.ecc, "pe_arg": self.pea, "ma": self.ma, "ref": self.ref, "dir": self.dr}
         fileops.save_file("Saves/quicksave.ini", "Quicksave - " + self.sim_name, date, self.sim_conf, self.sim_time/self.ptps, self.names, self.mass, self.density, self.base_color, orb_data)
         graphics.timed_text_init(rgb.gray2, self.fontmd, "Quicksave...", (self.screen_x/2, self.screen_y-70), 2, True)
     
@@ -318,7 +321,7 @@ class Game():
         """Automatically saves current game to autosave.ini at predefined interval."""
         if e.type == self.autosave_event:
             date = time.strftime("%d.%m.%Y %H:%M")
-            orb_data = {"a": self.a, "ecc": self.ecc, "pe_arg": self.pea, "ma": self.ma, "ref": self.ref, "dir": self.direction}
+            orb_data = {"a": self.a, "ecc": self.ecc, "pe_arg": self.pea, "ma": self.ma, "ref": self.ref, "dir": self.dr}
             fileops.save_file("Saves/autosave.ini", "Autosave - " + self.sim_name, date, self.sim_conf, self.sim_time/self.ptps, self.names, self.mass, self.density, self.base_color, orb_data)
             graphics.timed_text_init(rgb.gray2, self.fontmd, "Autosave...", (self.screen_x/2, self.screen_y-70), 2, True)
 
@@ -753,9 +756,9 @@ class Game():
     def physics(self, e):
         if e.type == pygame.USEREVENT:   # event for calculations
             if self.pause is False:   # if it is not paused:
-                self.pos = physics.body_move()
+                self.pos, self.ma = physics.body_move(self.warp)
                 self.curves = physics.body_curve_move()
-                self.sim_time += 1   # iterate sim_time
+                self.sim_time += 1 * self.warp   # iterate sim_time
                 
                 if self.first:   # this is run only once at userevent start
                     self.first = False   # do not run it again
@@ -864,15 +867,15 @@ class Game():
                 if self.selected is not None and self.selected == body:
                     parent = self.ref[body]      # get selected body parent
                     body_pos = self.pos[body, :]      # get selected body position
-                    pe, pe_t, ap, ap_t, distance, speed_orb, speed_hor, speed_vert = physics.body_selected(self.selected)
-                    if self.right_menu == 3:
+                    ta, pe, pe_t, ap, ap_t, distance, speed_orb, speed_hor, speed_vert = physics.body_selected(self.selected)
+                    if self.right_menu == 2:
                         self.orbit_data_menu = [self.pe_d[self.selected],
                                                 self.ap_d[self.selected],
                                                 self.ecc[self.selected],
-                                                self.pea[self.selected],
-                                                self.ma[self.selected],
-                                                self.ta[self.selected],
-                                                self.direction[self.selected],
+                                                self.pea[self.selected] * 180 / np.pi,
+                                                self.ma[self.selected] * 180 / np.pi,
+                                                ta * 180 / np.pi,
+                                                self.dr[self.selected],
                                                 distance,
                                                 self.period[self.selected],
                                                 speed_orb,

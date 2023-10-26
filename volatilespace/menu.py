@@ -424,7 +424,9 @@ class Menu():
                                                 shutil.copy2(self.selected_ng_path, game_path)    # copy map to games
                                                 fileops.rename_game(game_path, game_name)
                                                 self.selected_path = game_path   # select new created game
-                                                self.state = 3
+                                                self.state = 3   # return to main menu instead load menu
+                                                self.new_game = False   # and remove new game menu
+                                                self.disable_buttons = False
                                                 self.menu = 0   # return to main menu instead load menu
                                             except Exception:
                                                 pass
@@ -448,6 +450,8 @@ class Menu():
                                         self.selected_path = game_path   # select new created game
                                         self.state = 3
                                         self.menu = 0   # return to main menu instead load menu
+                                        self.new_game = False   # and remove new game menu
+                                        self.disable_buttons = False
                                         self.click = False   # don't carry click to ask window
                                     except Exception:
                                         pass
