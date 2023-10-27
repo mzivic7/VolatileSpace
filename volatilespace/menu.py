@@ -23,7 +23,7 @@ graphics = graphics.Graphics()
 textinput = textinput.Textinput()
 
 
-version = "0.4.2"
+version = "0.4.4"
 
 buttons_main = ["Play",
                 "Multiplayer - WIP",
