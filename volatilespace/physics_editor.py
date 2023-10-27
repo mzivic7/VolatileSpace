@@ -186,9 +186,9 @@ class Physics():
         self.rad_sc = np.array([])  # Schwarzschild radius
         self.types = np.array([])  # what is this body
         # orbit:
-        self.pos = np.empty((0, 2), int)
-        self.vel = np.empty((0, 2), int)
-        self.rel_vel = np.empty((0, 2), int)
+        self.pos = np.empty((0, 2), float)
+        self.vel = np.empty((0, 2), float)
+        self.rel_vel = np.empty((0, 2), float)
         self.coi = np.array([])   # circle of influence
         self.parents = np.array([], dtype=int)   # parents indices
         self.largest = 0   # most massive body (root)
@@ -272,6 +272,10 @@ class Physics():
             self.vel[self.largest] = [0, 0]
             if self.largest != 0:   # make sure largest body is first
                 self.set_root(self.largest)
+        # this is copied from simplified_orbit_coi end, to allow changes to take effect smoothly, in this iteration, even if paused
+        bodies_sorted = np.argsort(self.mass)[-1::-1]
+        for body in bodies_sorted:
+            self.vel[body] = self.rel_vel[body] + self.vel[self.parents[body]]
     
     def del_body(self, delete):
         """Remove body from simulation."""
@@ -499,7 +503,8 @@ class Physics():
                        pr_x * math.sin(omega - np.pi) + pr_y * math.cos(omega - np.pi)])   # rotate point by argument of Pe
         
         p_x, p_y = pr[0] - f * np.cos(omega), pr[1] - f * np.sin(omega)   # point on ellipse relative to its center
-        vr_angle = np.arctan(   # implicit derivative of rotated ellipse
+        # implicit derivative of rotated ellipse
+        vr_angle = np.arctan(
             -(b**2 * p_x * math.cos(omega)**2 + a**2 * p_x * math.sin(omega)**2 +
               b**2 * p_y * math.sin(omega) * math.cos(omega) - a**2 * p_y * math.sin(omega) * math.cos(omega)) /
              (a**2 * p_y * math.cos(omega)**2 + b**2 * p_y * math.sin(omega)**2 +
@@ -521,12 +526,12 @@ class Physics():
         
         vr_x = vrm * math.cos(vr_angle)   # eccentricity vector from angle of velocity
         vr_y = vrm * math.sin(vr_angle)
-        vr = [vr_x, vr_y]
+        vr = np.array([vr_x, vr_y])
         self.move_parent(body, self.pos[parent] + pr)   # move this body and all bodies orbiting it
         self.rel_vel[body] = vr   # update relative velocity vector
         # this is copied from simplified_orbit_coi end, to allow changes to take effect smoothly, in this iteration, even if paused
         bodies_sorted = np.argsort(self.mass)[-1::-1]
-        for body in bodies_sorted[1:]:
+        for body in bodies_sorted:
             self.vel[body] = self.rel_vel[body] + self.vel[self.parents[body]]
     
     

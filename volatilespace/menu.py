@@ -43,8 +43,8 @@ buttons_set_vid = ["Fullscreen",
                    "Mouse wrap",
                    "Background stars"]
 buttons_set_aud = ["WIP"]
-buttons_set_gam = ["Keybindings", "Autosave"]
-buttons_set_adv = ["Curve points",
+buttons_set_gam = ["Keybindings", "Autosave:"]
+buttons_set_adv = ["Curve:",
                    "Stars antialiasing",
                    "New star color",
                    "Star clusters",
@@ -1010,7 +1010,7 @@ class Menu():
         
         # about
         elif self.menu == 5:
-            graphics.text(screen, rgb.white, self.fontbt, "Created by: Marko Zivic", (self.screen_x/2, self.about_y - self.btn_h*2), True)
+            graphics.text(screen, rgb.white, self.fontbt, "Created by: " + "Marko Zivic", (self.screen_x/2, self.about_y - self.btn_h*2), True)
             graphics.text(screen, rgb.white, self.fontbt, "Version: " + version, (self.screen_x/2, self.about_y - self.btn_h), True)
             graphics.buttons_vertical(screen, buttons_about, (self.about_x, self.about_y), [2, 2, 2, 2, None])
         

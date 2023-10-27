@@ -254,9 +254,7 @@ class Editor():
         self.sim_name, self.sim_time, self.sim_conf, self.names, self.mass, self.density, self.color, orb_data = fileops.load_file(system)
         self.sim_time *= self.ptps   # convert from seconds to userevent iterations
         if orb_data["kepler"]:   # convert to newtonian model
-            coi_coef = self.sim_conf["coi_coef"]
-            gc = self.sim_conf["gc"]
-            orb_data = physics_convert.to_newton(self.mass, orb_data, gc, coi_coef)
+            orb_data = physics_convert.to_newton(self.mass, orb_data, self.sim_conf["gc"], self.sim_conf["coi_coef"])
         physics.load_system(self.sim_conf, self.names, self.mass, self.density, self.color, orb_data)   # add it to physics class
         self.file_path = system   # this path will be used for load/save
         self.disable_input = False
@@ -312,9 +310,21 @@ class Editor():
         base_color = physics.get_base_color()
         date = time.strftime("%d.%m.%Y %H:%M")
         orb_data = {"kepler": False, "pos": self.position, "vel": self.velocity}
+        
+        try:   # try to read file to check if it is game, if failed, do normal save
+            _, _, _, _, _, _, _, orb_data_file = fileops.load_file(path)
+            kepler = orb_data_file["kepler"]
+        except Exception:
+            kepler = False
+        
+        if kepler:   # save with convert
+            orb_data = physics_convert.to_kepler(self.mass, orb_data, self.sim_conf["gc"], self.sim_conf["coi_coef"])
+            graphics.timed_text_init(rgb.gray, self.fontmd, "Map saved successfully to game file.", (self.screen_x/2, self.screen_y-70), 2, True)
+        else:   # normal save
+            graphics.timed_text_init(rgb.gray, self.fontmd, "Map saved successfully", (self.screen_x/2, self.screen_y-70), 2, True)
+        
         fileops.save_file(path, name, date, self.sim_conf, self.sim_time/self.ptps,
                           self.names, self.mass, self.density, base_color, orb_data)
-        graphics.timed_text_init(rgb.gray, self.fontmd, "Map saved successfully", (self.screen_x/2, self.screen_y-70), 2, True)
     
     def quicksave(self):
         """Saves map to quicksave file."""
@@ -1677,7 +1687,7 @@ class Editor():
             if self.pause:   # if paused
                 graphics.text(screen, rgb.red1, self.fontmd, "PAUSED", (70, 2))
             else:
-                graphics.text(screen, rgb.white, self.fontmd, "Warp: x" + str(int(self.warp)), (70, 2))
+                graphics.text(screen, rgb.white, self.fontmd, "Warp: " + "x" + str(int(self.warp)), (70, 2))
             if self.zoom < 10:   # rounding zoom to use max 4 chars (dot included)
                 zoom_round = round(self.zoom, 2)
             elif self.zoom < 100:
@@ -1686,11 +1696,11 @@ class Editor():
                 zoom_round = int(self.zoom)
             else:
                 zoom_round = "999+"
-            graphics.text(screen, rgb.white, self.fontmd, "Zoom: x" + str(zoom_round), (160, 2))
+            graphics.text(screen, rgb.white, self.fontmd, "Zoom: " + "x" + str(zoom_round), (160, 2))
             if self.move:
                 # print position of view, here is not added zoom offset, this shows real position, y axis is inverted
                 graphics.text(screen, rgb.white, self.fontmd,
-                              "Pos: X:" + str(int(self.offset_x - self.screen_x / 2)) +
+                              "Pos: " + "X:" + str(int(self.offset_x - self.screen_x / 2)) +
                               "; Y:" + str(-int(self.offset_y - self.screen_y / 2)),
                               (270, 2))
             
