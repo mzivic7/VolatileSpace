@@ -7,7 +7,7 @@ pi = 3.14159265 - pi constant
 ### Variables ###
 i = phisics tck per second (unwarped)
 i_w = phisics tck per second (warped)
-w = warp multiplier
+warp = warp multiplier
 P, P1, P2 = position vectors (P1 is more massive body)
 Pr = relative position vector
 v, v1, v2 = velocity vectors (v1 is more massive body)
@@ -40,7 +40,7 @@ Fa = Hyperbolic eccentric anomaly
 Lat = latitude - angular displacement from argument of periapsis
 Ma = mean anomaly
 T = orbital priod
-Mm = mean motion
+n = mean motion
 tPe = time to periapsis from current position
 tAp = time to apoapsis from current position
 

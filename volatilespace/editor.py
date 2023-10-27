@@ -27,15 +27,40 @@ bg_stars = bg_stars.Bg_Stars()
 textinput = textinput.Textinput()
 
 
-buttons_pause_menu = ["Resume", "Save map", "Load map", "Settings", "Quit without saving", "Save and Quit"]
+buttons_pause_menu = ["Resume",
+                      "Save map",
+                      "Load map",
+                      "Settings",
+                      "Quit without saving",
+                      "Save and Quit"]
 buttons_save = ["Cancel", "Save", "New save"]
 buttons_load = ["Cancel", "Load"]
 buttons_new_map = ["Cancel", "Create"]
 body_types = ["Moon", "Solid planet", "Gas planet", "Star", "Black Hole"]
-text_edit_orb = ["Selected body: ", "Parent body: ", "Periapsis: ", "Apoapsis: ", "Eccentricity: ", "Argument of Pe: ", "Mean anomaly: ", "True anomaly: ", "Direction: ", "Distance: ", "Orbital Period: ", "Orbital Speed: ", "Horizontal Speed: ", "Vertical Speed: "]
+text_edit_orb = ["Selected body: ",
+                 "Parent body: ",
+                 "Periapsis: ",
+                 "Apoapsis: ",
+                 "Eccentricity: ",
+                 "Argument of Pe: ",
+                 "Mean anomaly: ",
+                 "True anomaly: ",
+                 "Direction: ",
+                 "Distance: ",
+                 "Orbital Period: ",
+                 "Orbital Speed: ",
+                 "Horizontal Speed: ",
+                 "Vertical Speed: "]
 text_edit_body = ["Body name: ", "Type: ", "Mass: ", "Density: ", "Radius: ", "COI altitude: "]
-text_edit_planet = ["(Rotation period): ", "Color: ", "(Atmosphere amount): ", "(Atmosphere height): ", "(surface gravity): "]
-text_edit_star = ["(Surface temp): ", "(Luminosity): ", "Color: ", "(H/He ratio): "]
+text_edit_planet = ["(Rotation period): ",
+                    "Color: ",
+                    "(Atmosphere amount): ",
+                    "(Atmosphere height): ",
+                    "(surface gravity): "]
+text_edit_star = ["(Surface temp): ",
+                  "(Luminosity): ",
+                  "Color: ",
+                  "(H/He ratio): "]
 text_edit_bh = ["Schwarzschild radius: "]
 text_edit_delete = "Delete body"
 text_load_default = "Load default values"
@@ -242,6 +267,7 @@ class Editor():
         self.selected_item = 0
         self.selected = None
         self.warp_index = 0
+        self.warp = 1
         self.first = True
         
         # userevent may not been run in first iteration, but this values are needed in graphics section:
@@ -286,7 +312,8 @@ class Editor():
         base_color = physics.get_base_color()
         date = time.strftime("%d.%m.%Y %H:%M")
         orb_data = {"kepler": False, "pos": self.position, "vel": self.velocity}
-        fileops.save_file(path, name, date, self.sim_conf, self.sim_time/self.ptps, self.names, self.mass, self.density, base_color, orb_data)
+        fileops.save_file(path, name, date, self.sim_conf, self.sim_time/self.ptps,
+                          self.names, self.mass, self.density, base_color, orb_data)
         graphics.timed_text_init(rgb.gray, self.fontmd, "Map saved successfully", (self.screen_x/2, self.screen_y-70), 2, True)
     
     def quicksave(self):
@@ -294,7 +321,8 @@ class Editor():
         base_color = physics.get_base_color()
         date = time.strftime("%d.%m.%Y %H:%M")
         orb_data = {"kepler": False, "pos": self.position, "vel": self.velocity}
-        fileops.save_file("Maps/quicksave.ini", "Quicksave - " + self.sim_name, date, self.sim_conf, self.sim_time/self.ptps, self.names, self.mass, self.density, base_color, orb_data)
+        fileops.save_file("Maps/quicksave.ini", "Quicksave - " + self.sim_name, date, self.sim_conf, self.sim_time/self.ptps,
+                          self.names, self.mass, self.density, base_color, orb_data)
         graphics.timed_text_init(rgb.gray2, self.fontmd, "Quicksave...", (self.screen_x/2, self.screen_y-70), 2, True)
     
     def autosave(self, e):
@@ -303,7 +331,8 @@ class Editor():
             base_color = physics.get_base_color()
             date = time.strftime("%d.%m.%Y %H:%M")
             orb_data = {"kepler": False, "pos": self.position, "vel": self.velocity}
-            fileops.save_file("Maps/autosave.ini", "Autosave - " + self.sim_name, date, self.sim_conf, self.sim_time/self.ptps, self.names, self.mass, self.density, base_color, orb_data)
+            fileops.save_file("Maps/autosave.ini", "Autosave - " + self.sim_name, date, self.sim_conf, self.sim_time/self.ptps,
+                              self.names, self.mass, self.density, base_color, orb_data)
             graphics.timed_text_init(rgb.gray2, self.fontmd, "Autosave...", (self.screen_x/2, self.screen_y-70), 2, True)
     
     def check_new_name(self):
@@ -735,7 +764,8 @@ class Editor():
                                 base_color = physics.get_base_color()
                                 date = time.strftime("%d.%m.%Y %H:%M")
                                 orb_data = {"kepler": False, "pos": self.position, "vel": self.velocity}
-                                fileops.save_file(self.file_path, self.sim_name, date, self.sim_conf, self.sim_time/self.ptps, self.names, self.mass, self.density, base_color, orb_data)
+                                fileops.save_file(self.file_path, self.sim_name, date, self.sim_conf, self.sim_time/self.ptps,
+                                                  self.names, self.mass, self.density, base_color, orb_data)
                                 self.state = 1
                                 self.pause_menu = False
                                 self.disable_input = False
@@ -757,11 +787,8 @@ class Editor():
                                 if num == 0:   # cancel
                                     pass
                                 elif num == 1:
-                                    date = time.strftime("%d.%m.%Y %H:%M")
-                                    path = fileops.new_map(self.text, date)
-                                    base_color = physics.get_base_color()
-                                    orb_data = {"kepler": False, "pos": self.position, "vel": self.velocity}
-                                    fileops.save_file(path, self.text, date, self.sim_conf, self.sim_time/self.ptps, self.names, self.mass, self.density, base_color, orb_data)
+                                    path = fileops.new_map(self.text, time.strftime("%d.%m.%Y %H:%M"))
+                                    self.save(path, name=self.text)
                                     self.gen_map_list()
                                 self.new_map = False
                                 self.ask = None
@@ -1366,13 +1393,17 @@ class Editor():
                                 pe_scr = self.screen_coords(periapsis)   # periapsis screen coords
                                 graphics.draw_circle_fill(screen, rgb.lime1, pe_scr, 3)   # periapsis marker
                                 graphics.text(screen, rgb.lime1, self.fontsm, "Periapsis: " + str(round(pe_d, 1)), (pe_scr[0], pe_scr[1] + 7), True)
-                                graphics.text(screen, rgb.lime1, self.fontsm, "T - " + str(datetime.timedelta(seconds=round(pe_t/self.ptps))), (pe_scr[0], pe_scr[1] + 17), True)
+                                graphics.text(screen, rgb.lime1, self.fontsm,
+                                              "T - " + str(datetime.timedelta(seconds=round(pe_t/self.ptps))),
+                                              (pe_scr[0], pe_scr[1] + 17), True)
                                 
                                 if ecc < 1:   # if orbit is ellipse
                                     # apoapsis location marker, text: distance and time to it
                                     graphics.draw_circle_fill(screen, rgb.lime1, ap_scr, 3)   # apoapsis marker
                                     graphics.text(screen, rgb.lime1, self.fontsm, "Apoapsis: " + str(round(ap_d, 1)), (ap_scr[0], ap_scr[1] + 7), True)
-                                    graphics.text(screen, rgb.lime1, self.fontsm, "T - " + str(datetime.timedelta(seconds=round(ap_t/self.ptps))), (ap_scr[0], ap_scr[1] + 17), True)
+                                    graphics.text(screen, rgb.lime1, self.fontsm,
+                                                  "T - " + str(datetime.timedelta(seconds=round(ap_t/self.ptps))),
+                                                  (ap_scr[0], ap_scr[1] + 17), True)
         
         # inserting new body
         if self.enable_insert is True:
@@ -1658,11 +1689,17 @@ class Editor():
             graphics.text(screen, rgb.white, self.fontmd, "Zoom: x" + str(zoom_round), (160, 2))
             if self.move:
                 # print position of view, here is not added zoom offset, this shows real position, y axis is inverted
-                graphics.text(screen, rgb.white, self.fontmd, "Pos: X:" + str(int(self.offset_x - self.screen_x / 2)) + "; Y:" + str(-int(self.offset_y - self.screen_y / 2)), (270, 2))
+                graphics.text(screen, rgb.white, self.fontmd,
+                              "Pos: X:" + str(int(self.offset_x - self.screen_x / 2)) +
+                              "; Y:" + str(-int(self.offset_y - self.screen_y / 2)),
+                              (270, 2))
             
             # debug
             graphics.text(screen, rgb.gray1, self.fontmd, str(self.mouse_raw), (self.screen_x - 260, 2))
-            graphics.text(screen, rgb.gray1, self.fontmd, "[" + str(int(self.sim_coords(self.mouse_raw)[0])) + ", " + str(int(self.sim_coords(self.mouse_raw)[1])) + "]", (self.screen_x - 170, 2))
+            graphics.text(screen, rgb.gray1, self.fontmd,
+                          "[" + str(int(self.sim_coords(self.mouse_raw)[0])) + ", " +
+                          str(int(self.sim_coords(self.mouse_raw)[1])) + "]",
+                          (self.screen_x - 170, 2))
             graphics.text(screen, rgb.gray1, self.fontmd, "fps: " + str(int(clock.get_fps())), (self.screen_x - 50, 2))
     
     

@@ -25,16 +25,32 @@ textinput = textinput.Textinput()
 
 version = "0.4.2"
 
-buttons_main = ["Play", "Multiplayer - WIP", "Map Editor", "Settings", "About", "Quit"]
+buttons_main = ["Play",
+                "Multiplayer - WIP",
+                "Map Editor",
+                "Settings",
+                "About",
+                "Quit"]
 buttons_play_ui = ["Back", "New game", "Import game"]
 buttons_play_sel = ["Play", "Rename", "Delete", "Export"]
 buttons_new_game = ["Back", "New game", "Import map"]
 buttons_map_sel = ["Open in editor", "Rename", "Delete", "Export"]
 buttons_map_ui = ["Back", "New map", "Import map"]
-buttons_set_vid = ["Fullscreen", "Resolution", "Antialiasing", "Vsync", "Mouse wrap", "Background stars"]
+buttons_set_vid = ["Fullscreen",
+                   "Resolution",
+                   "Antialiasing",
+                   "Vsync",
+                   "Mouse wrap",
+                   "Background stars"]
 buttons_set_aud = ["WIP"]
 buttons_set_gam = ["Keybindings", "Autosave"]
-buttons_set_adv = ["Curve points", "Stars antialiasing", "New star color", "Star clusters", "New clusters", "Numba", "FastMath"]
+buttons_set_adv = ["Curve points",
+                   "Stars antialiasing",
+                   "New star color",
+                   "Star clusters",
+                   "New clusters",
+                   "Numba",
+                   "FastMath"]
 buttons_set_ui = ["Accept", "Apply", "Cancel", "Load default"]
 buttons_about = ["Wiki", "Github", "Itch.io", "Report a bug", "Back"]
 buttons_rename = ["Cancel", "Rename"]
@@ -156,6 +172,8 @@ class Menu():
         self.maps = fileops.gen_map_list()
         self.map_list_size = len(self.maps) * self.btn_h + len(self.maps) * self.space
         if len(self.maps) != 0:
+            if self.selected_item >= len(self.maps):
+                self.selected_item = len(self.maps) - 1
             self.selected_path = "Maps/" + self.maps[self.selected_item, 0]
         
         # limit text size
@@ -169,6 +187,8 @@ class Menu():
         self.games = fileops.gen_game_list()
         self.game_list_size = len(self.games) * self.btn_h + len(self.games) * self.space
         if len(self.games) != 0:
+            if self.selected_item >= len(self.maps):
+                self.selected_item = len(self.maps) - 1
             self.selected_path = "Saves/" + self.games[self.selected_item, 0]
         
         # limit text size
@@ -418,7 +438,7 @@ class Menu():
                                         self.selected_ng_path = "Maps/" + self.maps[self.selected_ng_item, 0]
                                         if self.first_click == num:   # detect double click
                                             try:
-                                                date = time.strftime("%d.%m.%Y %H:%M")
+                                                date = time.strftime("%d-%m-%Y %H-%M")
                                                 game_path = self.selected_ng_path.replace("Maps/", "Saves/").replace(".ini", "") + " " + date + ".ini"
                                                 game_name = self.maps[self.selected_ng_item, 1] + " " + date
                                                 shutil.copy2(self.selected_ng_path, game_path)    # copy map to games
@@ -442,7 +462,7 @@ class Menu():
                                     self.disable_buttons = False
                                 elif num == 1:   # play
                                     try:
-                                        date = time.strftime("%d.%m.%Y %H:%M")
+                                        date = time.strftime("%d-%m-%Y %H-%M")
                                         game_path = self.selected_ng_path.replace("Maps/", "Saves/").replace(".ini", "") + " " + date + ".ini"
                                         game_name = self.maps[self.selected_ng_item, 1] + " " + date
                                         shutil.copy2(self.selected_ng_path, game_path)    # copy map to games

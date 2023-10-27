@@ -27,15 +27,40 @@ bg_stars = bg_stars.Bg_Stars()
 textinput = textinput.Textinput()
 
 
-buttons_pause_menu = ["Resume", "Save game", "Load game", "Settings", "Quit without saving", "Save and Quit"]
+buttons_pause_menu = ["Resume",
+                      "Save game",
+                      "Load game",
+                      "Settings",
+                      "Quit without saving",
+                      "Save and Quit"]
 buttons_save = ["Cancel", "Save", "New save"]
 buttons_load = ["Cancel", "Load"]
 buttons_new_game = ["Cancel", "Create"]
 body_types = ["Moon", "Solid planet", "Gas planet", "Star", "Black Hole"]
-text_data_orb = ["Selected body: ", "Parent body: ", "Periapsis: ", "Apoapsis: ", "Eccentricity: ", "Argument of Pe: ", "Mean anomaly: ", "True anomaly: ", "Direction: ", "Distance: ", "Orbital Period: ", "Orbital Speed: ", "Horizontal Speed: ", "Vertical Speed: "]
+text_data_orb = ["Selected body: ",
+                 "Parent body: ",
+                 "Periapsis: ",
+                 "Apoapsis: ",
+                 "Eccentricity: ",
+                 "Argument of Pe: ",
+                 "Mean anomaly: ",
+                 "True anomaly: ",
+                 "Direction: ",
+                 "Distance: ",
+                 "Orbital Period: ",
+                 "Orbital Speed: ",
+                 "Horizontal Speed: ",
+                 "Vertical Speed: "]
 text_data_body = ["Body name: ", "Type: ", "Mass: ", "Density: ", "Radius: ", "COI altitude: "]
-text_data_planet = ["(Rotation period): ", "Color: ", "(Atmosphere amount): ", "(Atmosphere height): ", "(surface gravity): "]
-text_data_star = ["(Surface temp): ", "(Luminosity): ", "Color: ", "(H/He ratio): "]
+text_data_planet = ["(Rotation period): ",
+                    "Color: ",
+                    "(Atmosphere amount): ",
+                    "(Atmosphere height): ",
+                    "(surface gravity): "]
+text_data_star = ["(Surface temp):",
+                  "(Luminosity): ",
+                  "Color: ",
+                  "(H/He ratio): "]
 text_data_bh = ["Schwarzschild radius: "]
 
 
@@ -217,7 +242,8 @@ class Game():
             orb_data = physics_convert.to_kepler(self.mass, orb_data, gc, coi_coef)
             os.remove(system)
             date = time.strftime("%d.%m.%Y %H:%M")
-            fileops.save_file(system, self.sim_name, date, self.sim_conf, self.sim_time/self.ptps, self.names, self.mass, self.density, self.color, orb_data)
+            fileops.save_file(system, self.sim_name, date, self.sim_conf, self.sim_time/self.ptps,
+                              self.names, self.mass, self.density, self.color, orb_data)
         
         physics.load_system(self.sim_conf, self.names, self.mass, self.density, self.color, orb_data)
         self.file_path = system   # this path will be used for load/save
@@ -228,6 +254,7 @@ class Game():
         self.selected_item = 0
         self.selected = None
         self.warp_index = 0
+        self.warp = 1
         self.first = True
         
         # userevent may not been run in first iteration, but this values are needed in graphics section:
@@ -306,7 +333,8 @@ class Game():
         """Saves game to file. If name is None, name is not changed."""
         date = time.strftime("%d.%m.%Y %H:%M")
         orb_data = {"a": self.a, "ecc": self.ecc, "pe_arg": self.pea, "ma": self.ma, "ref": self.ref, "dir": self.dr}
-        fileops.save_file(path, name, date, self.sim_conf, self.sim_time/self.ptps, self.names, self.mass, self.density, self.base_color, orb_data)
+        fileops.save_file(path, name, date, self.sim_conf, self.sim_time/self.ptps,
+                          self.names, self.mass, self.density, self.base_color, orb_data)
         if not silent:
             graphics.timed_text_init(rgb.gray, self.fontmd, "Map saved successfully", (self.screen_x/2, self.screen_y-70), 2, True)
     
@@ -314,7 +342,8 @@ class Game():
         """Saves game to quicksave file."""
         date = time.strftime("%d.%m.%Y %H:%M")
         orb_data = {"a": self.a, "ecc": self.ecc, "pe_arg": self.pea, "ma": self.ma, "ref": self.ref, "dir": self.dr}
-        fileops.save_file("Saves/quicksave.ini", "Quicksave - " + self.sim_name, date, self.sim_conf, self.sim_time/self.ptps, self.names, self.mass, self.density, self.base_color, orb_data)
+        fileops.save_file("Saves/quicksave.ini", "Quicksave - " + self.sim_name, date, self.sim_conf, self.sim_time/self.ptps,
+                          self.names, self.mass, self.density, self.base_color, orb_data)
         graphics.timed_text_init(rgb.gray2, self.fontmd, "Quicksave...", (self.screen_x/2, self.screen_y-70), 2, True)
     
     def autosave(self, e):
@@ -322,7 +351,8 @@ class Game():
         if e.type == self.autosave_event:
             date = time.strftime("%d.%m.%Y %H:%M")
             orb_data = {"a": self.a, "ecc": self.ecc, "pe_arg": self.pea, "ma": self.ma, "ref": self.ref, "dir": self.dr}
-            fileops.save_file("Saves/autosave.ini", "Autosave - " + self.sim_name, date, self.sim_conf, self.sim_time/self.ptps, self.names, self.mass, self.density, self.base_color, orb_data)
+            fileops.save_file("Saves/autosave.ini", "Autosave - " + self.sim_name, date, self.sim_conf, self.sim_time/self.ptps,
+                              self.names, self.mass, self.density, self.base_color, orb_data)
             graphics.timed_text_init(rgb.gray2, self.fontmd, "Autosave...", (self.screen_x/2, self.screen_y-70), 2, True)
 
     
@@ -593,7 +623,7 @@ class Game():
                                     pass
                                 elif num == 1:   # save
                                     path = fileops.new_game(self.text, time.strftime("%d.%m.%Y %H:%M"))
-                                    self.save(self, path, name=self.text)
+                                    self.save(path, name=self.text)
                                     self.gen_game_list()
                                 self.new_game = False
                                 self.ask = None
@@ -1098,11 +1128,17 @@ class Game():
             graphics.text(screen, rgb.white, self.fontmd, "Zoom: x" + str(zoom_round), (160, 2))
             if self.move:
                 # print position of view, here is not added zoom offset, this shows real position, y axis is inverted
-                graphics.text(screen, rgb.white, self.fontmd, "Pos: X:" + str(int(self.offset_x - self.screen_x / 2)) + "; Y:" + str(-int(self.offset_y - self.screen_y / 2)), (270, 2))
+                graphics.text(screen, rgb.white, self.fontmd,
+                              "Pos: X:" + str(int(self.offset_x - self.screen_x / 2)) +
+                              "; Y:" + str(-int(self.offset_y - self.screen_y / 2)),
+                              (270, 2))
             
             # debug
             graphics.text(screen, rgb.gray1, self.fontmd, str(self.mouse_raw), (self.screen_x - 260, 2))
-            graphics.text(screen, rgb.gray1, self.fontmd, "[" + str(int(self.sim_coords(self.mouse_raw)[0])) + ", " + str(int(self.sim_coords(self.mouse_raw)[1])) + "]", (self.screen_x - 170, 2))
+            graphics.text(screen, rgb.gray1, self.fontmd,
+                          "[" + str(int(self.sim_coords(self.mouse_raw)[0])) + ", " +
+                          str(int(self.sim_coords(self.mouse_raw)[1])) + "]",
+                          (self.screen_x - 170, 2))
             graphics.text(screen, rgb.gray1, self.fontmd, "fps: " + str(int(clock.get_fps())), (self.screen_x - 50, 2))
     
     

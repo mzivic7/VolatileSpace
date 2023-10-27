@@ -215,6 +215,5 @@ class Textinput():
             if self.timer_double_click > time_double_click:
                 self.first_click = False
                 self.timer_double_click = 0
-        f.timer_double_click = 0
-   :
+            self.timer_double_click += 1
    

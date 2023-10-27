@@ -50,13 +50,13 @@ def get_angle(a, b, c):
     """Angle between 3 points in 2D or 3D"""
     ba = a - b   # get 2 vectors from 3 points
     bc = c - b
-    cosine_angle = np.dot(ba, bc) / (np.linalg.norm(ba) * np.linalg.norm(bc))   # angle brtween 2 vectors
+    cosine_angle = np.dot(ba, bc) / (np.linalg.norm(ba) * np.linalg.norm(bc))   # angle between 2 vectors
     return np.arccos(cosine_angle)
 
 
-def orbit_time_to(mean_anomaly, target_angle, period):
+def orbit_time_to(mean_anomaly, target_angle, period, dr):
     """Time to point on orbit"""
-    return period - (mean_anomaly + target_angle)*(period / (2 * np.pi)) % period
+    return period - (dr * mean_anomaly + target_angle)*(period / (2 * np.pi)) % period
 
 
 def dot_2d(v1, v2):
@@ -104,11 +104,6 @@ def calc_body_orb_one(body, ref, mass, gc, coi_coef, a, ecc, pea):
             # there is no apoapsis
             ap_d = 0
         n = 2*np.pi / period
-        # pe = np.array([pe_d * math.cos(pea - np.pi), pe_d * math.sin(pea - np.pi)]) + pos[ref]
-        # if ecc != 0 and ecc < 1:
-        #     ap = np.array([ap_d * math.cos(pea), ap_d * math.sin(pea)]) + pos[ref]
-        # else:
-        #     ap = np.array([0, 0])
         return b, f, coi, pe_d, ap_d, period, n, u
     else:
         return 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
@@ -316,24 +311,25 @@ class Physics():
         u = self.u[body]
         ap_d = self.ap_d[body]
         pe_d = self.pe_d[body]
+        dr = self.dr[body]
         
         rel_pos = self.pos[body] - self.pos[ref]
         distance = mag(rel_pos)   # distance to parent
         speed_orb = math.sqrt((2 * a * u - distance * u) / (a * distance))   # velocity vector magnitude from semi-major axis equation
         ta = (periapsis_arg - (math.atan2(rel_pos[1], rel_pos[0]) - np.pi)) % (2*np.pi)  # true anomaly from relative position
         # not calculating ta from ea since it is more complicated
-        angle = 2*np.pi - ta + periapsis_arg
         
-        speed_vert = 0
-        speed_hor = 0
+        angle = 0
+        speed_vert = speed_orb * math.sin(angle)
+        speed_hor = speed_orb * math.cos(angle)
         
         if ecc != 0:   # if orbit is not circle
             if ecc < 1:   # if orbit is ellipse
                 if np.pi < ta < 2*np.pi:
                     ea = 2*np.pi - ea   # quadrant problems
-                pe_t = orbit_time_to(ma, 0, period)   # time to periapsis
+                pe_t = orbit_time_to(ma, 0, period, dr)   # time to periapsis
                 ap = np.array([ap_d * math.cos(periapsis_arg), ap_d * math.sin(periapsis_arg)]) + self.pos[ref]   # coordinates
-                ap_t = orbit_time_to(ma, np.pi, period)   # time to apoapsis
+                ap_t = orbit_time_to(ma, np.pi, period, dr)   # time to apoapsis
             else:
                 if ecc > 1:   # hyperbola
                     pe_t = math.sqrt((-a)**3 / u) * ma
@@ -345,8 +341,8 @@ class Physics():
                 ap_t = 0
         else:   # circle
             ma = ta
-            period = (2 * np.pi * math.sqrt(a**3 / u)) / 10   # orbital periodp
-            pe_t = orbit_time_to(ma, 0, period)   # time to periapsis
+            period = (2 * np.pi * math.sqrt(a**3 / u)) / 10   # orbital period
+            pe_t = orbit_time_to(ma, 0, period, dr)   # time to periapsis
             # there is no apoapsis
             ap = np.array([0, 0])
             ap_t = 0

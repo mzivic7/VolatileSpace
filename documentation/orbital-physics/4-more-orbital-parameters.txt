@@ -12,11 +12,17 @@ if direction is -1:
     Ta = 2pi - Ta   # invert Ta to be calculated in opposite direction
 Lat = (Ta - omega) * 180 / pi   # latitude
 d = |Pr|   # distance
+
 vo = |vr|   # orbit speed
 angle = 2pi - Ta + omega
 vv = (vr_x * cos(angle) + vr_y * sin(angle))   # vertical speed
 vh = abs(vr_x * sin(angle) - vr_y * cos(angle))   # horizontal speed
 # Vertical and horizontal speeds are calculated as components of vr, but coordinate system is rotated by pi/2-true_anomaly - to be normal with body position vector relative to orbiting mass.
+
+# If vr vector is unknown but its magnitude is (vo):
+angle = 
+vv = vo * sin(angle)
+vh = vo * cos(angle)
 
 # if direction is clockwise invert Ta to be calculated in opposite direction
 if direction == -1:

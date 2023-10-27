@@ -8,5 +8,6 @@
 [7. Inverse ellipse equations](orbital-physics/7-inverse-ellipse-equations.txt)  
 [8. Inverse hyperbola equations](orbital-physics/8-inverse-hyperbola-equations.txt)  
 [9. Inelastic collision](orbital-physics/9-Inelastic-collision.txt)  
-[10. References](orbital-physics/10-references.txt)  
-[11. Notes](orbital-physics/11-notes.txt)  
+[10. Mean motion](orbital-physics/10-mean-motion,txt)  
+[11. References](orbital-physics/11-references.txt)  
+[12. Notes](orbital-physics/12-notes.txt)  
