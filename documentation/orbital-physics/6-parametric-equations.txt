@@ -14,9 +14,9 @@ x = at^2 - a   # -a is added to align parabola Pe with relative (0, 0) coordinat
 y = 2at
 
 # hyperbola   # e > 1
-t = [pi/2, pi) U (-pi, -pi/2]   # parameter is half to remove one side of hyperbola
-x = semi_major * sec(t)   # sec(t) = 1/cos(t)
-y = semi_minor * tan(t)
+x = +- semi_major * cosh(t) 
+y =    semi_minor * sinh(t)
+# x can be +- since hyperbola has 2 sides. In simulation, negative side is used
 
 # rotation matrix
 rot = [[cos(omega), -sin(omega)],

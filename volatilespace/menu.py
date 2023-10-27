@@ -23,18 +23,34 @@ graphics = graphics.Graphics()
 textinput = textinput.Textinput()
 
 
-version = "0.4.2"
+version = "0.4.4"
 
-buttons_main = ["Play", "Multiplayer - WIP", "Map Editor", "Settings", "About", "Quit"]
+buttons_main = ["Play",
+                "Multiplayer - WIP",
+                "Map Editor",
+                "Settings",
+                "About",
+                "Quit"]
 buttons_play_ui = ["Back", "New game", "Import game"]
 buttons_play_sel = ["Play", "Rename", "Delete", "Export"]
 buttons_new_game = ["Back", "New game", "Import map"]
 buttons_map_sel = ["Open in editor", "Rename", "Delete", "Export"]
 buttons_map_ui = ["Back", "New map", "Import map"]
-buttons_set_vid = ["Fullscreen", "Resolution", "Antialiasing", "Vsync", "Mouse wrap", "Background stars"]
+buttons_set_vid = ["Fullscreen",
+                   "Resolution",
+                   "Antialiasing",
+                   "Vsync",
+                   "Mouse wrap",
+                   "Background stars"]
 buttons_set_aud = ["WIP"]
 buttons_set_gam = ["Keybindings", "Autosave"]
-buttons_set_adv = ["Curve points", "Stars antialiasing", "New star color", "Star clusters", "New clusters", "Numba", "FastMath"]
+buttons_set_adv = ["Curve points",
+                   "Stars antialiasing",
+                   "New star color",
+                   "Star clusters",
+                   "New clusters",
+                   "Numba",
+                   "FastMath"]
 buttons_set_ui = ["Accept", "Apply", "Cancel", "Load default"]
 buttons_about = ["Wiki", "Github", "Itch.io", "Report a bug", "Back"]
 buttons_rename = ["Cancel", "Rename"]
@@ -156,6 +172,8 @@ class Menu():
         self.maps = fileops.gen_map_list()
         self.map_list_size = len(self.maps) * self.btn_h + len(self.maps) * self.space
         if len(self.maps) != 0:
+            if self.selected_item >= len(self.maps):
+                self.selected_item = len(self.maps) - 1
             self.selected_path = "Maps/" + self.maps[self.selected_item, 0]
         
         # limit text size
@@ -169,6 +187,8 @@ class Menu():
         self.games = fileops.gen_game_list()
         self.game_list_size = len(self.games) * self.btn_h + len(self.games) * self.space
         if len(self.games) != 0:
+            if self.selected_item >= len(self.maps):
+                self.selected_item = len(self.maps) - 1
             self.selected_path = "Saves/" + self.games[self.selected_item, 0]
         
         # limit text size
@@ -203,10 +223,10 @@ class Menu():
                     else:
                         date = time.strftime("%d.%m.%Y %H:%M")
                         if self.menu == 1:
-                            path = fileops.new_game(self.text, date)
+                            _ = fileops.new_game(self.text, date)
                             self.gen_game_list()
                         else:
-                            path = fileops.new_map(self.text, date)
+                            _ = fileops.new_map(self.text, date)
                             self.gen_map_list()
                         self.new_map = False
                     self.disable_buttons = False
@@ -366,7 +386,7 @@ class Menu():
                                         self.are_you_sure = True
                                         self.disable_buttons = True
                                     elif num == 3:   # export
-                                        save_path = fileops.save_file(self.games[self.selected_item, 1], [("Text Files", "*.ini")])
+                                        save_path = fileops.export_file(self.games[self.selected_item, 1], [("Text Files", "*.ini")])
                                         if save_path != "":
                                             shutil.copy2(self.selected_path, save_path)
                             y_pos += self.btn_h + self.space
@@ -382,9 +402,10 @@ class Menu():
                                     self.new_game = True
                                     self.disable_buttons = True
                                     self.scroll_maps = 0
-                                    textinput.initial_text("New Map", selected=True)
+                                    self.selected_ng_item = 0
+                                    self.selected_ng_path = "Maps/" + self.maps[0, 0]
                                 elif num == 2:   # import game
-                                    file_path = fileops.load_file([("Text Files", "*.ini")])
+                                    file_path = fileops.import_file([("Text Files", "*.ini")])
                                     if file_path != "":
                                         shutil.copy2(file_path, "Saves")
                                         self.gen_game_list()
@@ -417,13 +438,19 @@ class Menu():
                                         self.selected_ng_path = "Maps/" + self.maps[self.selected_ng_item, 0]
                                         if self.first_click == num:   # detect double click
                                             try:
-                                                shutil.copy2(self.selected_ng_path, self.selected_ng_path.replace("Maps/", "Saves/"))    # copy map to games
-                                                self.selected_path = self.selected_ng_path.replace("Maps/", "Saves/")   # select new created game
-                                                self.state = 3
+                                                date = time.strftime("%d-%m-%Y %H-%M")
+                                                game_path = self.selected_ng_path.replace("Maps/", "Saves/").replace(".ini", "") + " " + date + ".ini"
+                                                game_name = self.maps[self.selected_ng_item, 1] + " " + date
+                                                shutil.copy2(self.selected_ng_path, game_path)    # copy map to games
+                                                fileops.rename_game(game_path, game_name)
+                                                self.selected_path = game_path   # select new created game
+                                                self.state = 3   # return to main menu instead load menu
+                                                self.new_game = False   # and remove new game menu
+                                                self.disable_buttons = False
                                                 self.menu = 0   # return to main menu instead load menu
                                             except Exception:
                                                 pass
-                                            self.click = False   # dont carry click to ask window
+                                            self.click = False   # don't carry click to ask window
                                         self.first_click = num
                                 y_pos += self.btn_h + self.space
                         
@@ -435,15 +462,21 @@ class Menu():
                                     self.disable_buttons = False
                                 elif num == 1:   # play
                                     try:
-                                        shutil.copy2(self.selected_ng_path, self.selected_ng_path.replace("Maps/", "Saves/"))    # copy map to games
-                                        self.selected_path = self.selected_ng_path.replace("Maps/", "Saves/")   # select new created game
+                                        date = time.strftime("%d-%m-%Y %H-%M")
+                                        game_path = self.selected_ng_path.replace("Maps/", "Saves/").replace(".ini", "") + " " + date + ".ini"
+                                        game_name = self.maps[self.selected_ng_item, 1] + " " + date
+                                        shutil.copy2(self.selected_ng_path, game_path)    # copy map to games
+                                        fileops.rename_game(game_path, game_name)
+                                        self.selected_path = game_path   # select new created game
                                         self.state = 3
                                         self.menu = 0   # return to main menu instead load menu
+                                        self.new_game = False   # and remove new game menu
+                                        self.disable_buttons = False
+                                        self.click = False   # don't carry click to ask window
                                     except Exception:
                                         pass
-                                    self.click = False   # dont carry click to ask window
                                 elif num == 2:   # import map
-                                    file_path = fileops.load_file([("Text Files", "*.ini")])
+                                    file_path = fileops.import_file([("Text Files", "*.ini")])
                                     if file_path != "":
                                         shutil.copy2(file_path, "Maps")
                                         self.gen_map_list()
@@ -511,7 +544,7 @@ class Menu():
                                         self.are_you_sure = True
                                         self.disable_buttons = True
                                     elif num == 3:   # export
-                                        save_path = fileops.save_file(self.maps[self.selected_item, 1], [("Text Files", "*.ini")])
+                                        save_path = fileops.export_file(self.maps[self.selected_item, 1], [("Text Files", "*.ini")])
                                         if save_path != "":
                                             shutil.copy2(self.selected_path, save_path)
                             y_pos += self.btn_h + self.space
@@ -528,7 +561,7 @@ class Menu():
                                     self.disable_buttons = True
                                     textinput.initial_text("New Map", selected=True)
                                 elif num == 2:   # import map
-                                    file_path = fileops.load_file([("Text Files", "*.ini")])
+                                    file_path = fileops.import_file([("Text Files", "*.ini")])
                                     if file_path != "":
                                         shutil.copy2(file_path, "Maps")
                                         self.gen_map_list()
@@ -547,7 +580,7 @@ class Menu():
                                         self.gen_map_list()
                                     elif self.new_map:
                                         date = time.strftime("%d.%m.%Y %H:%M")
-                                        path = fileops.new_map(self.text, date)
+                                        _ = fileops.new_map(self.text, date)
                                         self.gen_map_list()
                                     self.selected_item = np.where(self.maps[:, 1] == self.text)[0][0]
                                 self.new_map = False

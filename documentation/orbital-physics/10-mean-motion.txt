@@ -1,0 +1,18 @@
+# Body can be moved with mean motion instead with newtonian physics.
+# This simplifies calculations and warp can be easier implemented
+
+n = 2pi / T   # mean motion [14]
+
+# Then increment mean anomaly by this value each iteration
+# direction is added for clockwise orbits
+# Simulation can simply be sped-up by multiplying with warp
+Ma += direction * n * warp
+
+# Limit Ma so it does not grow infinitely:
+if Ma > 2pi:
+    Ma -= 2pi
+if ma < 0:
+    Ma += 2pi
+
+References:
+[14] https://en.wikipedia.org/wiki/Mean_motion

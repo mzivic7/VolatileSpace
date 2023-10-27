@@ -12,7 +12,7 @@ settings.read("settings.ini")
 home_dir = os.path.expanduser("~")
 
 
-def save_file(file_name, filetype=[("All Files", "*.*")]):
+def export_file(file_name, filetype=[("All Files", "*.*")]):
     """save file with tkinter dialog"""
     root = tk.Tk()   # define tkinter root
     root.withdraw()   # make tkinter root invisible
@@ -26,14 +26,14 @@ def save_file(file_name, filetype=[("All Files", "*.*")]):
     return file_path
 
 
-def load_file(filetype=[("All Files", "*.*")]):
+def import_file(filetype=[("All Files", "*.*")]):
     """load file with tkinter dialog"""
     root = tk.Tk()   # define tkinter root
     root.withdraw()   # make tkinter root invisible 
     file_path = filedialog.askopenfilename(initialdir=home_dir, filetypes=filetype)   # open load file dialog and get path
     try:   # just try to open file to see if it exists
         with open(file_path) as f:
-            text = f.read()   # load all text from file
+            _ = f.read()   # load all text from file
     except Exception:   # if cant open file
         file_path = ""
     return file_path
@@ -115,12 +115,11 @@ def gen_map_list():
             save_row = maps[save_ind]
             maps = np.delete(maps, save_ind, 0)
             maps = np.vstack((maps, save_row))
-    
     return maps
 
 
-def load_system(path):
-    """Load system from file"""
+def load_file(path):
+    """Load saved data from map/saved game and returns type of save: newton/kepler"""
     system = ConfigParser()   # load config class
     system.read(path)   # load system
     
@@ -137,29 +136,58 @@ def load_system(path):
     except Exception:
         config = defaults.sim_config
     
+    kepler = False
     body_name = np.array([])
-    mass = np.array([])  # mass
-    density = np.array([])  # density
-    position = np.empty((0, 2), int)   # position
-    velocity = np.empty((0, 2), int)   # velocity
-    color = np.empty((0, 3), int)   # color
+    mass = np.array([])
+    density = np.array([])
+    color = np.empty((0, 3), int)
+    
+    position = np.empty((0, 2), int)
+    velocity = np.empty((0, 2), int)
+    
+    semi_major = np.array([])
+    ecc = np.array([])
+    pe_arg = np.array([])
+    ma = np.array([])
+    parents = np.array([], dtype=int)
+    direction = np.array([])
     
     for body in system.sections():   # for each body:
         if body != "config":
             body_name = np.append(body_name, body)   # load all body parameters into separate arrays
             mass = np.append(mass, float(system.get(body, "mass")))
             density = np.append(density, float(system.get(body, "density")))
-            position = np.vstack((position, list(map(float, system.get(body, "position").strip("][").split(", ")))))
-            velocity = np.vstack((velocity, list(map(float, system.get(body, "velocity").strip("][").split(", ")))))
             color = np.vstack((color, list(map(int, system.get(body, "color").strip("][").split(", ")))))
+            
+            if not kepler:   # newtonian
+                try:
+                    position = np.vstack((position, list(map(float, system.get(body, "position").strip("][").split(", ")))))
+                    velocity = np.vstack((velocity, list(map(float, system.get(body, "velocity").strip("][").split(", ")))))
+                except Exception:   # if pos or vel values are missing - then try to read kepler
+                    kepler = True
+            
+            if kepler:
+                semi_major = np.append(semi_major, float(system.get(body, "sma")))
+                ecc = np.append(ecc, float(system.get(body, "ecc")))
+                pe_arg = np.append(pe_arg, float(system.get(body, "lpe")))
+                ma = np.append(ma, float(system.get(body, "mna")))
+                parents = np.append(parents, int(system.get(body, "ref")))
+                direction = np.append(direction, float(system.get(body, "dir")))
+            
+    if kepler:
+        orb_data = {"kepler": kepler, "a": semi_major, "ecc": ecc, "pe_arg": pe_arg, "ma": ma, "ref": parents, "dir": direction}
+    else:
+        orb_data = {"kepler": kepler, "pos": position, "vel": velocity}
     
-    return name, time, config, body_name, mass, density, position, velocity, color
+    return name, time, config, body_name, mass, density, color, orb_data
 
 
-def save_system(path, name, date, conf, time, body_names, mass, density, position, velocity, color):
+def save_file(path, name, date, conf, time, body_names, mass, density, color, orb_data):
     """Save system to file"""
     if not os.path.exists("Maps"):
         os.mkdir("Maps")
+    if not os.path.exists("Saves"):
+        os.mkdir("Saves")
     if name == "":   # there must be name
         name = "Unnamed"
     if os.path.exists(path):   # when overwriting
@@ -182,6 +210,19 @@ def save_system(path, name, date, conf, time, body_names, mass, density, positio
         value = str(conf[key])
         system.set("config", key, value)
     
+    kepler = False
+    try:
+        position = orb_data["pos"]
+        velocity = orb_data["vel"]
+    except Exception:
+        kepler = True
+        semi_major = orb_data["a"]
+        ecc = orb_data["ecc"]
+        pe_arg = orb_data["pe_arg"]
+        ma = orb_data["ma"]
+        parents = orb_data["ref"]
+        direction = orb_data["dir"]
+    
     for body, body_mass in enumerate(mass):   # for each body:
         body_name = body_names[body]
         num = 1
@@ -191,9 +232,18 @@ def save_system(path, name, date, conf, time, body_names, mass, density, positio
         system.add_section(body_name)   # add body
         system.set(body_name, "mass", str(body_mass))   # add body parameters
         system.set(body_name, "density", str(density[body]))
-        system.set(body_name, "position", "[" + str(position[body, 0]) + ", " + str(position[body, 1]) + "]")
-        system.set(body_name, "velocity", "[" + str(velocity[body, 0]) + ", " + str(velocity[body, 1]) + "]")
         system.set(body_name, "color", "[" + str(color[body, 0]) + ", " + str(color[body, 1]) + ", " + str(color[body, 2]) + "]")
+        if not kepler:
+            system.set(body_name, "position", "[" + str(position[body, 0]) + ", " + str(position[body, 1]) + "]")
+            system.set(body_name, "velocity", "[" + str(velocity[body, 0]) + ", " + str(velocity[body, 1]) + "]")
+            
+        else:
+            system.set(body_name, "sma", str(semi_major[body]))
+            system.set(body_name, "ecc", str(ecc[body]))
+            system.set(body_name, "lpe", str(pe_arg[body]))
+            system.set(body_name, "mna", str(ma[body]))
+            system.set(body_name, "ref", str(int(parents[body])))
+            system.set(body_name, "dir", str(int(direction[body])))
     
     with open(path, 'w') as f:
         system.write(f)
@@ -287,16 +337,6 @@ def new_game(name, date):
     system.set("config", "date", date)
     system.set("config", "time", "0")
     
-    for key in defaults.sim_config.keys():   # physics related config
-        value = str(defaults.sim_config[key])
-        system.set("config", key, value)
-    
-    system.add_section("root")   # add body
-    system.set("root", "mass", "10000.0")   # add body parameters
-    system.set("root", "density", "1.0")
-    system.set("root", "position", "[0.0, 0.0]")
-    system.set("root", "velocity", "[0.0, 0.0]")
-    system.set("root", "color", "[255, 255, 255]")
     
     with open(path, 'w') as f:
         system.write(f)

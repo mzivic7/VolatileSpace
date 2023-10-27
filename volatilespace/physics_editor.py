@@ -18,7 +18,7 @@ from volatilespace import defaults
 c = 299792458   # speed of light in vacuum
 k = 1.381 * 10**-23   # boltzman constant
 m_h = 1.674 * 10**-27    # hydrogen atom mass in kg
-m_he = 6.646 * 10**-27   # helimum atom mass in kg
+m_he = 6.646 * 10**-27   # helium atom mass in kg
 mp = (m_h * 99 + m_he * 1) / 100   # average particle mass   # depends on star age
 mass_sim_mult = 10**24  # mass simulation multiplier, since real values are needed in core temperature equation
 rad_sim_mult = 10**6   # radius sim multiplier
@@ -54,9 +54,9 @@ def get_angle(a, b, c):
     return np.arccos(cosine_angle)
 
 
-def orbit_time_to(mean_anomaly, target_angle, period):
+def orbit_time_to(mean_anomaly, target_angle, period, dr):
     """Time to point on orbit"""
-    return period - (mean_anomaly + target_angle)*(period / (2 * np.pi)) % period
+    return period - (dr * mean_anomaly + target_angle)*(period / (2 * np.pi)) % period
 
 
 def rot_ellipse_by_y(x, a, b, p):
@@ -121,7 +121,6 @@ def gravity_one(body, parent, mass, rel_pos, gc):
 
 def kepler_basic_one(body, parent, mass, pos, vel, gc, coi_coef):
     """Basic keplerian orbit for one body."""
-    #print(type(body), type(parent), type(mass), type(pos), type(vel), type(gc), type(coi_coef))
     if body:   # skip calculation for root
         rel_pos = pos[body] - pos[parent]
         rel_vel = vel[body] - vel[parent]
@@ -177,27 +176,27 @@ if numba_avail and use_numba:
 class Physics():
     def __init__(self):
         # body
-        self.names = np.array([])   # body names
-        self.mass = np.array([])  # mass
-        self.den = np.array([])  # density
-        self.temp = np.array([])  # temperature
+        self.names = np.array([])
+        self.mass = np.array([])
+        self.den = np.array([])
+        self.temp = np.array([])
         self.color = np.empty((0, 3), int)   # dynamic color
         self.base_color = np.empty((0, 3), int)   # base color (original color unaffected by temperature)
         self.rad = np.array([])  # radius
         self.rad_sc = np.array([])  # Schwarzschild radius
         self.types = np.array([])  # what is this body
         # orbit:
-        self.pos = np.empty((0, 2), int)   # position
-        self.vel = np.empty((0, 2), int)   # velocity
-        self.rel_vel = np.empty((0, 2), int)   # relative velocity
+        self.pos = np.empty((0, 2), int)
+        self.vel = np.empty((0, 2), int)
+        self.rel_vel = np.empty((0, 2), int)
         self.coi = np.array([])   # circle of influence
         self.parents = np.array([], dtype=int)   # parents indices
         self.largest = 0   # most massive body (root)
         self.focus = np.array([])   # focus distance from center of ellipse
-        self.semi_major = np.array([])   # ellipse semi major axis
-        self.semi_minor = np.array([])   # ellipse semi minor axis
-        self.periapsis_arg = np.array([])   # curve periapsis argument
-        self.ecc_v = np.empty((0, 2), int)   # curve eccentricity vector
+        self.semi_major = np.array([])
+        self.semi_minor = np.array([])
+        self.periapsis_arg = np.array([])
+        self.ecc_v = np.empty((0, 2), int)   # eccentricity vector
         self.gc = defaults.sim_config["gc"]   # newtonian constant of gravitation
         self.rad_mult = defaults.sim_config["rad_mult"]
         self.coi_coef = defaults.sim_config["coi_coef"]
@@ -206,11 +205,8 @@ class Physics():
     def reload_settings(self):
         self.curve_points = int(fileops.load_settings("graphics", "curve_points"))   # number of points from which curve is drawn
         # parameters
-        self.ell_t = np.linspace(-np.pi, np.pi, self.curve_points)   # ellipse parameter
+        self.ell_t = np.linspace(-np.pi, np.pi, self.curve_points)   # ellipse and hyperbola parameter
         self.par_t = np.linspace(- np.pi - 1, np.pi + 1, self.curve_points)   # parabola parameter
-        hyp_t_1 = np.linspace(- np.pi, - np.pi/2 - 0.1, int(self.curve_points/2))   # (-pi, -pi/2]
-        hyp_t_2 = np.linspace(np.pi/2 + 0.1, np.pi, int(self.curve_points/2))   # [pi/2, pi)
-        self.hyp_t = np.concatenate([hyp_t_2, hyp_t_1])   # hyperbola parameter [pi/2, pi) U (-pi, -pi/2]
     
     def load_conf(self, conf):
         """Loads physics related config."""
@@ -218,7 +214,7 @@ class Physics():
         self.rad_mult = conf["rad_mult"]
         self.coi_coef = conf["coi_coef"]
     
-    def load_system(self, conf, names, mass, density, position, velocity, color):
+    def load_system(self, conf, names, mass, density, color, orb_data):
         """Load new system."""
         self.load_conf(conf)
         self.names = names
@@ -231,12 +227,12 @@ class Physics():
         self.rad = self.rad_mult * np.cbrt(3 * volume / (4 * np.pi))   # calculate radius from volume
         self.rad_sc = np.array([])
         self.types = np.array([])
-        self.pos = position
-        self.vel = velocity
+        self.pos = orb_data["pos"]
+        self.vel = orb_data["vel"]
         self.parents = np.array([], dtype=int)   # parents indices
         self.simplified_orbit_coi()   # calculate COIs
         self.find_parents()   # find parents for all bodies
-        self.rel_vel = velocity - velocity[self.parents]
+        self.rel_vel = orb_data["vel"] - orb_data["vel"][self.parents]
         self.focus = np.zeros(len(mass))
         self.semi_major = np.zeros(len(mass))
         self.semi_minor = np.zeros(len(mass))
@@ -360,7 +356,7 @@ class Physics():
             u = self.gc * self.mass[parent]   # standard gravitational parameter
             semi_major = -1 * u / (2*(dot_2d(rel_vel, rel_vel) / 2 - u / mag(rel_pos)))   # semi-major axis
             if semi_major > 0:   # if eccentricity is larger than 1, semi major will be negative
-                self.coi[body] = semi_major * (body_mass / self.mass[parent])**(2/5)   # calculate its COI and save to index
+                self.coi[body] = semi_major * (body_mass / self.mass[parent])**self.coi_coef   # calculate its COI and save to index
             else:
                 self.coi[body] = 0   # if orbit is hyperbola or parabola, body has no COI, otherwise it would be infinite
             
@@ -391,7 +387,7 @@ class Physics():
                     if self.mass[parent] < self.mass[parents_old[body]]:   # if body is entering orbit:
                         self.rel_vel[body] -= self.rel_vel[parent]   # subtract velocity of new parent to body relative velocity
         
-        bodies_sorted = np.argsort(self.mass)[-1::-1]   # get indices from above sort
+        bodies_sorted = np.argsort(self.mass)[-1::-1]
         for body in bodies_sorted[1:]:   # for sorted bodies by mass except first one (root)
             self.vel[body] = self.rel_vel[body] + self.vel[self.parents[body]]   # absolute vel from relative and parents absolute
         self.pos += self.vel   # update positions
@@ -416,11 +412,12 @@ class Physics():
         distance = mag(rel_pos)   # distance to parent
         speed_orb = mag(rel_vel)   # orbit speed
         true_anomaly = (periapsis_arg - (math.atan2(rel_pos[1], rel_pos[0]) - np.pi)) % (2*np.pi)  # true anomaly from relative position
-        moment = cross_2d(rel_pos, rel_vel)   # rotation moment
-        direction = int(math.copysign(1, moment[0]))   # if moment is negative, rotation is clockwise (-1)
+        momentum = cross_2d(rel_pos, rel_vel)    # orbital momentum, since this is 2d, momentum is scalar
+        direction = int(math.copysign(1, momentum[0]))   # if moment is negative, rotation is clockwise (-1)
         angle = 2*np.pi - true_anomaly + periapsis_arg
-        speed_vert = (rel_vel[0] * math.cos(angle) + rel_vel[1] * math.sin(angle))   # vertical speed
-        speed_hor = abs(rel_vel[0] * math.sin(angle) - rel_vel[1] * math.cos(angle))   # horizontal speed
+        speed_vert = (rel_vel[0] * math.cos(angle) + rel_vel[1] * math.sin(angle))
+        speed_hor = abs(rel_vel[0] * math.sin(angle) - rel_vel[1] * math.cos(angle))
+        
         
         if direction == -1:   # if direction is clockwise
             true_anomaly = 2*np.pi - true_anomaly   # invert Ta to be calculated in opposite direction
@@ -432,10 +429,10 @@ class Physics():
                     ecc_anomaly = 2*np.pi - ecc_anomaly   # quadrant problems
                 mean_anomaly = (ecc_anomaly - ecc * math.sin(ecc_anomaly)) % (2*np.pi)   # mean anomaly from Keplers equation
                 period = (2 * np.pi * math.sqrt(semi_major**3 / u))   # orbital period
-                pe_t = orbit_time_to(mean_anomaly, 0, period)   # time to periapsis
+                pe_t = orbit_time_to(mean_anomaly, 0, period, -1)   # time to periapsis
                 ap_d = semi_major * (1 + ecc)   # apoapsis distance
                 apoapsis = np.array([ap_d * math.cos(periapsis_arg), ap_d * math.sin(periapsis_arg)]) + self.pos[parent]   # coordinates
-                ap_t = orbit_time_to(mean_anomaly, np.pi, period)   # time to apoapsis
+                ap_t = orbit_time_to(mean_anomaly, np.pi, period, -1)   # time to apoapsis
             else:
                 if ecc > 1:   # hyperbola
                     ecc_anomaly = math.acosh((ecc + math.cos(true_anomaly))/(1 + (ecc * math.cos(true_anomaly))))   # eccentric from true anomaly
@@ -446,7 +443,7 @@ class Physics():
                     ecc_anomaly = math.tan(true_anomaly/2)
                     mean_anomaly = ecc_anomaly + (ecc_anomaly**3)/3
                     pe_d = semi_major
-                    pe_t = math.sqrt(2(semi_major/2)**3) * mean_anomaly
+                    pe_t = math.sqrt(2 * (semi_major/2)**3) * mean_anomaly
                 period = 0   # period is undefined
                 # there is no apoapsis
                 apoapsis = np.array([0, 0])
@@ -456,7 +453,7 @@ class Physics():
             mean_anomaly = true_anomaly
             period = (2 * np.pi * math.sqrt(semi_major**3 / u)) / 10   # orbital period
             pe_d = semi_major * (1 - ecc)   # periapsis distance and coordinate:
-            pe_t = orbit_time_to(mean_anomaly, 0, period)   # time to periapsis
+            pe_t = orbit_time_to(mean_anomaly, 0, period, direction)   # time to periapsis
             # there is no apoapsis
             apoapsis = np.array([0, 0])
             ap_d = 0
@@ -474,9 +471,11 @@ class Physics():
         u = self.gc * self.mass[parent]   # standard gravitational parameter
         omega = omega_deg * np.pi / 180   # periapsis argument from deg to rad
         mean_anomaly = mean_anomaly_deg * np.pi / 180
+        if direction > 0:
+            mean_anomaly = -mean_anomaly
         if ecc == 0:   # to avoid division by zero
             ecc = 0.00001
-        if ecc >= 1:   # limit ti ellipses
+        if ecc >= 1:   # limit to only ellipses
             ecc = 0.95
         
         if ap_d:   # if there is value for appapsis distance:
@@ -489,9 +488,9 @@ class Physics():
         f_rot = [f * math.cos(omega), f * math.sin(omega)]   # focus rotated by omega
         if true_anomaly_deg:   # if there is value for ta
             ta = true_anomaly_deg * np.pi / 180   # use it
+            ea = math.acos((ecc + math.cos(ta))/(1 + (ecc * math.cos(ta))))   # ea from ta
         else:
             ea = newton_root(keplers_eq, keplers_eq_derivative, 0.0, {'Ma': mean_anomaly, 'e': ecc})   # newton root for keplers equation
-            ta = 2 * math.atan(math.sqrt((1+ecc) / (1-ecc)) * math.tan(ea/2)) % (2*np.pi)   # true anomaly from eccentric anomaly
         
         # calculate position vector
         pr_x = a * math.cos(ea) - f
@@ -506,7 +505,7 @@ class Physics():
              (a**2 * p_y * math.cos(omega)**2 + b**2 * p_y * math.sin(omega)**2 +
               b**2 * p_x * math.sin(omega) * math.cos(omega) - a**2 * p_x * math.sin(omega) * math.cos(omega)))
         
-        # aaaacalcualte angle of velocity vector
+        # calcualte angle of velocity vector
         # calculate domain of function and substract some small value (10**-6) so y can be calculated
         x_max = math.sqrt(a**2 * math.cos(2*omega) + a**2 - b**2 * math.cos(2*omega) + b**2)/math.sqrt(2) - 10**-6
         y_max = rot_ellipse_by_y(x_max, a, b, omega)   # calculate y
@@ -518,13 +517,12 @@ class Physics():
         vr_angle = vr_angle % (2*np.pi)   # put it in (0, 2pi) range
         
         prm = mag(pr)   # relative position vector magnitude
-        vrm = direction * math.sqrt((2 * a * u - prm * u) / (a * prm))   # velocity vector from semi-major axis equation
+        vrm = direction * math.sqrt((2 * a * u - prm * u) / (a * prm))   # velocity vector magnitude from semi-major axis equation
         
         vr_x = vrm * math.cos(vr_angle)   # eccentricity vector from angle of velocity
         vr_y = vrm * math.sin(vr_angle)
         vr = [vr_x, vr_y]
-        abs_pos = self.pos[parent] + pr
-        self.move_parent(body, self.pos[parent] + pr)   # move thiss body and all bodies orbiting it
+        self.move_parent(body, self.pos[parent] + pr)   # move this body and all bodies orbiting it
         self.rel_vel[body] = vr   # update relative velocity vector
         # this is copied from simplified_orbit_coi end, to allow changes to take effect smoothly, in this iteration, even if paused
         bodies_sorted = np.argsort(self.mass)[-1::-1]
@@ -533,7 +531,7 @@ class Physics():
     
     
     def curve(self):
-        """Calculate all conic curves line coordinates."""
+        """Calculate all conic curves line points coordinates."""
         focus_x = self.focus * np.cos(self.periapsis_arg)   # focus coords from focus magnitude and angle
         focus_y = self.focus * np.sin(self.periapsis_arg)
         # 2D rotation matrix # rot[rotation, rotation, body]
@@ -549,8 +547,8 @@ class Physics():
                 if ecc == 1:   # parabola
                     curves[:, num, :] = np.array([self.semi_major[num] * self.par_t**2, 2 * self.semi_major[num] * self.par_t])   # raw parabolas
                     curves[0, num, :] = curves[0, num, :] - self.semi_major[num, np.newaxis]   # translate parabola by semi_major, since its center is not in 0,0
-                if ecc > 1:   # hyperbola
-                    curves[:, num, :] = np.array([self.semi_major[num] * 1/np.cos(self.hyp_t), self.semi_minor[num] * np.tan(self.hyp_t)])   # raw hyperbolas
+                elif ecc > 1:   # hyperbola
+                    curves[:, num, :] = np.array([-self.semi_major[num] * np.cosh(self.ell_t), self.semi_minor[num] * np.sinh(self.ell_t)])   # raw hyperbolas
                 # parametric equation for circle is same as for ellipse, just semi_major = semi_minor, thus it is not required
         
         curves_rot = np.zeros((2, curves.shape[1], curves.shape[2]))   # empty array for new rotated curve
@@ -609,18 +607,18 @@ class Physics():
         """Set color depending on temperature."""
         # temperature to 1000 - BASE
         # temperature from 1000 to 3000 - RED
-        self.color[:, 0] = np.where(self.temp > 1000, self.base_color[:, 0] + ((255 - self.base_color[:, 0]) * (self.temp - 1000)) / 2000, self.base_color[:, 0])   # transition from base red to full red
-        self.color[:, 1] = np.where(self.temp > 1000, self.base_color[:, 1] - ((self.base_color[:, 1]) * (self.temp - 1000)) / 2000, self.base_color[:, 1])   # transition from base green to no green
-        self.color[:, 2] = np.where(self.temp > 1000, self.base_color[:, 2] - ((self.base_color[:, 2]) * (self.temp - 1000)) / 2000, self.base_color[:, 2])   # transition from base blue to no blue
+        self.color[:, 0] = np.where(self.temp > 1000, self.base_color[:, 0] + ((255 - self.base_color[:, 0]) * (self.temp - 1000)) / 2000, self.base_color[:, 0])   # base red to full red
+        self.color[:, 1] = np.where(self.temp > 1000, self.base_color[:, 1] - ((self.base_color[:, 1]) * (self.temp - 1000)) / 2000, self.base_color[:, 1])   # base green to no green
+        self.color[:, 2] = np.where(self.temp > 1000, self.base_color[:, 2] - ((self.base_color[:, 2]) * (self.temp - 1000)) / 2000, self.base_color[:, 2])   # base blue to no blue
         # temperature from 3000 to 6000 - YELLOW
-        self.color[:, 1] = np.where(self.temp > 3000, (255 * (self.temp - 3000)) / 3000, self.color[:, 1])   # transition from no green to full green
+        self.color[:, 1] = np.where(self.temp > 3000, (255 * (self.temp - 3000)) / 3000, self.color[:, 1])   # no green to full green
         # temperature from 6000 to 10000 - WHITE
-        self.color[:, 2] = np.where(self.temp > 6000, (255 * (self.temp - 6000)) / 4000, self.color[:, 2])   # transition from no blue to full blue
+        self.color[:, 2] = np.where(self.temp > 6000, (255 * (self.temp - 6000)) / 4000, self.color[:, 2])   # no blue to full blue
         # temperature from 10000 to 30000 - BLUE
-        self.color[:, 0] = np.where(self.temp > 10000, 255 - ((255 * (self.temp - 10000) / 10000)), self.color[:, 0])   # transition from full red to no red
-        self.color[:, 1] = np.where(self.temp > 10000, 255 - ((135 * (self.temp - 10000) / 20000)), self.color[:, 1])   # transition from full green to 120 green
+        self.color[:, 0] = np.where(self.temp > 10000, 255 - ((255 * (self.temp - 10000) / 10000)), self.color[:, 0])   # full red to no red
+        self.color[:, 1] = np.where(self.temp > 10000, 255 - ((135 * (self.temp - 10000) / 20000)), self.color[:, 1])   # full green to 120 green
         self.color = np.clip(self.color, 0, 255)   # limit values to be 0 - 255
-        return self.color   # return calculated color
+        return self.color
     
     
     def classify(self):
@@ -724,7 +722,7 @@ class Physics():
                 curve[:, :] = np.array([semi_major * self.par_t**2, 2 * semi_major * self.par_t])   # raw parabola
                 curve[0, :] = curve[0, :] - semi_major[np.newaxis]
             if ecc > 1:
-                curve[:, :] = np.array([semi_major * 1/np.cos(self.hyp_t), semi_minor * np.tan(self.hyp_t)])   # raw hyperbola
+                curve[:, :] = np.array([-semi_major * np.cosh(self.ell_t), semi_minor * np.sinh(self.ell_t)])   # raw hyperbola
         
         curve_rot = np.zeros((2, curve.shape[1]))   # empty array for new rotated curve
         curve_rot[:, :] = np.dot(rot[:, :], curve[:, :])   # apply rotation matrix to all curve points

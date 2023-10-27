@@ -10,7 +10,7 @@ dPe = a * (1 - e)   # Pe height
 tPe = T - (Ma * T / (2pi))   # time to periapsis [12]
 tN = T - (Ma * T / (2pi)) - (phi * T / (2pi))   # time to point on orbit, point is given by angle phi starting from periapsis
 # time to point on orbit is calcuated as difernce of time to Pe from current point and time to Pe from target point
-tN = T - (Ma + phi)(T / (2pi))%T   # above equation simplified
+tN = T - (direction * Ma + phi)(T / (2pi))%T   # above equation simplified with direction
 dAp = a * (1 + e)   # Ap height
 tAp = T - (Ma + pi)(T / (2pi))%T   # time to apoapsis
 

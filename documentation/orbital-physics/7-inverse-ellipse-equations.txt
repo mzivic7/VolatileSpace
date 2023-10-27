@@ -20,7 +20,7 @@ Because anomalies are positive in orbiting direction.
 Get Ea from Ma using Newtons method for finding equation roots [3]. Plug this in Newton root solver:
 0 = Ea - e * sin(Ea) - Ma   # Keplers equation
 d(f(Ea))/dEa = 1 - e * cos(Ea)   # derivative from Keplers equation
-Ta = 2 * arctan(sqrt((1+e) / (1-e)) * tan(Ea/2))%(2pi)   # true anomaly from eccentric anomaly [11]
+ea = math.acos((ecc + math.cos(ta))/(1 + (ecc * math.cos(ta))))   # eccentric anomaly from true anomaly [11]
 
 
 
@@ -79,4 +79,4 @@ v = vr + v_p   # absolute vel from relative vel and parents absolute vel
 
 References:
 [3]  https://orbital-mechanics.space/time-since-periapsis-and-keplers-equation/elliptical-orbits.html#newton-s-method-to-solve-kepler-s-equation
-[11] https://en.wikipedia.org/wiki/True_anomaly#From_the_eccentric_anomaly
+[11] https://en.wikipedia.org/wiki/Eccentric_anomaly#From_the_true_anomaly

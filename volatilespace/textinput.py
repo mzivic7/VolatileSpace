@@ -216,3 +216,4 @@ class Textinput():
                 self.first_click = False
                 self.timer_double_click = 0
             self.timer_double_click += 1
+   

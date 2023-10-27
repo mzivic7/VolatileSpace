@@ -11,7 +11,8 @@ import copy
 from itertools import repeat
 
 from volatilespace import fileops
-from volatilespace import physics_editor
+from volatilespace import physics_game
+from volatilespace import physics_convert
 from volatilespace.graphics import rgb
 from volatilespace.graphics import graphics
 from volatilespace.graphics import bg_stars
@@ -20,21 +21,46 @@ from volatilespace import metric
 from volatilespace import defaults
 
 
-physics = physics_editor.Physics()
+physics = physics_game.Physics()
 graphics = graphics.Graphics()
 bg_stars = bg_stars.Bg_Stars()
 textinput = textinput.Textinput()
 
 
-buttons_pause_menu = ["Resume", "Save game", "Load game", "Settings", "Quit without saving", "Save and Quit"]
+buttons_pause_menu = ["Resume",
+                      "Save game",
+                      "Load game",
+                      "Settings",
+                      "Quit without saving",
+                      "Save and Quit"]
 buttons_save = ["Cancel", "Save", "New save"]
 buttons_load = ["Cancel", "Load"]
 buttons_new_game = ["Cancel", "Create"]
 body_types = ["Moon", "Solid planet", "Gas planet", "Star", "Black Hole"]
-text_data_orb = ["Selected body: ", "Parent body: ", "Periapsis: ", "Apoapsis: ", "Eccentricity: ", "Argument of Pe: ", "Mean anomaly: ", "True anomaly: ", "Direction: ", "Distance: ", "Orbital Period: ", "Orbital Speed: ", "Horizontal Speed: ", "Vertical Speed: "]
+text_data_orb = ["Selected body: ",
+                 "Parent body: ",
+                 "Periapsis: ",
+                 "Apoapsis: ",
+                 "Eccentricity: ",
+                 "Argument of Pe: ",
+                 "Mean anomaly: ",
+                 "True anomaly: ",
+                 "Direction: ",
+                 "Distance: ",
+                 "Orbital Period: ",
+                 "Orbital Speed: ",
+                 "Horizontal Speed: ",
+                 "Vertical Speed: "]
 text_data_body = ["Body name: ", "Type: ", "Mass: ", "Density: ", "Radius: ", "COI altitude: "]
-text_data_planet = ["(Rotation period): ", "Color: ", "(Atmosphere amount): ", "(Atmosphere height): ", "(surface gravity): "]
-text_data_star = ["(Surface temp): ", "(Luminosity): ", "Color: ", "(H/He ratio): "]
+text_data_planet = ["(Rotation period): ",
+                    "Color: ",
+                    "(Atmosphere amount): ",
+                    "(Atmosphere height): ",
+                    "(surface gravity): "]
+text_data_star = ["(Surface temp):",
+                  "(Luminosity): ",
+                  "Color: ",
+                  "(H/He ratio): "]
 text_data_bh = ["Schwarzschild radius: "]
 
 
@@ -95,7 +121,7 @@ class Game():
         self.pause = False   # program paused
         self.move = False    # move view mode
         self.selected = None   # selected body
-        self.direction = None   # keyboard buttons wasd
+        self.dr = None   # keyboard buttons wasd
         self.follow = False   # follow selected body
         self.first = True   # is this first iteration
         self.mouse = [0, 0]   # mouse position in simulation
@@ -108,7 +134,11 @@ class Game():
         self.mouse_fix_y = False
         self.zoom_step = 0.05   # initial zoom step
         self.warp = self.warp_range[self.warp_index]   # load current warp
-        self.orbit_data = []   # additional data for right_menu when body is selected
+        self.orbit_data_menu = []   # additional data for right_menu when body is selected
+        self.pos = np.array([])
+        self.ma = np.array([])
+        self.curves = np.array([])
+        
         
         self.offset_old = np.array([self.offset_x, self.offset_y])
         self.grid_enable = False   # background grid
@@ -204,9 +234,18 @@ class Game():
     
     
     def load_system(self, system):
-        self.sim_name, self.sim_time, self.sim_conf, self.names, self.mass, self.density, self.position, self.velocity, self.color = fileops.load_system(system)
+        self.sim_name, self.sim_time, self.sim_conf, self.names, self.mass, self.density, self.color, orb_data = fileops.load_file(system)
         self.sim_time *= self.ptps   # convert from seconds to userevent iterations
-        physics.load_system(self.sim_conf, self.names, self.mass, self.density, self.position, self.velocity, self.color)   # add it to physics class
+        if not orb_data["kepler"]:   # convert to keplerian model
+            coi_coef = self.sim_conf["coi_coef"]
+            gc = self.sim_conf["gc"]
+            orb_data = physics_convert.to_kepler(self.mass, orb_data, gc, coi_coef)
+            os.remove(system)
+            date = time.strftime("%d.%m.%Y %H:%M")
+            fileops.save_file(system, self.sim_name, date, self.sim_conf, self.sim_time/self.ptps,
+                              self.names, self.mass, self.density, self.color, orb_data)
+        
+        physics.load_system(self.sim_conf, self.names, self.mass, self.density, self.color, orb_data)
         self.file_path = system   # this path will be used for load/save
         self.disable_input = False
         self.disable_ui = False
@@ -215,10 +254,15 @@ class Game():
         self.selected_item = 0
         self.selected = None
         self.warp_index = 0
+        self.warp = 1
         self.first = True
         
         # userevent may not been run in first iteration, but this values are needed in graphics section:
-        self.names, self.types, self.mass, self.density, self.temp, self.position, self.velocity, self.colors, self.size, self.rad_sc = physics.get_bodies()
+        body_data, body_orb = physics.body()
+        self.unpack_body(body_data, body_orb)
+        self.pos, self.ma = physics.body_move(self.warp)
+        physics.body_curve()
+        self.curves = physics.body_curve_move()
         self.first = True
     
     
@@ -246,36 +290,69 @@ class Game():
         # y_on_screen = y_on_screen - screen_y   move origin from bottom-left to up-left. This is implemented in above line
         return [x_in_sim, y_in_sim]
     
+    
+    def unpack_body(self, body_data, body_orb):
+        """Unpacks values from dict and stores them in class variables. Reading dict values is slower than variable."""
+        # BODY DATA #
+        self.names = body_data["name"]
+        self.types = body_data["type"]
+        self.mass = body_data["mass"]
+        self.density = body_data["den"]
+        self.temp = body_data["temp"]
+        self.base_color = body_data["color_b"]
+        self.color = body_data["color"]
+        self.size = body_data["size"]
+        self.rad_sc = body_data["rad_sc"]
+        # ORBIT DATA #
+        self.a = body_orb["a"]
+        self.b = body_orb["b"]
+        self.f = body_orb["f"]
+        self.coi = body_orb["coi"]
+        self.ref = body_orb["ref"]
+        self.ecc = body_orb["ecc"]
+        self.pe_d = body_orb["pe_d"]
+        self.ap_d = body_orb["ap_d"]
+        self.pea = body_orb["pea"]
+        self.dr = body_orb["dir"]
+        self.period = body_orb["per"]
+    
+    
     def load(self):
         """Loads system from "load" dialog."""
         if os.path.exists(self.selected_path):
-            self.sim_name, self.sim_time, self.sim_conf, self.names, self.mass, self.density, self.position, self.velocity, self.color = fileops.load_system(self.selected_path)
-            self.sim_time *= self.ptps   # convert from seconds to userevent iterations
-            physics.load_system(self.sim_conf, self.names, self.mass, self.density, self.position, self.velocity, self.color)
-            self.names, self.types, self.mass, self.density, self.temp, self.position, self.velocity, self.colors, self.size, self.rad_sc = physics.get_bodies()
+            self.load_system(self.selected_path)
+            body_data, body_orb = physics.body()
+            self.unpack_body(body_data, body_orb)
+            self.pos, self.ma = physics.body_move(self.warp)
+            physics.body_curve()
+            self.curves = physics.body_curve_move()
             self.file_path = self.selected_path   # change currently active file
             graphics.timed_text_init(rgb.gray, self.fontmd, "Map loaded successfully", (self.screen_x/2, self.screen_y-70), 2, True)
         
-    def save(self, path, name=None):
+    def save(self, path, name=None, silent=False):
         """Saves game to file. If name is None, name is not changed."""
-        base_color = physics.get_base_color()
         date = time.strftime("%d.%m.%Y %H:%M")
-        fileops.save_system(path, name, date, self.sim_conf, self.sim_time/self.ptps, self.names, self.mass, self.density, self.position, self.velocity, base_color)
-        graphics.timed_text_init(rgb.gray, self.fontmd, "Map saved successfully", (self.screen_x/2, self.screen_y-70), 2, True)
+        orb_data = {"a": self.a, "ecc": self.ecc, "pe_arg": self.pea, "ma": self.ma, "ref": self.ref, "dir": self.dr}
+        fileops.save_file(path, name, date, self.sim_conf, self.sim_time/self.ptps,
+                          self.names, self.mass, self.density, self.base_color, orb_data)
+        if not silent:
+            graphics.timed_text_init(rgb.gray, self.fontmd, "Map saved successfully", (self.screen_x/2, self.screen_y-70), 2, True)
     
     def quicksave(self):
         """Saves game to quicksave file."""
-        base_color = physics.get_base_color()
         date = time.strftime("%d.%m.%Y %H:%M")
-        fileops.save_system("Saves/quicksave.ini", "Quicksave - " + self.sim_name, date, self.sim_conf, self.sim_time/self.ptps, self.names, self.mass, self.density, self.position, self.velocity, base_color)
+        orb_data = {"a": self.a, "ecc": self.ecc, "pe_arg": self.pea, "ma": self.ma, "ref": self.ref, "dir": self.dr}
+        fileops.save_file("Saves/quicksave.ini", "Quicksave - " + self.sim_name, date, self.sim_conf, self.sim_time/self.ptps,
+                          self.names, self.mass, self.density, self.base_color, orb_data)
         graphics.timed_text_init(rgb.gray2, self.fontmd, "Quicksave...", (self.screen_x/2, self.screen_y-70), 2, True)
     
     def autosave(self, e):
-        """Automatically saves current game to autosave.ini at predefined interval.""" 
+        """Automatically saves current game to autosave.ini at predefined interval."""
         if e.type == self.autosave_event:
-            base_color = physics.get_base_color()
             date = time.strftime("%d.%m.%Y %H:%M")
-            fileops.save_system("Saves/auosave.ini", "Autosave - " + self.sim_name, date, self.sim_conf, self.sim_time/self.ptps, self.names, self.mass, self.density, self.position, self.velocity, base_color)
+            orb_data = {"a": self.a, "ecc": self.ecc, "pe_arg": self.pea, "ma": self.ma, "ref": self.ref, "dir": self.dr}
+            fileops.save_file("Saves/autosave.ini", "Autosave - " + self.sim_name, date, self.sim_conf, self.sim_time/self.ptps,
+                              self.names, self.mass, self.density, self.base_color, orb_data)
             graphics.timed_text_init(rgb.gray2, self.fontmd, "Autosave...", (self.screen_x/2, self.screen_y-70), 2, True)
 
     
@@ -294,6 +371,7 @@ class Game():
                     self.new_game = False
                     self.ask = None
                 elif e.key == pygame.K_RETURN:
+                    date = time.strftime("%d.%m.%Y %H:%M")
                     path = fileops.new_game(self.text, date)
                     self.save(path)
                     self.gen_game_list()
@@ -430,7 +508,6 @@ class Game():
             # moving and selecting with lclick
             if e.type == pygame.MOUSEBUTTONDOWN:
                 if e.button == 1:
-                    self.names, self.types, self.mass, self.density, self.temp, self.position, self.velocity, self.colors, self.size, self.rad_sc = physics.get_bodies()
                     self.move = True   # enable view move
                     self.mouse_old = self.mouse   # initial mouse position for movement
                     self.mouse_raw_old = self.mouse_raw   # initial mouse position for movement
@@ -442,9 +519,8 @@ class Game():
                     self.select_toggle = False
                     if e.button != 2:   # don't select body with middle click when in insert mode
                         if mouse_move < self.select_sens:   # if mouse moved less than n pixels:
-                            curves = physics.curve()
-                            for body, body_pos in enumerate(self.position):   # for each body:
-                                curve = np.column_stack(self.screen_coords(curves[:, body]))   # get line coords on screen
+                            for body, body_pos in enumerate(self.pos):   # for each body:
+                                curve = np.column_stack(self.screen_coords(self.curves[:, body]))   # get line coords on screen
                                 diff = np.amax(curve, 0) - np.amin(curve, 0)
                                 if body == 0 or diff[0]+diff[1] > 32:   # skip hidden bodies with too small orbits
                                     scr_radius = self.size[body]*self.zoom
@@ -524,9 +600,7 @@ class Game():
                                 self.disable_input = False
                                 self.pause = False
                             elif num == 5:   # save and quit
-                                base_color = physics.get_base_color()
-                                date = time.strftime("%d.%m.%Y %H:%M")
-                                fileops.save_system(self.file_path, self.sim_name, date, self.sim_conf, self.sim_time/self.ptps, self.names, self.mass, self.density, self.position, self.velocity, base_color)
+                                self.save(self, self.file_path, name=self.sim_name, silent=True)
                                 self.state = 1
                                 self.pause_menu = False
                                 self.disable_input = False
@@ -547,11 +621,9 @@ class Game():
                             if x_pos <= self.mouse_raw[0]-1 <= x_pos+self.btn_w_h and self.ask_y+self.space <= self.mouse_raw[1]-1 <= self.ask_y+self.space+self.btn_h:
                                 if num == 0:   # cancel
                                     pass
-                                elif num == 1:
-                                    date = time.strftime("%d.%m.%Y %H:%M")
-                                    path = fileops.new_game(self.text, date)
-                                    base_color = physics.get_base_color()
-                                    fileops.save_system(path, self.text, date, self.sim_conf, self.sim_time/self.ptps, self.names, self.mass, self.density, self.position, self.velocity, base_color)
+                                elif num == 1:   # save
+                                    path = fileops.new_game(self.text, time.strftime("%d.%m.%Y %H:%M"))
+                                    self.save(path, name=self.text)
                                     self.gen_game_list()
                                 self.new_game = False
                                 self.ask = None
@@ -662,7 +734,7 @@ class Game():
                                 else:
                                     if num in [2, 3]:
                                         if self.selected is not None:
-                                            if num == 2 and self.selected == self.parents[self.selected]:   # don't display orbit edit for root body
+                                            if num == 2 and self.selected == self.ref[self.selected]:   # don't display orbit edit for root body
                                                 pass
                                             else:
                                                 self.right_menu = num
@@ -712,25 +784,17 @@ class Game():
     
     ###### --Physics-- ######
     def physics(self, e):
-        body_del = None
         if e.type == pygame.USEREVENT:   # event for calculations
             if self.pause is False:   # if it is not paused:
-                for num in range(self.warp):
-                    physics.gravity()   # do gravity physics
-                    physics.body()   # do body related physics (size, thermal, bh...)
-                    self.sim_time += 1   # iterate sim_time
-                    
-                    if self.first:   # this is run only once at userevent start
-                        self.first = False   # do not run it again
-                        self.focus_point([0, 0], 0.5)   # initial zoom and point
-                        self.selected = 0   # select body
-                        self.follow = True   # follow it
-        
-        self.names, self.types, self.mass, self.density, self.temp, self.position, self.velocity, self.colors, self.size, self.rad_sc = physics.get_bodies()
-        physics.kepler_basic()   # calculate basic keplerian elements
-        self.semi_major, self.semi_minor, self.coi, self.parents = physics.get_body_orbits()   # get basic keplerian elements
-        self.colors = physics.body_color()   # calculate colors from temperature
-        physics.classify()   # classify bodies
+                self.pos, self.ma = physics.body_move(self.warp)
+                self.curves = physics.body_curve_move()
+                self.sim_time += 1 * self.warp   # iterate sim_time
+                
+                if self.first:   # this is run only once at userevent start
+                    self.first = False   # do not run it again
+                    self.focus_point([0, 0], 0.5)   # initial zoom and point
+                    self.selected = 0   # select body
+                    self.follow = True   # follow it
     
     
     
@@ -741,8 +805,8 @@ class Game():
         
         # follow body (this must be before drawing objects to prevent them from vibrating when moving)
         if self.follow and self.selected is not None:   # if follow mode is enabled
-            self.offset_x = - self.position[self.selected, 0] + self.screen_x / 2   # follow selected body
-            self.offset_y = - self.position[self.selected, 1] + self.screen_y / 2
+            self.offset_x = - self.pos[self.selected, 0] + self.screen_x / 2   # follow selected body
+            self.offset_y = - self.pos[self.selected, 1] + self.screen_y / 2
         
         # screen movement
         if self.move:   # this is not in userevent to allow moving while paused
@@ -783,8 +847,10 @@ class Game():
             self.offset_old = np.array([self.offset_x, self.offset_y])
             if not self.first:
                 speed = math.sqrt(offset_diff.dot(offset_diff))/3   # speed as movement vector magnitude
-            while speed > 300:   # limits speed when view is jumping (focus home, distant body...)
-                speed = math.sqrt(speed)
+                while speed > 300:   # limits speed when view is jumping (focus home, distant body...)
+                    speed = math.sqrt(speed)
+            else:
+                speed = 0
             direction = math.atan2(offset_diff[1], offset_diff[0])   # movement vector angle from atan2
             bg_stars.draw_bg(screen, speed, direction, self.zoom)
         
@@ -796,45 +862,55 @@ class Game():
             if self.selected is not None:
                 if self.grid_mode == 1:      # grid mode: selected body
                     if self.follow is False:
-                        origin = self.screen_coords(self.position[self.selected])
+                        origin = self.screen_coords(self.pos[self.selected])
                     else:   # When following body, origin is in center of screen
                         origin = [(- self.zoom_x + self.screen_x/2) * self.zoom, self.screen_y - (- self.zoom_y + self.screen_y/2) * self.zoom]
                 if self.grid_mode == 2:   # grid mode: parent of selected body
-                    origin = self.screen_coords(self.position[self.parents[self.selected]])
+                    origin = self.screen_coords(self.pos[self.ref[self.selected]])
             else:
                 origin = self.screen_coords([0, 0])
             graphics.draw_grid(screen, self.grid_mode, origin, self.zoom)
         
         
         # bodies drawing
-        curves = physics.curve()   # calculate all curves
         for body in range(len(self.mass)):   # for each body:
-            curve = np.column_stack(self.screen_coords(curves[:, body]))   # get line coords on screen
+            curve = np.column_stack(self.screen_coords(self.curves[:, body]))   # get line coords on screen
             diff = np.amax(curve, 0) - np.amin(curve, 0)
             if body == 0 or diff[0]+diff[1] > 32:   # skip bodies with too small orbits
                 
                 # draw orbit curve lines
                 if body != 0:   # skip root
-                    line_color = np.where(self.colors[body] > 255, 255, self.colors[body])   # get line color and limit values to top 255
+                    line_color = np.where(self.color[body] > 255, 255, self.color[body])   # get line color and limit values to top 255
                     graphics.draw_lines(screen, tuple(line_color), curve, 2)   # draw that line
                 
                 # draw bodies
                 scr_body_size = self.size[body] * self.zoom   # get body screen size
-                body_color = tuple(self.colors[body])   # get color
+                body_color = tuple(self.color[body])   # get color
                 if scr_body_size >= 5:
-                    graphics.draw_circle_fill(screen, body_color, self.screen_coords(self.position[body]), scr_body_size)
+                    graphics.draw_circle_fill(screen, body_color, self.screen_coords(self.pos[body]), scr_body_size)
                 else:   # if body is too small, draw marker with fixed size
-                    graphics.draw_circle_fill(screen, rgb.gray1, self.screen_coords(self.position[body]), 6)
-                    graphics.draw_circle_fill(screen, rgb.gray2, self.screen_coords(self.position[body]), 5)
-                    graphics.draw_circle_fill(screen, body_color, self.screen_coords(self.position[body]), 4)
+                    graphics.draw_circle_fill(screen, rgb.gray1, self.screen_coords(self.pos[body]), 6)
+                    graphics.draw_circle_fill(screen, rgb.gray2, self.screen_coords(self.pos[body]), 5)
+                    graphics.draw_circle_fill(screen, body_color, self.screen_coords(self.pos[body]), 4)
                 
                 # select body
                 if self.selected is not None and self.selected == body:
-                    parent = self.parents[body]      # get selected body parent
-                    body_pos = self.position[body, :]      # get selected body position
-                    ecc, periapsis, pe_d, pe_t, apoapsis, ap_d, ap_t, pe_arg, ma, ta, direction, distance, period, speed_orb, speed_hor, speed_vert = physics.kepler_advanced(body)   # get advanced kepler parameters for selected body
-                    if self.right_menu == 3:
-                        self.orbit_data = [pe_d, ap_d, ecc, pe_arg, ma, ta, direction, distance, period, speed_orb, speed_hor, speed_vert]
+                    parent = self.ref[body]      # get selected body parent
+                    body_pos = self.pos[body, :]      # get selected body position
+                    ta, pe, pe_t, ap, ap_t, distance, speed_orb, speed_hor, speed_vert = physics.body_selected(self.selected)
+                    if self.right_menu == 2:
+                        self.orbit_data_menu = [self.pe_d[self.selected],
+                                                self.ap_d[self.selected],
+                                                self.ecc[self.selected],
+                                                self.pea[self.selected] * 180 / np.pi,
+                                                self.ma[self.selected] * 180 / np.pi,
+                                                ta * 180 / np.pi,
+                                                self.dr[self.selected],
+                                                distance,
+                                                self.period[self.selected],
+                                                speed_orb,
+                                                speed_hor,
+                                                speed_vert]
                     
                     # circles
                     if not self.disable_labels:
@@ -846,7 +922,7 @@ class Game():
                             if self.coi[body] * self.zoom >= 8:
                                 graphics.draw_circle(screen, rgb.gray1, self.screen_coords(body_pos), self.coi[body] * self.zoom, 1)   # circle of influence
                         if body != 0:
-                            parent_scr = self.screen_coords(self.position[parent])
+                            parent_scr = self.screen_coords(self.pos[parent])
                             if self.size[parent] * self.zoom >= 5:
                                 graphics.draw_circle(screen, rgb.red1, parent_scr, self.size[parent] * self.zoom + 4, 1)   # parent circle
                             else:
@@ -856,23 +932,23 @@ class Game():
                                     graphics.draw_circle(screen, rgb.red1, parent_scr, self.coi[parent] * self.zoom, 1)   # parent circle of influence
                             
                             # ap and pe
-                            if ap_d > 0:
-                                ap_scr = self.screen_coords(apoapsis)   # apoapsis with zoom and offset
+                            if self.ap_d[body] > 0:
+                                ap_scr = self.screen_coords(ap)   # apoapsis with zoom and offset
                             else:   # in case of hyperbola/parabola (ap_d is negative)
-                                ap_scr = self.screen_coords(periapsis)
+                                ap_scr = self.screen_coords(pe)
                             scr_dist = abs(parent_scr - ap_scr)
                             if scr_dist[0] > 5 or scr_dist[1] > 5:   # dont draw Ap and Pe if Ap is too close to parent
                                 
                                 # periapsis location marker, text: distance and time to it
-                                pe_scr = self.screen_coords(periapsis)   # periapsis screen coords
+                                pe_scr = self.screen_coords(pe)   # periapsis screen coords
                                 graphics.draw_circle_fill(screen, rgb.lime1, pe_scr, 3)   # periapsis marker
-                                graphics.text(screen, rgb.lime1, self.fontsm, "Periapsis: " + str(round(pe_d, 1)), (pe_scr[0], pe_scr[1] + 7), True)
+                                graphics.text(screen, rgb.lime1, self.fontsm, "Periapsis: " + str(round(self.pe_d[body], 1)), (pe_scr[0], pe_scr[1] + 7), True)
                                 graphics.text(screen, rgb.lime1, self.fontsm, "T - " + str(datetime.timedelta(seconds=round(pe_t/self.ptps))), (pe_scr[0], pe_scr[1] + 17), True)
                                 
-                                if ecc < 1:   # if orbit is ellipse
+                                if self.ecc[body] < 1:   # if orbit is ellipse
                                     # apoapsis location marker, text: distance and time to it
                                     graphics.draw_circle_fill(screen, rgb.lime1, ap_scr, 3)   # apoapsis marker
-                                    graphics.text(screen, rgb.lime1, self.fontsm, "Apoapsis: " + str(round(ap_d, 1)), (ap_scr[0], ap_scr[1] + 7), True)
+                                    graphics.text(screen, rgb.lime1, self.fontsm, "Apoapsis: " + str(round(self.ap_d[body], 1)), (ap_scr[0], ap_scr[1] + 7), True)
                                     graphics.text(screen, rgb.lime1, self.fontsm, "T - " + str(datetime.timedelta(seconds=round(ap_t/self.ptps))), (ap_scr[0], ap_scr[1] + 17), True)
     
     
@@ -948,7 +1024,7 @@ class Game():
             pygame.draw.rect(screen, rgb.black, (0, 0, self.btn_s, self.screen_y))
             if self.selected is not None:
                 prop_l = None
-                if self.selected == self.parents[self.selected]:
+                if self.selected == self.ref[self.selected]:
                     prop_l = [None, None, 0, None]
             else:
                 prop_l = [None, None, 0, 0]
@@ -968,7 +1044,7 @@ class Game():
                     if num == 0:
                         names_screen.append("Root: " + name)
                     else:
-                        parent = self.names[self.parents[num]]
+                        parent = self.names[self.ref[num]]
                         names_screen.append(name + "    @ " + parent)
                     imgs.append(self.body_imgs[int(self.types[num])])
                 graphics.text_list_select(screen, names_screen, (self.r_menu_x_btn, 38), (280, 21), 26, self.selected, imgs)
@@ -979,16 +1055,16 @@ class Game():
                     if num == 0:
                         texts[0] = texts[0] + self.names[self.selected]
                     elif num == 1:
-                        texts[1] = texts[1] + self.names[self.parents[self.selected]]
+                        texts[1] = texts[1] + self.names[self.ref[self.selected]]
                     elif num == 8:
-                        if self.orbit_data[6] == -1:
+                        if self.orbit_data_menu[6] == -1:
                             texts[8] = texts[8] + "Clockwise"
                         else:
                             texts[8] = texts[8] + "Counter-clockwise"
                     elif num == 10:
-                        texts[10] = texts[10] + str(datetime.timedelta(seconds=round(self.orbit_data[8]/self.ptps)))
+                        texts[10] = texts[10] + str(datetime.timedelta(seconds=round(self.orbit_data_menu[8]/self.ptps)))
                     else:
-                        texts[num] = texts[num] + metric.format_si(self.orbit_data[num-2], 3)
+                        texts[num] = texts[num] + metric.format_si(self.orbit_data_menu[num-2], 3)
                 graphics.text_list(screen, texts, (self.r_menu_x_btn, 38), (280, 21), 26)
                 
             elif self.right_menu == 3 and self.selected is not None:   # data body
@@ -1003,7 +1079,7 @@ class Game():
                     texts_body.append(text_data_body[i] + values_body[i])
                 texts_merged = texts_body[:]
                 if int(self.types[self.selected]) in [0, 1, 2]:   # moon, planet, gas
-                    color = self.colors[self.selected]
+                    color = self.color[self.selected]
                     values_planet = ["WIP",
                                      " R: " + str(color[0]) + "   G: " + str(color[1]) + "   B: " + str(color[2]),
                                      "WIP",
@@ -1052,11 +1128,17 @@ class Game():
             graphics.text(screen, rgb.white, self.fontmd, "Zoom: x" + str(zoom_round), (160, 2))
             if self.move:
                 # print position of view, here is not added zoom offset, this shows real position, y axis is inverted
-                graphics.text(screen, rgb.white, self.fontmd, "Pos: X:" + str(int(self.offset_x - self.screen_x / 2)) + "; Y:" + str(-int(self.offset_y - self.screen_y / 2)), (270, 2))
+                graphics.text(screen, rgb.white, self.fontmd,
+                              "Pos: X:" + str(int(self.offset_x - self.screen_x / 2)) +
+                              "; Y:" + str(-int(self.offset_y - self.screen_y / 2)),
+                              (270, 2))
             
             # debug
             graphics.text(screen, rgb.gray1, self.fontmd, str(self.mouse_raw), (self.screen_x - 260, 2))
-            graphics.text(screen, rgb.gray1, self.fontmd, "[" + str(int(self.sim_coords(self.mouse_raw)[0])) + ", " + str(int(self.sim_coords(self.mouse_raw)[1])) + "]", (self.screen_x - 170, 2))
+            graphics.text(screen, rgb.gray1, self.fontmd,
+                          "[" + str(int(self.sim_coords(self.mouse_raw)[0])) + ", " +
+                          str(int(self.sim_coords(self.mouse_raw)[1])) + "]",
+                          (self.screen_x - 170, 2))
             graphics.text(screen, rgb.gray1, self.fontmd, "fps: " + str(int(clock.get_fps())), (self.screen_x - 50, 2))
     
     

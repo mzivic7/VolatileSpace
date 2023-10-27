@@ -607,7 +607,7 @@ class Graphics():
             color = rgb.black
             if x <= self.mouse[0]-1 <= x + w and y <= self.mouse[1]-1 <= y + h:
                 color = rgb.gray2
-                if self.click is True:
+                if self.click:
                     color = rgb.gray1
             pygame.draw.rect(screen, color, (x, y, w, h))
             if num == selected:

@@ -48,7 +48,7 @@ def main():
                     if selected_path is not None:
                         try:   # check if file exists
                             with open(selected_path) as f:
-                                text = f.read()
+                                _ = f.read()
                         except Exception:
                             state = 1
                             menu.gen_map_list()
@@ -60,7 +60,7 @@ def main():
                     if selected_path is not None:
                         try:   # check if file exists
                             with open(selected_path) as f:
-                                text = f.read()
+                                _ = f.read()
                         except Exception:
                             state = 1
                             menu.gen_map_list()
