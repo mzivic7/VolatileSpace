@@ -7,7 +7,6 @@ import time
 import datetime
 from configparser import ConfigParser
 from ast import literal_eval as leval
-import copy
 from itertools import repeat
 
 from volatilespace import fileops
@@ -778,6 +777,7 @@ class Game():
                     self.scroll = max(0, self.game_list_size - self.list_limit)
         
         return self.state
+    
     
     
     ###### --Physics-- ######

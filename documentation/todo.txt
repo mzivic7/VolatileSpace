@@ -1,50 +1,86 @@
 ### TIMELINE ###
-1. multi language
-2. separate physics for vessel
-3. rotation
-4. more advanced orbital parameters
-5. 2 keplerian orbit lines - predict leaving orbit
-6. collision with rotation for vessels
-7. STAR PHYSICS
-8. GAME
-9. BODY TEXTURES
-10. VESSEL TEXTURES
-11. MULTIPLAYER
-12. port to andrid ???
+
+v0.5.0 - vessel physics
+copy from body physics to separate class file
+load/save vessels from save file
+draw vessel as triangle
+temporarily, vessel size as circle, for collisions
+physical warp (x2, x4) when enter atmosphere (fake atmosphere temporarily)
+physical warp when close to other vessel (define distance)
+break regular warp when entering physical (check next iteration to not move into atmosphere)
+check collisions in physical warp
+add velocity in prograde/retrograde, radial/antiradial
+documentation
+
+editor: prograde/retrograde, radial/antiradial
+
+v0.5.1 - game gui
+display vessel data in right menus
+separate selection for body and vessel
+display selected body data in right menu
+
+v0.5.2 - rotation
+planets rotation
+vessel rotation
+- vessels stop rotating in regular warp
+- add velocity only in facing direction
+documentation
+
+v0.5.3 - advanced body orbit
+leave/enter orbit and landing point
+show/hide mouseover menu for point, ap/pe leve/enter, landing
+lock/unlock click menu for point, ap/pe leve/enter, landing
+time-to point
+distance to center
+dont draw some parts of orbit
+documentation
+
+v0.5.4 - warp to point
+warp to point
+warp to next orbit
+
+v0.5.5 - second orbit
+draw second orbit
+documentation
+
+v0.5.6 - rebuild editor physics
+rebuild editor physics
+documentation
+
+
 
 
 ### STAR PHYSICS ###
 calculate surface temp
-shadows
 calculate luminosity
+shadows
 body classification
-star age - composition: H - He
-star physics tick warp system
-support non-main-sequence stars
+??? star age - composition: H - He
+??? star physics tick warp system
 black holes
+support non-main-sequence stars
 simulation sizes adjustment
-star type
+star classification
 
 
 
 ### GAME ###
 advanced game GUI
-vessel
+vessel close
 engine
 maneuvers
 fuel
-rotation
 icons, modules, markers
 SAS
 deltaV
 vessel parts and editor
-atmosphere
+advanced rotation
+advanced collisions
 docking
-collisions
 launch / staging
 heat
-comms
-electric power
+communications
+electrical power
 
 
 
@@ -65,3 +101,8 @@ atmospheric effects
 exhaust effects
 explosions
 
+
+
+??? multiplayer
+??? Localization
+??? Port to android

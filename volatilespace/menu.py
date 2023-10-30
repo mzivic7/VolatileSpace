@@ -187,8 +187,8 @@ class Menu():
         self.games = fileops.gen_game_list()
         self.game_list_size = len(self.games) * self.btn_h + len(self.games) * self.space
         if len(self.games) != 0:
-            if self.selected_item >= len(self.maps):
-                self.selected_item = len(self.maps) - 1
+            if self.selected_item >= len(self.games):
+                self.selected_item = len(self.games) - 1
             self.selected_path = "Saves/" + self.games[self.selected_item, 0]
         
         # limit text size

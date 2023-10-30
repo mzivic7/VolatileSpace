@@ -301,54 +301,58 @@ class Physics():
     
     def body_selected(self, body):
         """Do physics for selected body. This should be done every tick after body_move()."""
-        ref = self.ref[body]  # get parent body
-        periapsis_arg = self.pea[body]
-        a = self.a[body]
-        ecc = self.ecc[body]
-        ea = self.ea[body]
-        ma = self.ma[body]
-        period = self.period[body]
-        u = self.u[body]
-        ap_d = self.ap_d[body]
-        pe_d = self.pe_d[body]
-        dr = self.dr[body]
-        
-        rel_pos = self.pos[body] - self.pos[ref]
-        distance = mag(rel_pos)   # distance to parent
-        speed_orb = math.sqrt((2 * a * u - distance * u) / (a * distance))   # velocity vector magnitude from semi-major axis equation
-        ta = (periapsis_arg - (math.atan2(rel_pos[1], rel_pos[0]) - np.pi)) % (2*np.pi)  # true anomaly from relative position
-        # not calculating ta from ea since it is more complicated
-        
-        angle = 0
-        speed_vert = speed_orb * math.sin(angle)
-        speed_hor = speed_orb * math.cos(angle)
-        
-        if ecc != 0:   # if orbit is not circle
-            if ecc < 1:   # if orbit is ellipse
-                if np.pi < ta < 2*np.pi:
-                    ea = 2*np.pi - ea   # quadrant problems
+        if body:
+            pos_ref = self.pos[self.ref[body]]  # get parent body
+            periapsis_arg = self.pea[body]
+            a = self.a[body]
+            b = self.b[body]
+            ecc = self.ecc[body]
+            ea = self.ea[body]
+            ma = self.ma[body]
+            period = self.period[body]
+            u = self.u[body]
+            ap_d = self.ap_d[body]
+            pe_d = self.pe_d[body]
+            dr = self.dr[body]
+            
+            rel_pos = self.pos[body] - pos_ref
+            distance = mag(rel_pos)   # distance to parent
+            speed_orb = math.sqrt((2 * a * u - distance * u) / (a * distance))   # velocity vector magnitude from semi-major axis equation
+            ta = math.acos((math.cos(ea) - ecc)/(1 - ecc * math. cos(ea)))  # true anomaly from eccentric anomaly
+            if ma > np.pi:
+                ta = 2*np.pi - ta
+            angle = (ta - math.atan(-b * (math.cos(ea)) / (math.sin(ea) * a))) % np.pi
+            speed_vert = speed_orb * math.cos(angle)
+            speed_hor = speed_orb * math.sin(angle)
+            
+            if ecc != 0:   # if orbit is not circle
+                if ecc < 1:   # if orbit is ellipse
+                    if np.pi < ta < 2*np.pi:
+                        ea = 2*np.pi - ea   # quadrant problems
+                    pe_t = orbit_time_to(ma, 0, period, dr)   # time to periapsis
+                    ap = np.array([ap_d * math.cos(periapsis_arg), ap_d * math.sin(periapsis_arg)]) + pos_ref   # coordinates
+                    ap_t = orbit_time_to(ma, np.pi, period, dr)   # time to apoapsis
+                else:
+                    if ecc > 1:   # hyperbola
+                        pe_t = math.sqrt((-a)**3 / u) * ma
+                    else:   # parabola
+                        pe_t = math.sqrt(2*(a/2)**3) * ma
+                    period = 0   # period is undefined
+                    # there is no apoapsis
+                    ap = np.array([0, 0])
+                    ap_t = 0
+            else:   # circle
+                ma = ta
+                period = (2 * np.pi * math.sqrt(a**3 / u)) / 10   # orbital period
                 pe_t = orbit_time_to(ma, 0, period, dr)   # time to periapsis
-                ap = np.array([ap_d * math.cos(periapsis_arg), ap_d * math.sin(periapsis_arg)]) + self.pos[ref]   # coordinates
-                ap_t = orbit_time_to(ma, np.pi, period, dr)   # time to apoapsis
-            else:
-                if ecc > 1:   # hyperbola
-                    pe_t = math.sqrt((-a)**3 / u) * ma
-                else:   # parabola
-                    pe_t = math.sqrt(2*(a/2)**3) * ma
-                period = 0   # period is undefined
                 # there is no apoapsis
                 ap = np.array([0, 0])
                 ap_t = 0
-        else:   # circle
-            ma = ta
-            period = (2 * np.pi * math.sqrt(a**3 / u)) / 10   # orbital period
-            pe_t = orbit_time_to(ma, 0, period, dr)   # time to periapsis
-            # there is no apoapsis
-            ap = np.array([0, 0])
-            ap_t = 0
-        pe = np.array([pe_d * math.cos(periapsis_arg - np.pi), pe_d * math.sin(periapsis_arg - np.pi)]) + self.pos[ref]
-        
-        return ta, pe, pe_t, ap, ap_t, distance, speed_orb, speed_hor, speed_vert
+            pe = np.array([pe_d * math.cos(periapsis_arg - np.pi), pe_d * math.sin(periapsis_arg - np.pi)]) + pos_ref
+            
+            return ta, pe, pe_t, ap, ap_t, distance, speed_orb, speed_hor, speed_vert
+        else:
+            return 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
     
     
     def body_curve_move(self):

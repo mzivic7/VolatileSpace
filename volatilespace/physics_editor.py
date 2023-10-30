@@ -457,7 +457,7 @@ class Physics():
             mean_anomaly = true_anomaly
             period = (2 * np.pi * math.sqrt(semi_major**3 / u)) / 10   # orbital period
             pe_d = semi_major * (1 - ecc)   # periapsis distance and coordinate:
-            pe_t = orbit_time_to(mean_anomaly, 0, period, direction)   # time to periapsis
+            pe_t = orbit_time_to(mean_anomaly, 0, period, -1)   # time to periapsis
             # there is no apoapsis
             apoapsis = np.array([0, 0])
             ap_d = 0

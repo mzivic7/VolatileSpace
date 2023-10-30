@@ -4,8 +4,9 @@ Ap = a * (1 + e)   # apoapsis distance from planet center
 Pev = [Pe * cos(omega + pi) + P1_x, Pe * sin(omega + pi) + P1_y]   # periapsis vector
 Apv = [Ap * cos(omega), Ap * sin(omega)]   # apoapsis vector
 T = 2 * pi * sqrt(a^3 / u)   # orbital period [7]
-Ta = atan2(Pr_y, Pr_x)   # true anomaly from relative position in -pi to pi range (angle between horizont and body)
-Ta = (omega - Ta - pi)%(2pi)   # this puts true anomaly in right quadrants and adds argument of Pe
+Ta = acos((cos(Ea) - ecc)/(1 - ecc * cos(Ea)))  # true anomaly from eccentric anomaly [15]
+if ea > np.pi:   #  this puts true anomaly in right quadrants since it is symmetrical
+    Ta = 2*np.pi - Ta
 moment = rel_pos cross rel_vel   # rotation moment
 direction = sign(moment)   # if moment is negative, rotation is clockwise (-1)
 if direction is -1:
@@ -19,16 +20,14 @@ vv = (vr_x * cos(angle) + vr_y * sin(angle))   # vertical speed
 vh = abs(vr_x * sin(angle) - vr_y * cos(angle))   # horizontal speed
 # Vertical and horizontal speeds are calculated as components of vr, but coordinate system is rotated by pi/2-true_anomaly - to be normal with body position vector relative to orbiting mass.
 
-# If vr vector is unknown but its magnitude is (vo):
-angle = 
-vv = vo * sin(angle)
-vh = vo * cos(angle)
-
-# if direction is clockwise invert Ta to be calculated in opposite direction
-if direction == -1:
-    true_anomaly = 2pi - true_anomaly
+# If vr vector is unknown but its magnitude (vo) is:
+# vo direction is tangent on ellipse in this point
+# %pi puts it in right quadrants so sign after sin and cos functions is correct
+angle = (Ta - arctg(-b*ctg(Ea)/a)) % pi   # angle between tangent and true anomaly
+vv = vo * cos(angle)
+vh = vo * sin(angle)
 
 
 References:
-[7] https://en.wikipedia.org/wiki/Orbital_period#Small_body_orbiting_a_central_body
-
+[7]  https://en.wikipedia.org/wiki/Orbital_period#Small_body_orbiting_a_central_body
+[15] https://en.wikipedia.org/wiki/True_anomaly#From_the_eccentric_anomaly
