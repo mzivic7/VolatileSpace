@@ -39,6 +39,7 @@ def format_si(value, decimal=3):
 
 
 def parse_si(value_string):
+    """Convert string with SI prefix to number"""
     try:   # if no prefix
         value = float(value_string)
         return value

@@ -1,15 +1,13 @@
-import numpy as np
+from ast import literal_eval as leval
 import math
 from itertools import repeat
-from ast import literal_eval as leval
+import numpy as np
 try:   # to allow building without numba
     from numba import njit, types, int32, int64, float64
     numba_avail = True
 except ImportError:
     numba_avail = False
     
-
-
 from volatilespace import fileops
 from volatilespace import defaults
 
@@ -25,25 +23,25 @@ rad_sim_mult = 10**6   # radius sim multiplier
 
 
 ###### --Functions-- ######
-def newton_root(function, derivative, root_guess, vars={}):
+def newton_root(function, derivative, root_guess, variables={}):
     """Newton root solver"""
     root = root_guess   # take guessed root input
-    for num in range(50):
-        delta_x = function(root, vars) / derivative(root, vars)   # guess correction
+    for _ in range(50):
+        delta_x = function(root, variables) / derivative(root, variables)   # guess correction
         root -= delta_x   # better guess
         if abs(delta_x) < 1e-10:   # if correction is small enough:
             return root   # return root
     return root   # if it is not returned above (it has too high deviation) return it anyway
 
 
-def keplers_eq(E, vars):
+def keplers_eq(ea, variables):
     """Keplers equation"""
-    return E - vars['e'] * np.sin(E) - vars['Ma']
+    return ea - variables['e'] * np.sin(ea) - variables['Ma']
 
 
-def keplers_eq_derivative(E, vars):
+def keplers_eq_derivative(ea, variables):
     """Derivative of keplers equation"""
-    return 1.0 - vars['e'] * np.cos(E)
+    return 1.0 - variables['e'] * np.cos(ea)
 
 
 def get_angle(a, b, c):
@@ -74,9 +72,9 @@ def cross_2d(v1, v2):
     return np.array([v1[0]*v2[1] - v1[1]*v2[0]])
 
 
-def calc_body_orb_one(body, ref, mass, gc, coi_coef, a, ecc, pea):
+def calc_body_orb_one(body, ref, mass, gc, coi_coef, a, ecc):
     """Additional body orbital parameters."""
-    if body:   # skip calculation for root
+    if body:   # skip root
         u = gc * mass[ref]   # standard gravitational parameter
         f = a * ecc
         b = math.sqrt(abs(f**2 - a**2))
@@ -86,10 +84,10 @@ def calc_body_orb_one(body, ref, mass, gc, coi_coef, a, ecc, pea):
             coi = 0
         
         if ecc != 0:   # if orbit is not circle
-            pe_d = a * (1 - ecc)   # periapsis distance and coordinate:
+            pe_d = a * (1 - ecc)
             if ecc < 1:   # if orbit is ellipse
-                period = (2 * np.pi * math.sqrt(a**3 / u))   # orbital period
-                ap_d = a * (1 + ecc)   # apoapsis distance
+                period = 2 * np.pi * math.sqrt(a**3 / u)
+                ap_d = a * (1 + ecc)
             else:
                 if ecc > 1:   # hyperbola
                     pe_d = a * (1 - ecc)
@@ -99,8 +97,8 @@ def calc_body_orb_one(body, ref, mass, gc, coi_coef, a, ecc, pea):
                 # there is no apoapsis
                 ap_d = 0
         else:   # circle
-            period = (2 * np.pi * math.sqrt(a**3 / u)) / 10   # orbital period
-            pe_d = a * (1 - ecc)   # periapsis distance and coordinate:
+            period = (2 * np.pi * math.sqrt(a**3 / u)) / 10
+            pe_d = a * (1 - ecc)
             # there is no apoapsis
             ap_d = 0
         n = 2*np.pi / period
@@ -124,7 +122,7 @@ def body_color(temp, base_color):
     # temperature from 10000 to 30000 - BLUE
     color[:, 0] = np.where(temp > 10000, 255 - ((255 * (temp - 10000) / 10000)), color[:, 0])   # full red to no red
     color[:, 1] = np.where(temp > 10000, 255 - ((135 * (temp - 10000) / 20000)), color[:, 1])   # full green to 120 green
-    color = np.clip(color, 0, 255)   # limit values to be 0 - 255
+    color = np.clip(color, 0, 255)
     return color
 
 
@@ -145,8 +143,8 @@ class Physics():
         self.names = np.array([])
         self.mass = np.array([])
         self.den = np.array([])
-        self.base_color = np.empty((0, 3), int)   # base color (original color unaffected by temperature)
-        self.types = np.array([])  # what is this body
+        self.base_color = np.empty((0, 3), int)   # original color unaffected by temperature
+        self.types = np.array([])
         # body orbit main
         self.a = np.array([])
         self.ecc = np.array([])
@@ -157,7 +155,7 @@ class Physics():
         # body orbit extra
         self.b = np.array([])
         self.f = np.array([])
-        self.ped_d = np.array([])
+        self.pe_d = np.array([])
         self.ap_d = np.array([])
         self.period = np.array([])
         self.n = np.array([])
@@ -166,10 +164,14 @@ class Physics():
         self.pos = np.array([])
         self.ea = np.array([])
         self.u = np.array([])
+        self.gc = defaults.sim_config["gc"]
+        self.rad_mult = defaults.sim_config["rad_mult"]
+        self.coi_coef = defaults.sim_config["coi_coef"]
         self.reload_settings()
     
     
     def reload_settings(self):
+        """Reload all settings, should be run every time game is entered"""
         self.curve_points = int(fileops.load_settings("graphics", "curve_points"))   # number of points from which curve is drawn
         # parameters
         self.ell_t = np.linspace(-np.pi, np.pi, self.curve_points)   # ellipse parameter
@@ -206,9 +208,9 @@ class Physics():
         """Do all body related physics. This should be done only if something changed on body or it's orbit."""
         
         # BODY DATA #
-        volume = self.mass / self.den   # volume from mass and density
-        size = self.rad_mult * np.cbrt(3 * volume / (4 * np.pi))   # calculate radius from volume
-        core_temp = (self.gc * mp * self.mass * mass_sim_mult) / ((3/2) * k * size * rad_sim_mult)   # core temperature
+        volume = self.mass / self.den
+        size = self.rad_mult * np.cbrt(3 * volume / (4 * np.pi))
+        core_temp = (self.gc * mp * self.mass * mass_sim_mult) / ((3/2) * k * size * rad_sim_mult)
         temp = 0 / core_temp   # surface temperature # ### temporarily ###
         rad_sc = 2 * self.mass * mass_sim_mult * self.gc / c**2   # Schwarzschild radius
         color = body_color(temp, self.base_color)
@@ -231,7 +233,7 @@ class Physics():
         
         
         # ORBIT DATA #
-        values = list(map(calc_body_orb_one, list(range(len(self.mass))), self.ref, repeat(self.mass), repeat(self.gc), repeat(self.coi_coef), self.a, self.ecc, self.pea))
+        values = list(map(calc_body_orb_one, list(range(len(self.mass))), self.ref, repeat(self.mass), repeat(self.gc), repeat(self.coi_coef), self.a, self.ecc))
         self.b, self.f, self.coi, self.pe_d, self.ap_d, self.period, self.n, self.u = list(map(np.array, zip(*values)))
         body_orb = {"a": self.a,
                     "b": self.b,
@@ -267,8 +269,8 @@ class Physics():
         
         # 2D rotation matrix # rot[rotation, rotation, body]
         rot = np.array([[np.cos(self.pea), - np.sin(self.pea)], [np.sin(self.pea), np.cos(self.pea)]])
-        self.curves_rot = np.zeros((2, curves.shape[1], curves.shape[2]))   # empty array for new rotated curve
-        for body in range(curves.shape[1]):   # for each body
+        self.curves_rot = np.zeros((2, curves.shape[1], curves.shape[2]))
+        for body in range(curves.shape[1]):
             self.curves_rot[:, body, :] = np.dot(rot[:, :, body], curves[:, body, :])   # apply rotation matrix to all curve points
     
     
@@ -302,7 +304,7 @@ class Physics():
     def body_selected(self, body):
         """Do physics for selected body. This should be done every tick after body_move()."""
         if body:
-            pos_ref = self.pos[self.ref[body]]  # get parent body
+            pos_ref = self.pos[self.ref[body]]
             periapsis_arg = self.pea[body]
             a = self.a[body]
             b = self.b[body]
@@ -325,13 +327,13 @@ class Physics():
             speed_vert = speed_orb * math.cos(angle)
             speed_hor = speed_orb * math.sin(angle)
             
-            if ecc != 0:   # if orbit is not circle
-                if ecc < 1:   # if orbit is ellipse
+            if ecc != 0:   # not circle
+                if ecc < 1:   # ellipse
                     if np.pi < ta < 2*np.pi:
                         ea = 2*np.pi - ea   # quadrant problems
-                    pe_t = orbit_time_to(ma, 0, period, dr)   # time to periapsis
-                    ap = np.array([ap_d * math.cos(periapsis_arg), ap_d * math.sin(periapsis_arg)]) + pos_ref   # coordinates
-                    ap_t = orbit_time_to(ma, np.pi, period, dr)   # time to apoapsis
+                    pe_t = orbit_time_to(ma, 0, period, dr)
+                    ap = np.array([ap_d * math.cos(periapsis_arg), ap_d * math.sin(periapsis_arg)]) + pos_ref
+                    ap_t = orbit_time_to(ma, np.pi, period, dr)
                 else:
                     if ecc > 1:   # hyperbola
                         pe_t = math.sqrt((-a)**3 / u) * ma
@@ -343,8 +345,8 @@ class Physics():
                     ap_t = 0
             else:   # circle
                 ma = ta
-                period = (2 * np.pi * math.sqrt(a**3 / u)) / 10   # orbital period
-                pe_t = orbit_time_to(ma, 0, period, dr)   # time to periapsis
+                period = (2 * np.pi * math.sqrt(a**3 / u)) / 10
+                pe_t = orbit_time_to(ma, 0, period, dr)
                 # there is no apoapsis
                 ap = np.array([0, 0])
                 ap_t = 0

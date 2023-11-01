@@ -1,7 +1,4 @@
-import numpy as np
-import math
-
-# Colors in RGB format for use with pygame GUI
+"""Colors in RGB format for use with pygame GUI"""
 
 white = (255, 255, 255)
 

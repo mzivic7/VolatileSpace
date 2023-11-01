@@ -1,16 +1,14 @@
-import pygame
+from ast import literal_eval as leval
+import datetime
 import math
-import numpy as np
 import os
 import sys
 import time
-import datetime
-from configparser import ConfigParser
-from ast import literal_eval as leval
-from itertools import repeat
+import pygame
+import numpy as np
 
 from volatilespace import fileops
-from volatilespace import physics_game
+from volatilespace import physics_game_body
 from volatilespace import physics_convert
 from volatilespace.graphics import rgb
 from volatilespace.graphics import graphics
@@ -20,7 +18,7 @@ from volatilespace import metric
 from volatilespace import defaults
 
 
-physics = physics_game.Physics()
+physics_body = physics_game_body.Physics()
 graphics = graphics.Graphics()
 bg_stars = bg_stars.Bg_Stars()
 textinput = textinput.Textinput()
@@ -84,7 +82,7 @@ class Game():
         self.click = False
         self.first_click = None
         self.click_timer = 0
-        self.scroll = 0   # scroll for menus
+        self.scroll = 0
         self.scroll_sens = 10   # scroll sensitivity
         self.scrollbar_drag = False
         self.selected_item = 0
@@ -101,9 +99,9 @@ class Game():
         self.btn_s = 36   # small square button
         self.space = 10   # space between buttons
         self.file_path = ""   # path to currently active file
-        self.selected_path = ""   # path to selected file
+        self.selected_path = ""
         self.input_value = None   # which value is being text-inputed
-        self.new_value_raw = ""   # when inputting new value
+        self.new_value_raw = ""
         self.edited_orbit = False   # if orbit is edited, on first click call kepler_inverse, but don't on next clicks
         self.gen_game_list()
         self.reload_settings()
@@ -111,29 +109,27 @@ class Game():
         
         # simulation related
         self.ptps = 59   # divisor to convert simulation time to real time (it is not 60 because userevent timer is rounded to 17ms)
-        self.zoom = 0.15   # initial zoom value
+        self.zoom = 0.15
         self.select_sens = 5   # how many pixels are tolerable for mouse to move while selecting body
         self.drag_sens = 0.02   # drag sensitivity when inserting body
         self.warp_range = [1, 2, 3, 4, 5, 10, 50, 100]   # all possible warps, by order
-        self.warp_index = 0   # current warp from warp_range
-        self.sim_time = 0   # simulation time
-        self.pause = False   # program paused
-        self.move = False    # move view mode
-        self.selected = None   # selected body
-        self.dr = None   # keyboard buttons wasd
-        self.follow = False   # follow selected body
-        self.first = True   # is this first iteration
-        self.mouse = [0, 0]   # mouse position in simulation
-        self.mouse_raw = [0, 0]   # mouse position on screen
+        self.warp_index = 0
+        self.warp = self.warp_range[self.warp_index]
+        self.sim_time = 0
+        self.pause = False
+        self.move = False
+        self.selected = None
+        self.follow = False
+        self.first = True
+        self.mouse = [0, 0]   # in simulation
+        self.mouse_raw = [0, 0]   # on screen
         self.mouse_raw_old = [0, 0]
-        self.zoom_x, self.zoom_y = 0, 0   # initial zoom offset
         self.offset_x = self.screen_x / 2   # initial centered offset to 0, 0 coordinates
         self.offset_y = self.screen_y / 2
         self.mouse_fix_x = False   # fix mouse movement when jumping off screen edge
         self.mouse_fix_y = False
-        self.zoom_step = 0.05   # initial zoom step
-        self.warp = self.warp_range[self.warp_index]   # load current warp
-        self.orbit_data_menu = []   # additional data for right_menu when body is selected
+        self.zoom_step = 0.05
+        self.orbit_data_menu = []   # data for right_menu when body is selected
         self.pos = np.array([])
         self.ma = np.array([])
         self.curves = np.array([])
@@ -157,13 +153,13 @@ class Game():
         body_bh = pygame.image.load("img/bh.png")
         self.body_imgs = [body_moon, body_planet_solid, body_planet_gas, body_star, body_bh]
         
-        bg_stars.set_screen()   # load pygame stuff in classes after pygame init has finished
+        bg_stars.set_screen()
         graphics.set_screen()
     
     
     def set_screen(self):
         """Load pygame-related variables, this should be run after pygame has initialised or resolution has changed"""
-        self.screen_x, self.screen_y = pygame.display.get_surface().get_size()   # window width, window height
+        self.screen_x, self.screen_y = pygame.display.get_surface().get_size()
         self.ask_x = self.screen_x/2 - (2*self.btn_w_h + self.space)/2
         self.ask_y = self.screen_y/2 + self.space
         self.pause_x = self.screen_x/2 - self.btn_w/2
@@ -179,18 +175,20 @@ class Game():
         self.right_menu_x = self.screen_x - 300
         self.r_menu_limit = self.screen_y - 38 - self.space
         self.r_menu_x_btn = self.right_menu_x + self.space
+        bg_stars.set_screen()
+        graphics.set_screen()
     
     
     def reload_settings(self):
         """Reload all settings for editor and graphics, should be run every time editor is entered"""
         self.fullscreen = leval(fileops.load_settings("graphics", "fullscreen"))
         avail_res = pygame.display.list_modes()
-        self.screen_x, self.screen_y = pygame.display.get_surface().get_size()   # window width, window height
+        self.screen_x, self.screen_y = pygame.display.get_surface().get_size()
         try:
             self.selected_res = avail_res.index((self.screen_x, self.screen_y))
         except Exception:   # fail-safe repair if resolution is invalid
             self.selected_res = 0   # use maximum resolution
-            fileops.save_settings("graphics", "resolution", list(avail_res[0]))   # save it to file
+            fileops.save_settings("graphics", "resolution", list(avail_res[0]))
             if self.fullscreen:
                 pygame.display.set_mode((avail_res[0]), pygame.FULLSCREEN)
             else:
@@ -200,7 +198,7 @@ class Game():
         self.bg_stars_enable = leval(fileops.load_settings("background", "stars"))
         bg_stars.reload_settings()
         graphics.reload_settings()
-        physics.reload_settings()
+        physics_body.reload_settings()
         self.set_screen()   # resolution may have been changed
         bg_stars.set_screen()
         graphics.set_screen()
@@ -212,6 +210,7 @@ class Game():
     
     
     def gen_game_list(self):
+        """Generate list of games and select currently active file"""
         self.games = fileops.gen_game_list()
         self.game_list_size = len(self.games) * self.btn_h + len(self.games) * self.space
         if len(self.games) != 0:
@@ -233,6 +232,7 @@ class Game():
     
     
     def load_system(self, system):
+        """Load system from file and convert to kepler orbit if needed"""
         self.sim_name, self.sim_time, self.sim_conf, self.names, self.mass, self.density, self.color, orb_data = fileops.load_file(system)
         self.sim_time *= self.ptps   # convert from seconds to userevent iterations
         if not orb_data["kepler"]:   # convert to keplerian model
@@ -242,7 +242,7 @@ class Game():
             fileops.save_file(system, self.sim_name, date, self.sim_conf, self.sim_time/self.ptps,
                               self.names, self.mass, self.density, self.color, orb_data)
         
-        physics.load_system(self.sim_conf, self.names, self.mass, self.density, self.color, orb_data)
+        physics_body.load_system(self.sim_conf, self.names, self.mass, self.density, self.color, orb_data)
         self.file_path = system   # this path will be used for load/save
         self.disable_input = False
         self.disable_ui = False
@@ -255,11 +255,11 @@ class Game():
         self.first = True
         
         # userevent may not been run in first iteration, but this values are needed in graphics section:
-        body_data, body_orb = physics.body()
+        body_data, body_orb = physics_body.body()
         self.unpack_body(body_data, body_orb)
-        self.pos, self.ma = physics.body_move(self.warp)
-        physics.body_curve()
-        self.curves = physics.body_curve_move()
+        self.pos, self.ma = physics_body.body_move(self.warp)
+        physics_body.body_curve()
+        self.curves = physics_body.body_curve_move()
         self.first = True
     
     
@@ -282,9 +282,8 @@ class Game():
     
     def sim_coords(self, coords_on_screen):
         """Converts from screen coords to sim coords. Adds zoom, view move, and moves origin from bottom-left to up-left"""
-        x_in_sim = coords_on_screen[0] / self.zoom - self.offset_x + self.zoom_x   # correction for zoom, screen movement offset
-        y_in_sim = -(coords_on_screen[1] - self.screen_y) / self.zoom - self.offset_y + self.zoom_y
-        # y_on_screen = y_on_screen - screen_y   move origin from bottom-left to up-left. This is implemented in above line
+        x_in_sim = coords_on_screen[0] / self.zoom - self.offset_x + self.zoom_x
+        y_in_sim = -(coords_on_screen[1] - self.screen_y) / self.zoom - self.offset_y + self.zoom_y   # move origin from bottom-left to up-lef
         return [x_in_sim, y_in_sim]
     
     
@@ -318,12 +317,12 @@ class Game():
         """Loads system from "load" dialog."""
         if os.path.exists(self.selected_path):
             self.load_system(self.selected_path)
-            body_data, body_orb = physics.body()
+            body_data, body_orb = physics_body.body()
             self.unpack_body(body_data, body_orb)
-            self.pos, self.ma = physics.body_move(self.warp)
-            physics.body_curve()
-            self.curves = physics.body_curve_move()
-            self.file_path = self.selected_path   # change currently active file
+            self.pos, self.ma = physics_body.body_move(self.warp)
+            physics_body.body_curve()
+            self.curves = physics_body.body_curve_move()
+            self.file_path = self.selected_path
             graphics.timed_text_init(rgb.gray, self.fontmd, "Map loaded successfully", (self.screen_x/2, self.screen_y-70), 2, True)
         
     def save(self, path, name=None, silent=False):
@@ -357,8 +356,9 @@ class Game():
     
     ###### --Keys-- ######
     def input_keys(self, e):
+        """Simulation and menu keys"""
         if self.state != 2:   # when returning to editor menu
-            self.state = 2   # update state
+            self.state = 2
         
         # new game menu
         if self.new_game:
@@ -428,17 +428,14 @@ class Game():
             
             if not self.disable_input or self.allow_keys:
                 if e.key == self.keys["interactive_pause"]:
-                    if self.pause is False:
-                        self.pause = True   # if not paused, pause it
-                    else:
-                        self.pause = False  # if paused, unpause it
+                    self.pause = not self.pause
                 
                 elif e.key == self.keys["focus_home"]:
-                    self.follow = False   # disable follow
-                    self.focus_point([0, 0], self.zoom)   # return to (0,0) coordinates
+                    self.follow = False
+                    self.focus_point([0, 0], self.zoom)
                     
                 elif e.key == self.keys["follow_selected_body"]:
-                    self.follow = not self.follow   # toggle follow
+                    self.follow = not self.follow
                 
                 elif e.key == self.keys["toggle_background_grid"]:
                     self.grid_enable = not self.grid_enable
@@ -467,21 +464,22 @@ class Game():
                 # time warp
                 if e.key == self.keys["decrease_time_warp"]:
                     if self.warp_index != 0:   # stop index from going out of range
-                        self.warp_index -= 1   # decrease warp index
-                    self.warp = self.warp_range[self.warp_index]   # update warp
+                        self.warp_index -= 1
+                    self.warp = self.warp_range[self.warp_index]
                 if e.key == self.keys["increase_time_warp"]:
                     if self.warp_index != len(self.warp_range)-1:   # stop index from going out of range
-                        self.warp_index += 1   # increase warp index
-                    self.warp = self.warp_range[self.warp_index]   # update warp
+                        self.warp_index += 1
+                    self.warp = self.warp_range[self.warp_index]
                 if e.key == self.keys["stop_time_warp"]:
-                    self.warp_index = 0   # reset warp index
-                    self.warp = self.warp_range[self.warp_index]   # update warp
+                    self.warp_index = 0
+                    self.warp = self.warp_range[self.warp_index]
     
     
     
     ###### --Simulation Mouse-- ######
     def input_mouse(self, e):
-        self.mouse_raw = list(pygame.mouse.get_pos())   # get mouse position
+        """Input mouse for simulation"""
+        self.mouse_raw = list(pygame.mouse.get_pos())
         self.mouse = list((self.mouse_raw[0]/self.zoom, -(self.mouse_raw[1] - self.screen_y)/self.zoom))   # mouse position on zoomed screen
         # y coordinate in self.mouse is negative for easier applying in formula to check if mouse is inside circle
         
@@ -505,19 +503,19 @@ class Game():
             # moving and selecting with lclick
             if e.type == pygame.MOUSEBUTTONDOWN:
                 if e.button == 1:
-                    self.move = True   # enable view move
+                    self.move = True
                     self.mouse_old = self.mouse   # initial mouse position for movement
-                    self.mouse_raw_old = self.mouse_raw   # initial mouse position for movement
+                    self.mouse_raw_old = self.mouse_raw
                     
             if e.type == pygame.MOUSEBUTTONUP:
                 if e.button == 1:
-                    self.move = False   # disable move
-                    mouse_move = math.dist(self.mouse_raw, self.mouse_raw_old)   # mouse move dist
+                    self.move = False
+                    mouse_move = math.dist(self.mouse_raw, self.mouse_raw_old)
                     self.select_toggle = False
                     if e.button != 2:   # don't select body with middle click when in insert mode
-                        if mouse_move < self.select_sens:   # if mouse moved less than n pixels:
-                            for body, body_pos in enumerate(self.pos):   # for each body:
-                                curve = np.column_stack(self.screen_coords(self.curves[:, body]))   # get line coords on screen
+                        if mouse_move < self.select_sens:
+                            for body, body_pos in enumerate(self.pos):
+                                curve = np.column_stack(self.screen_coords(self.curves[:, body]))   # line coords on screen
                                 diff = np.amax(curve, 0) - np.amin(curve, 0)
                                 if body == 0 or diff[0]+diff[1] > 32:   # skip hidden bodies with too small orbits
                                     scr_radius = self.size[body]*self.zoom
@@ -525,21 +523,22 @@ class Game():
                                         scr_radius = 8
                                     # if mouse is inside body radius on its location: (body_x - mouse_x)**2 + (body_y - mouse_y)**2 < radius**2
                                     if sum(np.square(self.screen_coords(body_pos) - self.mouse_raw)) < (scr_radius)**2:
-                                        self.selected = body  # this body is selected
+                                        self.selected = body
                                         self.select_toggle = True   # do not exit select mode
                             if self.select_toggle is False and self.right_menu not in [3, 4]:   # if inside select mode and not in data right menus
-                                self.selected = None   # exit select mode
+                                self.selected = None
                                 if self.right_menu in [3, 4]:
-                                    self.right_menu = None   # disable orbit and body data
+                                    self.right_menu = None   # disable orbit and body data menus
             
             
             # mouse wheel: change zoom
             if not self.disable_input:
                 if e.type == pygame.MOUSEWHEEL:   # change zoom
                     if self.zoom > self.zoom_step or e.y == 1:   # prevent zooming below zoom_step, zoom can't be 0, but allow zoom to increase
-                        self.zoom_step = self.zoom / 10   # calculate zoom_step from current zoom
-                        self.zoom += e.y * self.zoom_step   # add value to zoom by scrolling on mouse
-                        self.zoom_x += (self.screen_x / 2 / (self.zoom - e.y * self.zoom_step)) - (self.screen_x / (self.zoom * 2))   # zoom translation to center
+                        self.zoom_step = self.zoom / 10
+                        self.zoom += e.y * self.zoom_step
+                        # zoom translation to center
+                        self.zoom_x += (self.screen_x / 2 / (self.zoom - e.y * self.zoom_step)) - (self.screen_x / (self.zoom * 2))
                         self.zoom_y += (self.screen_y / 2 / (self.zoom - e.y * self.zoom_step)) - (self.screen_y / (self.zoom * 2))
                         # these values are added only to displayed objects, traces... But not to real position
     
@@ -547,6 +546,7 @@ class Game():
     
     ###### --UI Mouse-- ######
     def ui_mouse(self, e):
+        """Input mouse for menus"""
         btn_disable_input = False
         if self.disable_input and not self.allow_keys:
             btn_disable_input = True
@@ -562,7 +562,7 @@ class Game():
                     scrollbar_pos = self.scroll * scrollbar_limit / scrollable_len
                 else:
                     scrollbar_pos = 0
-                scrollbar_x = self.games_x + self.btn_w_l + self.space + 2    # calculate scroll bar coords
+                scrollbar_x = self.games_x + self.btn_w_l + self.space + 2
                 scrollbar_y = self.games_y - self.space + 3 + scrollbar_pos
                 if scrollbar_x <= self.mouse_raw[0]-1 <= scrollbar_x + 11 and scrollbar_y <= self.mouse_raw[1]-1 <= scrollbar_y + 40:
                     self.scrollbar_drag = True
@@ -575,7 +575,7 @@ class Game():
                 # pause menu
                 if self.pause_menu:
                     y_pos = self.pause_y
-                    for num, text in enumerate(buttons_pause_menu):
+                    for num, _ in enumerate(buttons_pause_menu):
                         if self.pause_x <= self.mouse_raw[0]-1 <= self.pause_x + self.btn_w and y_pos <= self.mouse_raw[1]-1 <= y_pos + self.btn_h:
                             if num == 0:   # resume
                                 self.pause_menu = False
@@ -590,14 +590,14 @@ class Game():
                                 self.pause_menu = False
                                 self.gen_game_list()
                             elif num == 3:   # settings
-                                self.state = 4   # go directly to main menu settings, but be able to return here
+                                self.state = 43   # go directly to main menu settings, but be able to return here
                             elif num == 4:   # quit
                                 self.state = 1
                                 self.pause_menu = False
                                 self.disable_input = False
                                 self.pause = False
                             elif num == 5:   # save and quit
-                                self.save(self, self.file_path, name=self.sim_name, silent=True)
+                                self.save(self.file_path, name=self.sim_name, silent=True)
                                 self.state = 1
                                 self.pause_menu = False
                                 self.disable_input = False
@@ -630,7 +630,7 @@ class Game():
                         # games list
                         if self.games_y - self.space <= self.mouse_raw[1]-1 <= self.games_y + self.list_limit:
                             y_pos = self.games_y - self.scroll
-                            for num, text in enumerate(self.games[:, 1]):
+                            for num, _ in enumerate(self.games[:, 1]):
                                 if y_pos >= self.games_y - self.btn_h - self.space and y_pos <= self.games_y + self.list_limit:    # don't detect outside list area
                                     if self.games_x <= self.mouse_raw[0]-1 <= self.games_x + self.btn_w_l and y_pos <= self.mouse_raw[1]-1 <= y_pos + self.btn_h:
                                         self.selected_item = num
@@ -718,7 +718,7 @@ class Game():
                 # left ui
                 if not self.input_value:   # don't change window if textinpt is active
                     y_pos = 23
-                    for num, img in enumerate(self.ui_imgs):
+                    for num, _ in enumerate(self.ui_imgs):
                         if 0 <= self.mouse_raw[0] <= 0 + self.btn_s and y_pos <= self.mouse_raw[1] <= y_pos + self.btn_s:
                             if num == 0:   # menu
                                 self.pause_menu = True
@@ -744,7 +744,7 @@ class Game():
                 if not self.click_timer:
                     if self.right_menu == 1:   # body list
                         y_pos = 38
-                        for num, name in enumerate(self.names):
+                        for num, _ in enumerate(self.names):
                             if self.r_menu_x_btn <= self.mouse_raw[0]-1 <= self.r_menu_x_btn + 280 and y_pos <= self.mouse_raw[1]-1 <= y_pos + 21:
                                 self.selected = num
                                 self.follow = True
@@ -766,7 +766,6 @@ class Game():
         # moving scrollbar with cursor
         if self.scrollbar_drag:
             if self.menu == 0 or self.menu == 1:
-                # calculate scroll from scrollbar position
                 scrollbar_pos = self.mouse_raw[1] - self.games_y
                 scrollable_len = max(0, self.game_list_size - self.list_limit)
                 scrollbar_limit = self.list_limit - 40 + 4
@@ -782,28 +781,29 @@ class Game():
     
     ###### --Physics-- ######
     def physics(self, e):
-        if e.type == pygame.USEREVENT:   # event for calculations
-            if self.pause is False:   # if it is not paused:
-                self.pos, self.ma = physics.body_move(self.warp)
-                self.curves = physics.body_curve_move()
+        """Do simulation phisycs with warp and pause"""
+        if e.type == pygame.USEREVENT:
+            if self.pause is False:
+                self.pos, self.ma = physics_body.body_move(self.warp)
+                self.curves = physics_body.body_curve_move()
                 self.sim_time += 1 * self.warp   # iterate sim_time
                 
                 if self.first:   # this is run only once at userevent start
-                    self.first = False   # do not run it again
-                    self.focus_point([0, 0], 0.5)   # initial zoom and point
-                    self.selected = 0   # select body
-                    self.follow = True   # follow it
+                    self.first = False
+                    self.focus_point([0, 0], 0.5)
+                    self.selected = 0
+                    self.follow = True
     
     
     
     ###### --Graphics-- ######
-    def graphics(self, screen, clock):
-        screen.fill((0, 0, 0))   # color screen black
-        
+    def graphics(self, screen):
+        """Drawing simulation stuff on screen"""
+        screen.fill((0, 0, 0))
         
         # follow body (this must be before drawing objects to prevent them from vibrating when moving)
-        if self.follow and self.selected is not None:   # if follow mode is enabled
-            self.offset_x = - self.pos[self.selected, 0] + self.screen_x / 2   # follow selected body
+        if self.follow and self.selected is not None:
+            self.offset_x = - self.pos[self.selected, 0] + self.screen_x / 2
             self.offset_y = - self.pos[self.selected, 1] + self.screen_y / 2
         
         # screen movement
@@ -815,12 +815,12 @@ class Game():
                 self.mouse_old[1] = self.mouse[1]
                 self.mouse_fix_y = False
             
-            mouse_move = math.dist((self.mouse_raw[0], self.mouse_raw[1]), (self.mouse_raw_old[0], self.mouse_raw_old[1]))   # distance
+            mouse_move = math.dist((self.mouse_raw[0], self.mouse_raw[1]), (self.mouse_raw_old[0], self.mouse_raw_old[1]))
             self.offset_x += self.mouse[0] - self.mouse_old[0]   # add mouse movement to offset
             self.offset_y += self.mouse[1] - self.mouse_old[1]
-            # save mouse position for next iteration to get movement
-            if mouse_move > self.select_sens:   # stop following if mouse distance is more than n pixels
-                self.follow = False   # stop following selected body
+            # save mouse position for next iteration to calculate movement
+            if mouse_move > self.select_sens:   # stop following if mouse distance is more than sensitivity
+                self.follow = False
             
             if self.mouse_wrap:
                 if self.mouse_raw[0] >= self.screen_x-1:   # if mouse hits screen edge
@@ -871,19 +871,19 @@ class Game():
         
         
         # bodies drawing
-        for body in range(len(self.mass)):   # for each body:
-            curve = np.column_stack(self.screen_coords(self.curves[:, body]))   # get line coords on screen
+        for body in range(len(self.mass)):
+            curve = np.column_stack(self.screen_coords(self.curves[:, body]))   # line coords on screen
             diff = np.amax(curve, 0) - np.amin(curve, 0)
             if body == 0 or diff[0]+diff[1] > 32:   # skip bodies with too small orbits
                 
                 # draw orbit curve lines
                 if body != 0:   # skip root
-                    line_color = np.where(self.color[body] > 255, 255, self.color[body])   # get line color and limit values to top 255
-                    graphics.draw_lines(screen, tuple(line_color), curve, 2)   # draw that line
+                    line_color = np.where(self.color[body] > 255, 255, self.color[body])
+                    graphics.draw_lines(screen, tuple(line_color), curve, 2)
                 
                 # draw bodies
-                scr_body_size = self.size[body] * self.zoom   # get body screen size
-                body_color = tuple(self.color[body])   # get color
+                scr_body_size = self.size[body] * self.zoom
+                body_color = tuple(self.color[body])
                 if scr_body_size >= 5:
                     graphics.draw_circle_fill(screen, body_color, self.screen_coords(self.pos[body]), scr_body_size)
                 else:   # if body is too small, draw marker with fixed size
@@ -893,9 +893,9 @@ class Game():
                 
                 # select body
                 if self.selected is not None and self.selected == body:
-                    parent = self.ref[body]      # get selected body parent
-                    body_pos = self.pos[body, :]      # get selected body position
-                    ta, pe, pe_t, ap, ap_t, distance, speed_orb, speed_hor, speed_vert = physics.body_selected(self.selected)
+                    parent = self.ref[body]
+                    body_pos = self.pos[body, :]
+                    ta, pe, pe_t, ap, ap_t, distance, speed_orb, speed_hor, speed_vert = physics_body.body_selected(self.selected)
                     if self.right_menu == 2:
                         self.orbit_data_menu = [self.pe_d[self.selected],
                                                 self.ap_d[self.selected],
@@ -931,28 +931,36 @@ class Game():
                             
                             # ap and pe
                             if self.ap_d[body] > 0:
-                                ap_scr = self.screen_coords(ap)   # apoapsis with zoom and offset
+                                ap_scr = self.screen_coords(ap)
                             else:   # in case of hyperbola/parabola (ap_d is negative)
                                 ap_scr = self.screen_coords(pe)
                             scr_dist = abs(parent_scr - ap_scr)
                             if scr_dist[0] > 5 or scr_dist[1] > 5:   # dont draw Ap and Pe if Ap is too close to parent
                                 
-                                # periapsis location marker, text: distance and time to it
-                                pe_scr = self.screen_coords(pe)   # periapsis screen coords
-                                graphics.draw_circle_fill(screen, rgb.lime1, pe_scr, 3)   # periapsis marker
-                                graphics.text(screen, rgb.lime1, self.fontsm, "Periapsis: " + str(round(self.pe_d[body], 1)), (pe_scr[0], pe_scr[1] + 7), True)
-                                graphics.text(screen, rgb.lime1, self.fontsm, "T - " + str(datetime.timedelta(seconds=round(pe_t/self.ptps))), (pe_scr[0], pe_scr[1] + 17), True)
+                                pe_scr = self.screen_coords(pe)
+                                pe_scr_dist = abs(parent_scr - pe_scr)
+                                if pe_scr_dist[0] > 5 or pe_scr_dist[1] > 5:   # dont draw Pe if it is too close to parent
+                                    # periapsis location marker, text: distance and time to it
+                                    pe_scr = self.screen_coords(pe)
+                                    graphics.draw_circle_fill(screen, rgb.lime1, pe_scr, 3)   # periapsis marker
+                                    graphics.text(screen, rgb.lime1, self.fontsm, "Periapsis: " + str(round(self.pe_d[body], 1)), (pe_scr[0], pe_scr[1] + 7), True)
+                                    graphics.text(screen, rgb.lime1, self.fontsm,
+                                                  "T - " + str(datetime.timedelta(seconds=round(pe_t/self.ptps))),
+                                                  (pe_scr[0], pe_scr[1] + 17), True)
                                 
                                 if self.ecc[body] < 1:   # if orbit is ellipse
                                     # apoapsis location marker, text: distance and time to it
                                     graphics.draw_circle_fill(screen, rgb.lime1, ap_scr, 3)   # apoapsis marker
                                     graphics.text(screen, rgb.lime1, self.fontsm, "Apoapsis: " + str(round(self.ap_d[body], 1)), (ap_scr[0], ap_scr[1] + 7), True)
-                                    graphics.text(screen, rgb.lime1, self.fontsm, "T - " + str(datetime.timedelta(seconds=round(ap_t/self.ptps))), (ap_scr[0], ap_scr[1] + 17), True)
+                                    graphics.text(screen, rgb.lime1, self.fontsm,
+                                                  "T - " + str(datetime.timedelta(seconds=round(ap_t/self.ptps))),
+                                                  (ap_scr[0], ap_scr[1] + 17), True)
     
     
     
     ###### --Menus-- ######
     def graphics_ui(self, screen, clock):
+        """Drawing GUI menus"""
         
         # pause menu
         if self.pause_menu:
@@ -976,8 +984,8 @@ class Game():
             border_rect = [self.games_x-2*self.space, self.games_y-2*self.space, self.btn_w_l+4*self.space + 16, self.games_max_y+3*self.space]
             bg_rect = [sum(i) for i in zip(border_rect, [-10, -10, 20, 20])]
             pygame.draw.rect(screen, rgb.black, bg_rect)
-            graphics.buttons_list(screen, self.games[:, 1], (self.games_x, self.games_y), self.list_limit, self.scroll, self.selected_item, safe=not (bool(self.ask)))
-            graphics.buttons_horizontal(screen, buttons_load, (self.games_x - self.space, self.games_y_ui), alt_width=self.btn_w_h_2, safe=not (bool(self.ask)))
+            graphics.buttons_list(screen, self.games[:, 1], (self.games_x, self.games_y), self.list_limit, self.scroll, self.selected_item, safe=not bool(self.ask))
+            graphics.buttons_horizontal(screen, buttons_load, (self.games_x - self.space, self.games_y_ui), alt_width=self.btn_w_h_2, safe=not bool(self.ask))
             pygame.draw.rect(screen, rgb.white, border_rect, 1)
         
         # asking to load/save
@@ -1016,7 +1024,7 @@ class Game():
         
         
         if not self.disable_ui:
-            graphics.timed_text(screen, clock)   # timed text on screen
+            graphics.timed_text(screen, clock)
             
             # left ui
             pygame.draw.rect(screen, rgb.black, (0, 0, self.btn_s, self.screen_y))
@@ -1038,7 +1046,7 @@ class Game():
                 imgs = []
                 names_screen = []
                 for num, name in enumerate(self.names):
-                    name = graphics.limit_text(name, self.fontbt, 280)   # limit names length to display on screen
+                    name = graphics.limit_text(name, self.fontbt, 280)   # limit names length
                     if num == 0:
                         names_screen.append("Root: " + name)
                     else:
@@ -1049,7 +1057,7 @@ class Game():
             
             elif self.right_menu == 2 and self.selected is not None:   # data orbit
                 texts = text_data_orb[:]
-                for num, text in enumerate(text_data_orb):
+                for num, _ in enumerate(text_data_orb):
                     if num == 0:
                         texts[0] = texts[0] + self.names[self.selected]
                     elif num == 1:
@@ -1073,7 +1081,7 @@ class Game():
                                metric.format_si(self.size[self.selected], 3),
                                metric.format_si(self.coi[self.selected], 3)]
                 texts_body = []
-                for i in range(len(text_data_body)):
+                for i, _ in enumerate(text_data_body):
                     texts_body.append(text_data_body[i] + values_body[i])
                 texts_merged = texts_body[:]
                 if int(self.types[self.selected]) in [0, 1, 2]:   # moon, planet, gas
@@ -1084,8 +1092,8 @@ class Game():
                                      "WIP",
                                      "WIP"]
                     texts_planet = []
-                    for i in range(len(text_data_planet)):
-                        if type(values_planet[i]) is str:
+                    for i, _ in enumerate(text_data_planet):
+                        if isinstance(values_planet[i], str):
                             texts_planet.append(text_data_planet[i] + values_planet[i])
                         else:
                             texts_planet.append(values_planet[i])
@@ -1096,13 +1104,13 @@ class Game():
                                    "WIP",
                                    "WIP"]
                     texts_star = []
-                    for i in range(len(text_data_star)):
+                    for i, _ in enumerate(text_data_star):
                         texts_star.append(text_data_star[i] + values_star[i])
                     texts_merged += texts_star
                 elif int(self.types[self.selected]) == 4:   # for bh
                     values_bh = [metric.format_si(self.rad_sc[self.selected], 3)]
                     texts_bh = []
-                    for i in range(len(text_data_bh)):
+                    for i, _ in enumerate(text_data_bh):
                         texts_bh.append(text_data_bh[i] + values_bh[i])
                     texts_merged += texts_bh
                 graphics.text_list(screen, texts_merged, (self.r_menu_x_btn, 38), (280, 21), 26)
@@ -1111,7 +1119,7 @@ class Game():
             pygame.draw.rect(screen, rgb.black, (0, 0, self.screen_x, 22))
             pygame.draw.line(screen, rgb.white, (0, 22), (self.screen_x, 22), 1)
             graphics.text(screen, rgb.white, self.fontmd, str(datetime.timedelta(seconds=round(self.sim_time/self.ptps))), (2, 2))
-            if self.pause:   # if paused
+            if self.pause:
                 graphics.text(screen, rgb.red1, self.fontmd, "PAUSED", (70, 2))
             else:
                 graphics.text(screen, rgb.white, self.fontmd, "Warp: " + "x" + str(int(self.warp)), (70, 2))
@@ -1141,8 +1149,8 @@ class Game():
     
     
     
-    
     def main(self, screen, clock):
+        """Main game loop"""
         run = True
         while run:
             for e in pygame.event.get():
@@ -1158,7 +1166,7 @@ class Game():
                     sys.exit()
                 self.physics(e)
                 self.autosave(e)
-            self.graphics(screen, clock)
+            self.graphics(screen)
             self.graphics_ui(screen, clock)
             pygame.display.flip()
             clock.tick(60)

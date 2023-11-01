@@ -1,16 +1,15 @@
-import pygame
+from ast import literal_eval as leval
 import webbrowser
 import os
 import sys
 import shutil
 import time
 import numpy as np
-from ast import literal_eval as leval
+import pygame
 
 from volatilespace import fileops
 from volatilespace.graphics import rgb
 from volatilespace.graphics import graphics
-from volatilespace import editor
 from volatilespace import textinput
 from volatilespace.graphics import keybinding
 try:   # to allow building without numba
@@ -23,7 +22,7 @@ graphics = graphics.Graphics()
 textinput = textinput.Textinput()
 
 
-version = "0.4.4"
+version = "0.4.6"
 
 buttons_main = ["Play",
                 "Multiplayer - WIP",
@@ -75,10 +74,12 @@ class Menu():
         self.are_you_sure = False
         self.disable_buttons = False
         self.scrollbar_drag = False
+        self.scrollbar_drag_start = 0
         self.keybinding = False   # is keybinding menu active
         self.rename = False   # renaming menu
         self.new_map = False   # new map menu
         self.new_game = False   # new game menu
+        self.text = ""
         
         self.reload_settings()
         self.fonttl = pygame.font.Font("fonts/LiberationSans-Regular.ttf", 42)   # title text font
@@ -98,7 +99,7 @@ class Menu():
         
         self.screen_change = False
         self.res_change = False
-        self.restart = False   # restart is needed for settings
+        self.restart = False   # if restart is needed for settings
         graphics.antial = self.antial
         graphics.set_screen()
         self.gen_map_list()
@@ -107,7 +108,7 @@ class Menu():
     
     def set_screen(self):
         """Load pygame-related variables, this should be run after pygame has initialised or resolution has changed"""
-        self.screen_x, self.screen_y = pygame.display.get_surface().get_size()   # window width, window height
+        self.screen_x, self.screen_y = pygame.display.get_surface().get_size()
         self.main_x = self.screen_x/2 - self.btn_w/2
         self.main_y = self.screen_y/2 - (len(buttons_main) * self.btn_h + (len(buttons_main)-1) * self.space - self.fonttl.get_height())/2
         self.about_x = self.screen_x/2 - self.btn_w/2
@@ -141,17 +142,17 @@ class Menu():
         """Reload all settings in main menu, should be run every time settings are applied"""
         self.fullscreen = leval(fileops.load_settings("graphics", "fullscreen"))
         self.avail_res = pygame.display.list_modes()
-        self.screen_x, self.screen_y = pygame.display.get_surface().get_size()   # window width, window height
+        self.screen_x, self.screen_y = pygame.display.get_surface().get_size()
         try:
             self.selected_res = self.avail_res.index((self.screen_x, self.screen_y))
         except Exception:   # fail-safe repair if resolution is invalid
             self.selected_res = 0   # use maximum resolution
-            fileops.save_settings("graphics", "resolution", list(self.avail_res[0]))   # save it to file
+            fileops.save_settings("graphics", "resolution", list(self.avail_res[0]))
             if self.fullscreen is True:
                 pygame.display.set_mode((self.avail_res[0]), pygame.FULLSCREEN)
             else:
                 pygame.display.set_mode((self.avail_res[0]))
-        self.antial = leval(fileops.load_settings("graphics", "antialiasing"))   # global antialiasing
+        self.antial = leval(fileops.load_settings("graphics", "antialiasing"))
         graphics.set_screen()
         
         # for settings menu only:
@@ -169,6 +170,7 @@ class Menu():
     
     
     def gen_map_list(self):
+        """Generate list of maps and select currently active file"""
         self.maps = fileops.gen_map_list()
         self.map_list_size = len(self.maps) * self.btn_h + len(self.maps) * self.space
         if len(self.maps) != 0:
@@ -184,6 +186,7 @@ class Menu():
     
     
     def gen_game_list(self):
+        """Generate list of games and select currently active file"""
         self.games = fileops.gen_game_list()
         self.game_list_size = len(self.games) * self.btn_h + len(self.games) * self.space
         if len(self.games) != 0:
@@ -201,7 +204,7 @@ class Menu():
     
     ###### --Keys-- ######
     def input_keys(self, e, from_game=False):
-        
+        """Keyboard input"""
         if self.rename or self.new_map or self.new_game:
             self.text = textinput.input(e)
             if e.type == pygame.KEYDOWN:
@@ -291,7 +294,8 @@ class Menu():
     
     ###### --Mouse-- ######
     def input_mouse(self, e, from_game=False):
-        self.mouse = list(pygame.mouse.get_pos())   # get mouse position
+        """Mouse input"""
+        self.mouse = list(pygame.mouse.get_pos())
         # left mouse button is clicked
         if e.type == pygame.MOUSEBUTTONDOWN and e.button == 1:
             self.click = True   # this is to validate that mouse is clicked inside this menu
@@ -308,7 +312,7 @@ class Menu():
                     scrollbar_pos = self.scroll * scrollbar_limit / scrollable_len
                 else:
                     scrollbar_pos = 0
-                scrollbar_y = self.top_margin - self.space + 3 + scrollbar_pos    # calculate scroll bar coords
+                scrollbar_y = self.top_margin - self.space + 3 + scrollbar_pos
                 scrollbar_x = self.map_x_1 + self.btn_w_l + self.space + 2
                 if scrollbar_x <= self.mouse[0]-1 <= scrollbar_x + 11 and scrollbar_y <= self.mouse[1]-1 <= scrollbar_y + 40:
                     self.scrollbar_drag = True
@@ -323,7 +327,7 @@ class Menu():
                     scrollbar_pos = self.scroll_maps * scrollbar_limit / scrollable_len
                 else:
                     scrollbar_pos = 0
-                scrollbar_x = self.maps_x + self.btn_w_l + self.space + 2    # calculate scroll bar coords
+                scrollbar_x = self.maps_x + self.btn_w_l + self.space + 2
                 scrollbar_y = self.maps_y - self.space + 3 + scrollbar_pos
                 if scrollbar_x <= self.mouse[0]-1 <= scrollbar_x + 11 and scrollbar_y <= self.mouse[1]-1 <= scrollbar_y + 40:
                     self.scrollbar_drag = True
@@ -337,18 +341,17 @@ class Menu():
             if self.click is True:
                 if self.menu == 0:   # main menu
                     y_pos = self.main_y
-                    for num, text in enumerate(buttons_main):
+                    for num, _ in enumerate(buttons_main):
                         if self.main_x <= self.mouse[0]-1 <= self.main_x + self.btn_w and y_pos <= self.mouse[1]-1 <= y_pos + self.btn_h:
-                            if num+1 != 2:   # multiplayer
-                                self.menu = num+1   # switch to this menu
-                                self.click = False   # reset click, to not carry it to next menu
-                                if self.menu == 3:   # reload saved maps
-                                    self.gen_map_list()
-                                    self.scroll = 0
-                                if self.menu == 1:   # reload saved games
-                                    self.gen_game_list()
-                                    self.scroll = 0
-                        y_pos += self.btn_h + self.space   # calculate position for next button
+                            self.menu = num+1   # switch to this menu
+                            self.click = False   # reset click, to not carry it to next menu
+                            if self.menu == 3:   # editor
+                                self.gen_map_list()
+                                self.scroll = 0
+                            if self.menu == 1:   # play
+                                self.gen_game_list()
+                            self.scroll = 0
+                        y_pos += self.btn_h + self.space
                 
                 
             if self.click is True:
@@ -358,7 +361,7 @@ class Menu():
                         # games list
                         if self.top_margin - self.space <= self.mouse[1]-1 <= self.top_margin + self.list_limit:
                             y_pos = self.top_margin - self.scroll
-                            for num, text in enumerate(self.games[:, 1]):
+                            for num, _ in enumerate(self.games[:, 1]):
                                 if y_pos >= self.top_margin - self.btn_h - self.space and y_pos <= self.top_margin + self.list_limit:    # don't detect outside list area
                                     if self.map_x_1 <= self.mouse[0]-1 <= self.map_x_1 + self.btn_w_l and y_pos <= self.mouse[1]-1 <= y_pos + self.btn_h:
                                         self.selected_item = num
@@ -372,12 +375,12 @@ class Menu():
                         
                         # selected menu
                         y_pos = self.map_y_2
-                        for num, text in enumerate(buttons_play_sel):
+                        for num, _ in enumerate(buttons_play_sel):
                             if self.map_x_2 <= self.mouse[0]-1 <= self.map_x_2 + self.btn_w and y_pos <= self.mouse[1]-1 <= y_pos + self.btn_h:
                                 if len(self.games) != 0:
                                     if num == 0:   # play
                                         self.state = 3
-                                        self.menu = 0   # return to main menu instead load menu
+                                        self.menu = 0
                                     elif num == 1:   # rename
                                         self.rename = True
                                         self.disable_buttons = True
@@ -444,13 +447,13 @@ class Menu():
                                                 shutil.copy2(self.selected_ng_path, game_path)    # copy map to games
                                                 fileops.rename_game(game_path, game_name)
                                                 self.selected_path = game_path   # select new created game
-                                                self.state = 3   # return to main menu instead load menu
-                                                self.new_game = False   # and remove new game menu
+                                                self.state = 3
+                                                self.new_game = False
                                                 self.disable_buttons = False
-                                                self.menu = 0   # return to main menu instead load menu
+                                                self.menu = 0
                                             except Exception:
                                                 pass
-                                            self.click = False   # don't carry click to ask window
+                                            self.click = False
                                         self.first_click = num
                                 y_pos += self.btn_h + self.space
                         
@@ -469,10 +472,10 @@ class Menu():
                                         fileops.rename_game(game_path, game_name)
                                         self.selected_path = game_path   # select new created game
                                         self.state = 3
-                                        self.menu = 0   # return to main menu instead load menu
-                                        self.new_game = False   # and remove new game menu
+                                        self.menu = 0
+                                        self.new_game = False
                                         self.disable_buttons = False
-                                        self.click = False   # don't carry click to ask window
+                                        self.click = False
                                     except Exception:
                                         pass
                                 elif num == 2:   # import map
@@ -523,7 +526,7 @@ class Menu():
                                         self.selected_path = "Maps/" + self.maps[self.selected_item, 0]
                                         if self.first_click == num:   # detect double click
                                             self.state = 2
-                                            self.menu = 0   # return to main menu instead load menu
+                                            self.menu = 0
                                         self.first_click = num
                                 y_pos += self.btn_h + self.space
                         
@@ -535,7 +538,7 @@ class Menu():
                                 if len(self.maps) != 0:
                                     if num == 0:   # open editor
                                         self.state = 2
-                                        self.menu = 0   # return to main menu instead load menu
+                                        self.menu = 0
                                     elif num == 1:   # rename
                                         self.rename = True
                                         self.disable_buttons = True
@@ -628,10 +631,10 @@ class Menu():
                                 elif x_pos+self.btn_w-40 <= self.mouse[0]-1 <= x_pos + self.btn_w:   # plus
                                     self.selected_res -= 1
                                     self.res_change = True
-                                if self.selected_res < 0:   # if selected res is negative
-                                    self.selected_res = len(self.avail_res) - 1   # return it to min res
-                                if self.selected_res > len(self.avail_res) - 1:   # if selected res is out of range
-                                    self.selected_res = 0   # return it to max res
+                                if self.selected_res < 0:   # limit resolution
+                                    self.selected_res = len(self.avail_res) - 1
+                                if self.selected_res > len(self.avail_res) - 1:
+                                    self.selected_res = 0
                             elif num == 2:   # antialiasing
                                 self.antial = not self.antial
                             elif num == 3:   # vsync
@@ -731,7 +734,6 @@ class Menu():
                                 fileops.save_settings("game", "autosave_time", self.autosave_time)
                                 # change windowed/fullscreen
                                 if self.screen_change is True:
-                                    
                                     pygame.display.toggle_fullscreen()
                                     self.set_screen()
                                     graphics.set_screen()
@@ -785,11 +787,11 @@ class Menu():
         # moving scrollbar with cursor
         if self.scrollbar_drag is True:
             if self.menu in [1, 3] and not self.new_game:
+                # scrollbar for play and editor
                 if self.menu == 1:
                     list_size = self.game_list_size
                 else:
                     list_size = self.map_list_size
-                # calculate scroll from scrollbar position
                 scrollbar_pos = self.mouse[1] - self.top_margin
                 scrollable_len = max(0, list_size - self.list_limit)
                 scrollbar_limit = self.list_limit - 40 + 4
@@ -818,7 +820,6 @@ class Menu():
                 else:
                     list_size = self.map_list_size
                 if self.scrollbar_drag is False:
-                    # scrolling inside list area
                     if self.map_x_1-self.space <= self.mouse[0]-1 <= self.map_x_1+self.btn_w_l+self.space+16 and self.top_margin-self.space <= self.mouse[1]-1 <= self.top_margin+self.list_limit:
                         self.scroll -= e.y * self.scroll_sens
                         if self.scroll < 0:
@@ -832,6 +833,7 @@ class Menu():
     
     ###### --Graphics-- ######
     def graphics_ui(self, screen, clock):
+        """Drawing GUI menus"""
         screen.fill((0, 0, 0))   # color screen black
         
         # main menu
@@ -893,7 +895,8 @@ class Menu():
                 graphics.buttons_horizontal(screen, buttons_new_game, (self.maps_x - self.space, self.maps_y_ui), alt_width=self.btn_w_h_3, safe=not self.scrollbar_drag)
                 pygame.draw.rect(screen, rgb.white, border_rect, 1)
             
-            # double click counter   # not graphics related, but must be outside of input functions
+            # double click counter
+            # not graphics related, but must be outside of input functions
             if self.first_click is not None:
                 self.click_timer += clock.get_fps() / 60
                 if self.click_timer >= 0.5 * 60:
@@ -951,7 +954,8 @@ class Menu():
                 textinput.graphics(screen, clock, self.fontbt, (self.ask_x, self.ask_y-self.btn_h), (self.btn_w_h*2+self.space, self.btn_h))
                 graphics.buttons_horizontal(screen, buttons, (self.ask_x, self.ask_y+self.space), safe=True)
             
-            # double click counter   # not graphics related, but must be outside of input functions
+            # double click counter
+            # not graphics related, but must be outside of input functions
             if self.first_click is not None:
                 self.click_timer += clock.get_fps() / 60
                 if self.click_timer >= 0.5 * 60:
@@ -1021,6 +1025,7 @@ class Menu():
     
     
     def main(self, screen, clock, from_game=False):
+        """Main loop for menu"""
         run = True
         if from_game is True:
             self.menu = 4   # go directly to settings

@@ -1,7 +1,7 @@
-import pygame
-import math
-from pygame import gfxdraw   # gfxdraw ### DEPRECATED ###
 from ast import literal_eval as leval
+import math
+import pygame
+from pygame import gfxdraw   # gfxdraw ### DEPRECATED ###
 
 from volatilespace import fileops
 from volatilespace.graphics import rgb
@@ -39,10 +39,11 @@ class Graphics():
     
     def set_screen(self):
         """Load pygame-related variables, this should be run after pygame has initialised or resolution has changed"""
-        self.screen_x, self.screen_y = pygame.display.get_surface().get_size()   # window width, window height
+        self.screen_x, self.screen_y = pygame.display.get_surface().get_size()
         
     
     def reload_settings(self):
+        """Reload all settings, should be run every time settings are applied"""
         self.antial = leval(fileops.load_settings("graphics", "antialiasing"))
         self.spacing_min = int(fileops.load_settings("graphics", "grid_spacing_min"))   # minimum and maximum size spacing of grid
         self.spacing_max = int(fileops.load_settings("graphics", "grid_spacing_max"))
@@ -68,10 +69,10 @@ class Graphics():
         """Draw a circle"""
         if radius < 60000:   # no need to draw so large circle lines
             if self.antial is True and radius < 1000:   # limit radius because of gfxdraw bug
-                # if circle is off screen dont draw it, because gfxdraw uses short integers for position and radius
+                # if circle is off screen don't draw it, because gfxdraw uses short integers for position and radius
                 if center[0]+radius > 0 and center[0]-radius < self.screen_x and center[1]+radius > 0 and center[1]-radius < self.screen_y:
                     gfxdraw.aacircle(surface, int(center[0]), int(center[1]), int(radius), color)   # draw initial circle
-                    if thickness != 1:   # antialiased line has no thickness option
+                    if thickness != 1:   # antial line has no thickness option
                         for num in range(1, thickness):   # draw one more circle for each number of thickness
                             gfxdraw.aacircle(surface, int(center[0]), int(center[1]), int(radius)+num, color)
             else:
@@ -84,36 +85,37 @@ class Graphics():
             func_antial = self.antial
         else:
             func_antial = antial   # antial as function argument is optional override to global antial
-        if radius == 1:   # if star radius is 1px
-            gfxdraw.pixel(surface, int(center[0]), int(center[1]), color)    # draw just that pixel
-        else:   # if radius is more than 1px (radius-1 because 1px radius covers 4px total)
+        if radius == 1:
+            gfxdraw.pixel(surface, int(center[0]), int(center[1]), color)
+        else:
             if func_antial is True and radius < 1000:
                 if center[0]+radius > 0 and center[0]-radius < self.screen_x and center[1]+radius > 0 and center[1]-radius < self.screen_y:
+                    # radius-1 because 1px radius covers 4px total
                     gfxdraw.aacircle(surface, int(center[0]), int(center[1]), int(radius - 1), color)
                     gfxdraw.filled_circle(surface, int(center[0]), int(center[1]), int(radius - 1), color)
             else:
                 pygame.draw.circle(surface, color, center, radius - 1)
     
     
-    def text(self, screen, color, font, text, pos, center=False, bg_color=False):   # center text rectangle to point
-        """Display text on screen, optionnally centered to given coordinates"""
+    def text(self, screen, color, font, text, pos, center=False, bg_color=False):
+        """Display text on screen, optionally centered to given coordinates"""
         if center is True:
-            text = font.render(text, True, color)   # render text font
-            text_rect = text.get_rect(center=(pos[0], pos[1]))   # position text rectangle - center
+            text = font.render(text, True, color)
+            text_rect = text.get_rect(center=(pos[0], pos[1]))
             if bg_color is not False:
                 pygame.draw.rect(screen, bg_color, text_rect)
-            screen.blit(text, text_rect)   # blit to screen
+            screen.blit(text, text_rect)
         else:
-            if bg_color is not False:   # if there is background rectangle
-                text = font.render(text, True, color)   # render text font
-                text_rect = text.get_rect(topleft=(pos[0], pos[1]))   # position text rectangle - top left
-                pygame.draw.rect(screen, bg_color, text_rect)   # draw background rectangle
-                screen.blit(text, text_rect)   # blit text
+            if bg_color is not False:
+                text = font.render(text, True, color)
+                text_rect = text.get_rect(topleft=(pos[0], pos[1]))
+                pygame.draw.rect(screen, bg_color, text_rect)
+                screen.blit(text, text_rect)
             else:
                 screen.blit(font.render(text, True, color), pos)
     
     
-    def timed_text_init(self, color, font, text, pos, time=2, center=False, bg_color=False):
+    def timed_text_init(self, color, font, text, pos, time=2, center=False):
         """Timed text on screen, optionally centered to given coordinates, this is activated once"""
         self.timed_text_enable = True
         self.color, self.font, self.text_str, self.pos, self.time, self.center = color, font, text, pos, time, center
@@ -121,8 +123,8 @@ class Graphics():
     
     def timed_text(self, screen, clock):
         """Print timed text on screen"""
-        if self.timed_text_enable is True:   # if timed text is activated
-            time_s = self.time * clock.get_fps()   # time from second into frames
+        if self.timed_text_enable is True:
+            time_s = self.time * clock.get_fps()   # time from seconds to frames
             self.text(screen, self.color, self.font, self.text_str, self.pos, self.center)
             if self.timer > time_s:   # timer that disables timed text after specified time
                 self.timed_text_enable = False
@@ -147,14 +149,15 @@ class Graphics():
         spacing = 10 * zoom   # initial spacing
         while spacing < self.spacing_min:   # if spacing gets smaller than limit
             spacing *= 2   # double increase spacing
-        while spacing > self.spacing_min:   # if spacinggets larger than limit
+        while spacing > self.spacing_min:   # if spacing gets larger than limit
             spacing /= 2.  # double decrease spacing
-        line_num_x = math.ceil(self.screen_x / spacing)   # number of vertical lines on screen
-        line_num_y = math.ceil(self.screen_y / spacing)   # horizontal
-        grid_mode_txt = grid_mode_txts[grid_mode]   # get current grid mode text
-        if self.grid_mode_prev != self.grid_mode:   # if grid mode has changed, print message on screen
+        line_num_x = math.ceil(self.screen_x / spacing)
+        line_num_y = math.ceil(self.screen_y / spacing)
+        # if grid mode has changed, print message on screen
+        grid_mode_txt = grid_mode_txts[grid_mode]
+        if self.grid_mode_prev != self.grid_mode:
             self.timed_text_init(rgb.gray, self.fontmd, "Grid mode: " + grid_mode_txt, (self.screen_x/2, 70), 1.5, True)
-        self.grid_mode_prev = self.grid_mode   # update grid mode history
+        self.grid_mode_prev = self.grid_mode
         
         for line in range(line_num_x):   # for each vertical line
             pos_x = origin[0] + (spacing * line)   # calculate its position from origin line
@@ -170,14 +173,14 @@ class Graphics():
                 self.text(screen, rgb.red2, self.fontsm, "0", (pos_x, self.screen_y - 10), True, rgb.black)
             elif abs(line + moved) % 5 == 0:   # every fifth line, but include line index movement
                 self.draw_line(screen, rgb.gray1, (pos_x, 0), (pos_x, self.screen_y), 1)   # gray line
-                sim_pos_x = round(((line + moved) * spacing) / zoom)   # calculate simulaion coordinate
+                sim_pos_x = round(((line + moved) * spacing) / zoom)   # calculate simulation coordinate
                 self.text(screen, rgb.gray1, self.fontsm, str(sim_pos_x), (pos_x, self.screen_y - 10), True, rgb.black)
             else:   # every other line
                 sim_pos_x = round(((line + moved) * spacing) / zoom)
                 self.draw_line(screen, rgb.gray2, (pos_x, 0), (pos_x, self.screen_y), 1)   # dark gray line
                 self.text(screen, rgb.gray2, self.fontsm, str(sim_pos_x), (pos_x, self.screen_y - 10), True, rgb.black)
         
-        for line in range(line_num_y):   # for each horizontal line
+        for line in range(line_num_y):
             pos_y = origin[1] + (spacing * line)
             moved = 0
             while pos_y > self.screen_y:
@@ -269,7 +272,7 @@ class Graphics():
                 pygame.draw.rect(screen, color, (x, y, self.btn_w, self.btn_h))
             pygame.draw.rect(screen, color_text, (x, y, self.btn_w, self.btn_h), 1)
             self.text(screen, color_text, self.fontbt, text, (x + self.btn_w/2, y + self.btn_h/2), True)
-            if prop is not None and prop[num] == 2:   # from properties value add link icon
+            if prop is not None and prop[num] == 2:   # add link icon
                 screen.blit(self.link, (x+self.btn_w-40, y))
             y += self.btn_h + self.space   # calculate position for next button
     
@@ -314,9 +317,9 @@ class Graphics():
             pygame.draw.rect(screen, color, (x, y, btn_w, self.btn_h))
             pygame.draw.rect(screen, rgb.white, (x, y, btn_w, self.btn_h), 1)
             self.text(screen, rgb.white, self.fontbt, text, (x + btn_w/2, y + self.btn_h/2), True)
-            if prop is not None and prop[num] == 2:   # from properties value add link icon
+            if prop is not None and prop[num] == 2:   # add link icon
                 screen.blit(self.link, (x+btn_w-40, y))
-            x += btn_w + self.space   # calculate position for next button
+            x += btn_w + self.space
     
     
     def buttons_list(self, screen, buttons_txt, pos, list_limit, scroll, selected, safe=False):
@@ -341,7 +344,7 @@ class Graphics():
                 pygame.draw.rect(screen, color, (x, y, self.btn_w_l, self.btn_h))
                 pygame.draw.rect(screen, rgb.white, (x, y, self.btn_w_l, self.btn_h), 1)
                 self.text(screen, rgb.white, self.fontbt, text, (x + self.btn_w_l/2, y + self.btn_h/2), True)
-            y += self.btn_h + self.space   # calculate position for next button
+            y += self.btn_h + self.space
             
             if y > pos[1] + list_limit:   # don't draw bellow list area
                 break
@@ -389,7 +392,7 @@ class Graphics():
                 pygame.draw.rect(screen, rgb.white, (x, y, self.btn_w_l, self.btn_h), 1)
                 self.text(screen, rgb.white, self.fontbt, text, (x + 10, y + self.txt_y_margin))
                 self.text(screen, rgb.white, self.fontbt, right_txt[num], (x + self.btn_w_l - 40, y + self.btn_h/2), True)
-            y += self.btn_h + self.space   # calculate position for next button
+            y += self.btn_h + self.space
             
             if y > pos[1] + list_limit:   # don't draw bellow list area
                 break
@@ -453,7 +456,7 @@ class Graphics():
             pygame.draw.rect(screen, color, (x, y, self.btn_w_h, self.btn_h))
             pygame.draw.rect(screen, rgb.white, (x, y, self.btn_w_h, self.btn_h), 1)
             self.text(screen, rgb.white, self.fontbt, text, (x + self.btn_w_h/2, y + self.btn_h/2), True)
-            x += self.btn_w_h + self.space   # calculate position for next button
+            x += self.btn_w_h + self.space
         
         # text
         target = self.limit_text(target, self.fontbt, self.btn_w_h*2+5*self.space)
@@ -465,6 +468,7 @@ class Graphics():
         
      
     def connector(self, screen, buttons_map_sel, pos_l, pos_r, bot_margin, scroll, maps, selected_item):
+        """Draw connector for list and menu"""
         (x_1, y_1) = pos_l
         (x_2, y_2) = pos_r
         right_x = x_2 - self.space
@@ -476,7 +480,7 @@ class Graphics():
         y_pos = y_1
         y_pos -= scroll
         selected_item_pos = y_pos
-        for num, text in enumerate(maps):
+        for num, _ in enumerate(maps):
             if num == selected_item:
                 selected_item_pos = y_pos
                 break
@@ -582,7 +586,7 @@ class Graphics():
             elif prop is not None and prop[num] == 5:
                 x_pos = x
                 w_short = (w + 10) / len(imgs) - 10
-                for num, img in enumerate(imgs):
+                for num, _ in enumerate(imgs):
                     color = rgb.gray3
                     if x_pos <= self.mouse[0]-1 <= x_pos + w_short and y <= self.mouse[1]-1 <= y + h:
                         color = rgb.gray2

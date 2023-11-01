@@ -1,5 +1,5 @@
-import pygame
 import sys
+import pygame
 
 from volatilespace import fileops
 from volatilespace.graphics import graphics
@@ -20,6 +20,7 @@ class Keybinding():
         self.scroll = 0
         self.scroll_sens = 10
         self.scrollbar_drag = False
+        self.scrollbar_drag_start = 0
         self.selected_item = None
         self.fontbt = pygame.font.Font("fonts/LiberationSans-Regular.ttf", 22)   # button text font
         self.fontmd = pygame.font.Font("fonts/LiberationSans-Regular.ttf", 16)   # medium text font
@@ -43,6 +44,7 @@ class Keybinding():
     
     
     def keybindings_for_screen(self):
+        """Generate keybindings list for displaying on screen"""
         keyb_list = list(self.keyb_dict.keys())
         val_list = list(self.keyb_dict.values())
         self.key_list_screen = []
@@ -59,6 +61,7 @@ class Keybinding():
 
     
     def input_keys(self, e):
+        """Keyboard input"""
         if e.type == pygame.KEYDOWN:
             if e.key == pygame.K_ESCAPE:
                 self.run = False
@@ -67,12 +70,13 @@ class Keybinding():
                 if self.selected_item is not None:
                     # update keybindings list by index from selected item
                     key = list(self.keyb_dict)[self.selected_item]   # get key from index
-                    self.keyb_dict[key] = e.key   # update key
-                    self.keybindings_for_screen()   # update keybindings for screen
-                    self.selected_item = None   # deselect
+                    self.keyb_dict[key] = e.key
+                    self.keybindings_for_screen()
+                    self.selected_item = None
     
     
     def input_mouse(self, e):
+        """Mouse input"""
         self.mouse = list(pygame.mouse.get_pos())
         if e.type == pygame.MOUSEBUTTONDOWN and e.button == 1:
             self.click = True
@@ -84,7 +88,7 @@ class Keybinding():
                 scrollbar_pos = self.scroll * scrollbar_limit / scrollable_len
             else:
                 scrollbar_pos = 0
-            scrollbar_y = self.keyb_y - self.space + 3 + scrollbar_pos    # calculate scroll bar coords
+            scrollbar_y = self.keyb_y - self.space + 3 + scrollbar_pos
             scrollbar_x = self.keyb_x + self.btn_w_l + self.space + 2
             if scrollbar_x <= self.mouse[0]-1 <= scrollbar_x + 11 and scrollbar_y <= self.mouse[1]-1 <= scrollbar_y + 40:
                 self.scrollbar_drag = True
@@ -98,15 +102,16 @@ class Keybinding():
                     # list
                     if self.keyb_y - self.space <= self.mouse[1]-1 <= self.keyb_y + self.list_limit:
                         y_pos = self.keyb_y - self.scroll
-                        for num, text in enumerate(self.keyb_dict):
-                            if y_pos >= self.keyb_y - self.btn_h - self.space and y_pos <= self.keyb_y + self.list_limit:    # don't detect outside list area
+                        for num, _ in enumerate(self.keyb_dict):
+                            # don't detect outside list area
+                            if y_pos >= self.keyb_y - self.btn_h - self.space and y_pos <= self.keyb_y + self.list_limit:
                                 if self.keyb_x <= self.mouse[0]-1 <= self.keyb_x + self.btn_w_l and y_pos <= self.mouse[1]-1 <= y_pos + self.btn_h:
                                     self.selected_item = num
                             y_pos += self.btn_h + self.space
                     
                     # ui
                     x_pos = self.keyb_x_ui
-                    for num, text in enumerate(buttons_keyb_ui):
+                    for num, _ in enumerate(buttons_keyb_ui):
                         if x_pos <= self.mouse[0]-1 <= x_pos + self.btn_w_h and self.keyb_y_ui <= self.mouse[1]-1 <= self.keyb_y_ui + self.btn_h:
                             if num == 0:   # apply
                                 fileops.save_keybindings(self.keyb_dict)
@@ -125,7 +130,6 @@ class Keybinding():
         
         # moving scrollbar with cursor
         if self.scrollbar_drag is True:
-            # calculate scroll from scrollbar position
             scrollbar_pos = self.mouse[1] - self.keyb_y
             scrollable_len = max(0, self.list_size - self.list_limit)
             scrollbar_limit = self.list_limit - 40 + 4
@@ -150,6 +154,7 @@ class Keybinding():
     
     
     def gui(self, screen):
+        """Draw buttons"""
         screen.fill((0, 0, 0))
         
         graphics.buttons_list_2col(screen, self.key_list_screen, self.val_list_screen, (self.keyb_x, self.keyb_y), self.list_limit, self.scroll, self.selected_item)
@@ -162,6 +167,7 @@ class Keybinding():
 
 
 def main(screen, clock):
+    """Main loop for keybindings menu"""
     keybindings = Keybinding()
     run = True
     while run:

@@ -1,8 +1,8 @@
+from configparser import ConfigParser
+import os
 import tkinter as tk
 from tkinter import filedialog
 import numpy as np
-import os
-from configparser import ConfigParser
 
 from volatilespace import defaults
 
@@ -14,36 +14,36 @@ home_dir = os.path.expanduser("~")
 
 def export_file(file_name, filetype=[("All Files", "*.*")]):
     """save file with tkinter dialog"""
-    root = tk.Tk()   # define tkinter root
-    root.withdraw()   # make tkinter root invisible
+    root = tk.Tk()
+    root.withdraw()
     if file_name == "":
         file_name = "New Map.ini"
     save_file = filedialog.asksaveasfile(mode='w', initialfile=file_name, defaultextension=".ini",
                                          initialdir=home_dir, filetypes=filetype)
     if save_file is None:   # asksaveasfile return "None" if dialog closed with "cancel"
         return ""
-    file_path = save_file.name   # get path
+    file_path = save_file.name
     return file_path
 
 
 def import_file(filetype=[("All Files", "*.*")]):
     """load file with tkinter dialog"""
-    root = tk.Tk()   # define tkinter root
-    root.withdraw()   # make tkinter root invisible 
+    root = tk.Tk()
+    root.withdraw()
     file_path = filedialog.askopenfilename(initialdir=home_dir, filetypes=filetype)   # open load file dialog and get path
-    try:   # just try to open file to see if it exists
+    try:   # try to open file to see if it exists
         with open(file_path) as f:
-            _ = f.read()   # load all text from file
-    except Exception:   # if cant open file
+            _ = f.read()
+    except Exception:
         file_path = ""
     return file_path
 
 
 def gen_game_list():
     """Generate list of maps in "Maps" dir. Name and edit date are read from file"""
-    if not os.path.exists("Saves"):   # if maps dir is deleted
+    if not os.path.exists("Saves"):
         os.mkdir("Saves")
-    files_list = os.listdir("Saves")   # generate list of files
+    files_list = os.listdir("Saves")
     
     # filter only files with .ini extension
     game_files = []
@@ -53,7 +53,7 @@ def gen_game_list():
     
     # get data
     games = np.empty((0, 3), dtype=object)
-    for num, game_file in enumerate(game_files):
+    for game_file in game_files:
         game_save = ConfigParser()
         game_save.read("Saves/" + game_file)
         try:
@@ -81,9 +81,9 @@ def gen_game_list():
 
 def gen_map_list():
     """Generate list of maps in "Maps" dir. Name and edit date are read from file"""
-    if not os.path.exists("Maps"):   # if maps dir is deleted
+    if not os.path.exists("Maps"):
         os.mkdir("Maps")
-    files_list = os.listdir("Maps")   # generate list of files
+    files_list = os.listdir("Maps")
     
     # filter only files with .ini extension
     map_files = []
@@ -93,7 +93,7 @@ def gen_map_list():
     
     # get data
     maps = np.empty((0, 3), dtype=object)
-    for num, map_file in enumerate(map_files):
+    for map_file in map_files:
         map_save = ConfigParser()
         map_save.read("Maps/" + map_file)
         try:
@@ -120,8 +120,8 @@ def gen_map_list():
 
 def load_file(path):
     """Load saved data from map/saved game and returns type of save: newton/kepler"""
-    system = ConfigParser()   # load config class
-    system.read(path)   # load system
+    system = ConfigParser()
+    system.read(path)
     
     # read config section
     name = system.get("config", "name").strip('"')
@@ -130,7 +130,7 @@ def load_file(path):
     # physics related config
     try:
         config = defaults.sim_config.copy()
-        for key in defaults.sim_config.keys():   # physics related config
+        for key in defaults.sim_config.keys():
             value = float(system.get("config", key))
             config[key] = value
     except Exception:
@@ -152,9 +152,10 @@ def load_file(path):
     parents = np.array([], dtype=int)
     direction = np.array([])
     
-    for body in system.sections():   # for each body:
+    # load all body parameters into separate arrays
+    for body in system.sections():
         if body != "config":
-            body_name = np.append(body_name, body)   # load all body parameters into separate arrays
+            body_name = np.append(body_name, body)
             mass = np.append(mass, float(system.get(body, "mass")))
             density = np.append(density, float(system.get(body, "density")))
             color = np.vstack((color, list(map(int, system.get(body, "color").strip("][").split(", ")))))
@@ -188,8 +189,9 @@ def save_file(path, name, date, conf, time, body_names, mass, density, color, or
         os.mkdir("Maps")
     if not os.path.exists("Saves"):
         os.mkdir("Saves")
-    if name == "":   # there must be name
+    if name == "":
         name = "Unnamed"
+    
     if os.path.exists(path):   # when overwriting
         if name is None:   # keep old name
             map_name = ConfigParser()
@@ -199,13 +201,15 @@ def save_file(path, name, date, conf, time, body_names, mass, density, color, or
             except Exception:
                 name = "New map"
         open(path, "w").close()   # delete file
-    system = ConfigParser()   # load config class
-    system.read(path)   # load system
+    
+    system = ConfigParser()
+    system.read(path)
     
     system.add_section("config")   # special section for config
     system.set("config", "name", name)
     system.set("config", "date", date)
     system.set("config", "time", str(time))
+    
     for key in conf.keys():   # physics related config
         value = str(conf[key])
         system.set("config", key, value)
@@ -223,16 +227,20 @@ def save_file(path, name, date, conf, time, body_names, mass, density, color, or
         parents = orb_data["ref"]
         direction = orb_data["dir"]
     
-    for body, body_mass in enumerate(mass):   # for each body:
+    for body, body_mass in enumerate(mass):
         body_name = body_names[body]
+        
+        # handle if this body already exists
         num = 1
-        while body_name in system.sections():   # if this body already exists
+        while body_name in system.sections():
             body_name = body_names[body] + " " + str(num)
             num += 1
-        system.add_section(body_name)   # add body
-        system.set(body_name, "mass", str(body_mass))   # add body parameters
+        
+        system.add_section(body_name)
+        system.set(body_name, "mass", str(body_mass))
         system.set(body_name, "density", str(density[body]))
         system.set(body_name, "color", "[" + str(color[body, 0]) + ", " + str(color[body, 1]) + ", " + str(color[body, 2]) + "]")
+        
         if not kepler:
             system.set(body_name, "position", "[" + str(position[body, 0]) + ", " + str(position[body, 1]) + "]")
             system.set(body_name, "velocity", "[" + str(velocity[body, 0]) + ", " + str(velocity[body, 1]) + "]")
@@ -253,7 +261,7 @@ def new_map(name, date):
     """Creates new map with initial body and saves to file."""
     if not os.path.exists("Maps"):
         os.mkdir("Maps")
-    if name == "":   # there must be name
+    if name == "":
         name = "New Map"
     
     # prevent having same name maps
@@ -265,8 +273,10 @@ def new_map(name, date):
         num += 1
     
     path = "Maps/" + new_name + ".ini"
+    
     if os.path.exists(path):   # when overwriting, delete file
         open(path, "w").close()
+    
     system = ConfigParser()   # load config class
     system.read(new_name + ".ini")   # load system
     
@@ -279,8 +289,8 @@ def new_map(name, date):
         value = str(defaults.sim_config[key])
         system.set("config", key, value)
     
-    system.add_section("root")   # add body
-    system.set("root", "mass", "10000.0")   # add body parameters
+    system.add_section("root")
+    system.set("root", "mass", "10000.0")
     system.set("root", "density", "1.0")
     system.set("root", "position", "[0.0, 0.0]")
     system.set("root", "velocity", "[0.0, 0.0]")
@@ -293,9 +303,10 @@ def new_map(name, date):
 
 
 def rename_map(path, name):
+    """Renames map without renaming file"""
     system = ConfigParser()
     system.read(path)
-    if name == "":   # there must be name
+    if name == "":
         name = "Unnamed"
     
     # prevent having same name maps
@@ -318,7 +329,7 @@ def new_game(name, date):
     if name == "":   # there must be name
         name = "New Map"
     
-    # prevent having same name maps
+    # prevent having same name games
     game_list = gen_game_list()
     new_name = name
     num = 1
@@ -329,8 +340,9 @@ def new_game(name, date):
     path = "Saves/" + new_name + ".ini"
     if os.path.exists(path):   # when overwriting, delete file
         open(path, "w").close()
-    system = ConfigParser()   # load config class
-    system.read(new_name + ".ini")   # load system
+    
+    system = ConfigParser()
+    system.read(new_name + ".ini")
     
     system.add_section("config")   # special section for config
     system.set("config", "name", new_name)
@@ -345,6 +357,7 @@ def new_game(name, date):
 
 
 def rename_game(path, name):
+    """Renames game without renaming file"""
     game = ConfigParser()
     game.read(path)
     if name == "":   # there must be name
@@ -357,6 +370,7 @@ def rename_game(path, name):
     while new_name in game_list[:, 1]:
         new_name = name + " " + str(num)
         num += 1
+    
     game.set("config", "name", new_name)
     with open(path, 'w') as f:
         game.write(f)
@@ -366,7 +380,7 @@ def save_settings(header, key, value):
     """Saves value of specified setting to settings file"""
     try:
         settings.set(header, key, str(value))
-    except Exception:   # if section is invalid
+    except Exception:
         settings.add_section(header)
         settings.set(header, key, str(value))
     with open("settings.ini", "w") as f:
@@ -377,24 +391,24 @@ def load_settings(header, key):
     """load one or multiple settings from same header in settings file.
     Key must be str, tuple or list. If loading failed, create that header/setting."""
     try:
-        if type(key) is str:   # if key is string (there is only one key)
-            setting = settings.get(header, key)   # get value for that key
+        if isinstance(key, str):   # if key is string (there is only one key)
+            setting = settings.get(header, key)
             if "[" in setting and "]" in setting:   # if returned value is list
                 setting = list(map(float, setting.strip("][").split(", ")))   # str to list of float
                 if all(x.is_integer() for x in setting):   # if all values are whole number
                     setting = list(map(int, setting))   # float to int
-        else:   # if it is nost string, it should be tuple or list
-            setting = []  # initial setting list
+        else:   # if it is not string, it should be tuple or list
+            setting = []
             for one_key in key:   # for one key in keys
-                one_setting = settings.get(header, one_key)   # get value for that key
+                one_setting = settings.get(header, one_key)
                 if "[" in one_setting and "]" in one_setting:   # if returned value is list
-                    one_setting = list(map(float, one_setting.strip("][").split(", ")))   # str to list of float
-                    if all(x.is_integer() for x in one_setting):   # if all values are whole number
-                        one_setting = list(map(int, one_setting))   # float to int
-                setting.append(one_setting)   # append value to setting list
-    except Exception:   # if setting is missing
-        setting = defaults.settings.get(key)   # load default setting
-        save_settings(header, key, setting)   # save default setting to settings.ini
+                    one_setting = list(map(float, one_setting.strip("][").split(", ")))
+                    if all(x.is_integer() for x in one_setting):
+                        one_setting = list(map(int, one_setting))
+                setting.append(one_setting)
+    except Exception:
+        setting = defaults.settings.get(key)   # load default setting and save it
+        save_settings(header, key, setting)
     return setting
 
 

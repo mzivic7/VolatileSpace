@@ -1,5 +1,5 @@
-import pygame
 from ast import literal_eval as leval
+import pygame
 
 from volatilespace import fileops
 
@@ -8,15 +8,15 @@ def main():
     ###### --Start pygame-- ######
     pygame.init()
     pygame.display.set_caption('Volatile Space')
-    pygame.display.set_icon(pygame.image.load('img/icon.png'))   # set window icon
+    pygame.display.set_icon(pygame.image.load('img/icon.png'))
     if leval(fileops.load_settings("graphics", "first_run")) is True:   # if this is first time running
-        avail_res = pygame.display.get_desktop_sizes()   # available resolutions
+        avail_res = pygame.display.get_desktop_sizes()
         (screen_x, screen_y) = avail_res[0]   # use highest resolution
-        fileops.save_settings("graphics", "resolution", [screen_x, screen_y])   # write resolution to settings file
+        fileops.save_settings("graphics", "resolution", [screen_x, screen_y])
         fileops.save_settings("graphics", "first_run", False)
     else:
         (screen_x, screen_y) = fileops.load_settings("graphics", "resolution")
-    fullscreen = leval(fileops.load_settings("graphics", "fullscreen"))   # load screen mode setting
+    fullscreen = leval(fileops.load_settings("graphics", "fullscreen"))
     vsync = leval(fileops.load_settings("graphics", "vsync"))
     if fullscreen is True:   # set window size and fullscreen
         screen = pygame.display.set_mode((screen_x, screen_y), pygame.FULLSCREEN, vsync=vsync)
@@ -40,7 +40,9 @@ def main():
     run = True
     while run:
         for e in pygame.event.get():
-            if state == 1:   # main menu
+            if state == 0:   # quit
+                run = False
+            elif state == 1:   # main menu
                 state = menu.main(screen, clock)
                 if state == 2:
                     editor.reload_settings()
@@ -54,7 +56,7 @@ def main():
                             menu.gen_map_list()
                         if state == 2:
                             editor.load_system(selected_path)
-                elif state == 3:
+                elif state == 3:   # game
                     game.reload_settings()
                     selected_path = menu.selected_path
                     if selected_path is not None:
@@ -70,17 +72,18 @@ def main():
                 state = editor.main(screen, clock)
             elif state == 3:   # game
                 state = game.main(screen, clock)
-            elif state == 4:   # settings from game/editor
-                state = menu.main(screen, clock, True)
+            elif state >= 10:   # settings from game/editor
+                state_crrent = int(str(state)[0])
+                _ = menu.main(screen, clock, True)
+                state = int(str(state)[1])
                 if state == 2:
                     editor.reload_settings()
-            elif state == 0:   # quit
-                run = False
-            
+                elif state == 3:
+                    game.reload_settings()
             if e.type == pygame.QUIT:
-                run = False   # if quit, break loop
+                run = False
     
-    pygame.quit()   # quit gently
+    pygame.quit()
 
 
 

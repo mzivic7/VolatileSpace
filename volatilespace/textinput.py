@@ -11,6 +11,7 @@ class Textinput():
         self.text = ""
         self.static_text = None
         self.textindex = 0
+        self.lineindex = 0
         self.blinking_line = True
         self.timer_hold = 0
         self.hold_first = 0.4   # delay on first step on button hold
@@ -41,8 +42,8 @@ class Textinput():
     
     def initial_text(self, text, static_text=None, x_corr=0, limit_len=None, selected=False):
         """Loads initial text. Static text is text that cannot be deleted and is not returned as value."""
-        self.text = text   # add text
-        self.textindex = len(text)   # place index at end of text
+        self.text = text
+        self.textindex = len(text)
         self.lineindex = 0
         self.static_text = static_text
         self.x_corr = x_corr
@@ -52,12 +53,13 @@ class Textinput():
     
     
     def input(self, e):
+        """Keyboard and mouse input"""
         if e.type == pygame.KEYDOWN:
             
             if e.key == pygame.K_BACKSPACE:
                 if self.textindex != 0:   # if there is text to delete
                     self.text = self.text[:self.textindex-1] + self.text[self.textindex:]
-                    self.textindex -= 1   # move index one char left
+                    self.textindex -= 1   # move index left
                     self.backspace = True
                     self.disable_blinking_line = True
                 if self.selected:
@@ -67,7 +69,7 @@ class Textinput():
             
             elif e.key == pygame.K_LEFT:
                 if self.textindex != 0:   # if there is more text on left
-                    self.textindex -= 1   # move index one char left
+                    self.textindex -= 1   # move index left
                     self.left = True
                     self.disable_blinking_line = True
                 if self.selected:
@@ -76,7 +78,7 @@ class Textinput():
             
             elif e.key == pygame.K_RIGHT:
                 if self.textindex < len(self.text):   # if there is more text on right
-                    self.textindex += 1   # move index one char right
+                    self.textindex += 1   # move index right
                     self.right = True
                     self.disable_blinking_line = True
                 if self.selected:
@@ -94,7 +96,7 @@ class Textinput():
             self.disable_blinking_line = False
             
         elif e.type == pygame.TEXTINPUT:
-            # add char to split input buffer
+            # add char to input buffer
             if self.limit_len is None or len(self.text) < self.limit_len:   # limit length of text
                 self.text = self.text[:self.textindex] + e.text + self.text[self.textindex:]
                 self.textindex += 1   # move index one char right
@@ -113,6 +115,7 @@ class Textinput():
     
     
     def graphics(self, screen, clock, font, pos, size, center=True):
+        """Draw text, blinking line, selection and border"""
         (x, y) = pos
         (w, h) = size
         
@@ -168,7 +171,7 @@ class Textinput():
             self.blinking_line = True
         else:
             if self.blinking_line:
-                # time from second into frames. This value is not fixed, since it can change based on fps
+                # time from seconds to frames. This value is not fixed, since it can change based on fps
                 time_blink = self.blinking_line_on * clock.get_fps()
             else:
                 time_blink = self.blinking_line_off * clock.get_fps()

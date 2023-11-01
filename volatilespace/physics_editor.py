@@ -1,15 +1,13 @@
-import numpy as np
+from ast import literal_eval as leval
 import math
 from itertools import repeat
-from ast import literal_eval as leval
+import numpy as np
 try:   # to allow building without numba
     from numba import njit, types, int32, int64, float64
     numba_avail = True
 except ImportError:
     numba_avail = False
     
-
-
 from volatilespace import fileops
 from volatilespace import defaults
 
@@ -25,32 +23,32 @@ rad_sim_mult = 10**6   # radius sim multiplier
 
 
 ###### --Functions-- ######
-def newton_root(function, derivative, root_guess, vars={}):
+def newton_root(function, derivative, root_guess, variables={}):
     """Newton root solver"""
     root = root_guess   # take guessed root input
-    for num in range(50):
-        delta_x = function(root, vars) / derivative(root, vars)   # guess correction
+    for _ in range(50):
+        delta_x = function(root, variables) / derivative(root, variables)   # guess correction
         root -= delta_x   # better guess
         if abs(delta_x) < 1e-10:   # if correction is small enough:
             return root   # return root
     return root   # if it is not returned above (it has too high deviation) return it anyway
 
 
-def keplers_eq(E, vars):
+def keplers_eq(ea, variables):
     """Keplers equation"""
-    return E - vars['e'] * np.sin(E) - vars['Ma']
+    return ea - variables['e'] * np.sin(ea) - variables['Ma']
 
 
-def keplers_eq_derivative(E, vars):
+def keplers_eq_derivative(ea, variables):
     """Derivative of keplers equation"""
-    return 1.0 - vars['e'] * np.cos(E)
+    return 1.0 - variables['e'] * np.cos(ea)
 
 
 def get_angle(a, b, c):
     """Angle between 3 points in 2D or 3D"""
     ba = a - b   # get 2 vectors from 3 points
     bc = c - b
-    cosine_angle = np.dot(ba, bc) / (np.linalg.norm(ba) * np.linalg.norm(bc))   # angle brtween 2 vectors
+    cosine_angle = np.dot(ba, bc) / (np.linalg.norm(ba) * np.linalg.norm(bc))   # angle between 2 vectors
     return np.arccos(cosine_angle)
 
 
@@ -94,10 +92,10 @@ def find_parent_one(body_s, bodies_sorted, pos, coi):
     if body_s:
         body = np.where(bodies_sorted == body_s)[0][0]   # sorted body index
         parent = 0   # parent is root, until other is found
-        for numL in range(len(bodies_sorted[:body])):   # for previously calculated bodies:
-            pot_parent = bodies_sorted[numL]   # potential parent index
+        for num_l in range(len(bodies_sorted[:body])):   # for previously calculated bodies:
+            pot_parent = bodies_sorted[num_l]   # potential parent index
             rel_pos = pos[body_s] - pos[pot_parent]
-            if rel_pos[0]*rel_pos[0] + rel_pos[1]*rel_pos[1] < coi[pot_parent]*coi[pot_parent]:   # just ultra fast check if point is inside circle - COI
+            if rel_pos[0]*rel_pos[0] + rel_pos[1]*rel_pos[1] < coi[pot_parent]*coi[pot_parent]:   # ultra fast check if point is inside circle - COI
                 parent = pot_parent   # this body is parent
                 # loop continues until smallest parent body is found
         return parent
@@ -107,13 +105,13 @@ def find_parent_one(body_s, bodies_sorted, pos, coi):
 
 def gravity_one(body, parent, mass, rel_pos, gc):
     """Calculates acceleration for one body in simplified n-body problem."""
-    if body:   # skip calculation for root
+    if body:   # skip root
         distance = math.sqrt(rel_pos[0]*rel_pos[0] + rel_pos[1]*rel_pos[1])   # x*x is faster than x**2 with small numbers
         force = gc * mass[body] * mass[parent] / distance**2   # Newton's law of universal gravitation
-        # calculate angle between 2 bodies and horizon
+        # angle between 2 bodies and horizon
         angle = math.atan2(rel_pos[1], rel_pos[0])
-        acc = force / mass[body]   # calculate acceleration
-        acc_v = np.array([acc * math.cos(angle), acc * math.sin(angle)])   # acceleration vector
+        acc = force / mass[body]
+        acc_v = np.array([acc * math.cos(angle), acc * math.sin(angle)])
         return acc_v
     else:
         return np.array([0, 0], dtype=np.float64)
@@ -181,28 +179,29 @@ class Physics():
         self.den = np.array([])
         self.temp = np.array([])
         self.color = np.empty((0, 3), int)   # dynamic color
-        self.base_color = np.empty((0, 3), int)   # base color (original color unaffected by temperature)
-        self.rad = np.array([])  # radius
+        self.base_color = np.empty((0, 3), int)   # original color unaffected by temperature
+        self.rad = np.array([])
         self.rad_sc = np.array([])  # Schwarzschild radius
-        self.types = np.array([])  # what is this body
+        self.types = np.array([])
         # orbit:
         self.pos = np.empty((0, 2), float)
         self.vel = np.empty((0, 2), float)
         self.rel_vel = np.empty((0, 2), float)
         self.coi = np.array([])   # circle of influence
-        self.parents = np.array([], dtype=int)   # parents indices
-        self.largest = 0   # most massive body (root)
-        self.focus = np.array([])   # focus distance from center of ellipse
+        self.parents = np.array([], dtype=int)
+        self.largest = 0   # root
+        self.focus = np.array([])   # focus distance
         self.semi_major = np.array([])
         self.semi_minor = np.array([])
         self.periapsis_arg = np.array([])
-        self.ecc_v = np.empty((0, 2), int)   # eccentricity vector
+        self.ecc_v = np.empty((0, 2), int)
         self.gc = defaults.sim_config["gc"]   # newtonian constant of gravitation
         self.rad_mult = defaults.sim_config["rad_mult"]
         self.coi_coef = defaults.sim_config["coi_coef"]
         self.reload_settings()
     
     def reload_settings(self):
+        """Reload all settings, should be run every time editor is entered"""
         self.curve_points = int(fileops.load_settings("graphics", "curve_points"))   # number of points from which curve is drawn
         # parameters
         self.ell_t = np.linspace(-np.pi, np.pi, self.curve_points)   # ellipse and hyperbola parameter
@@ -220,18 +219,18 @@ class Physics():
         self.names = names
         self.mass = mass
         self.den = density
-        self.temp = np.zeros(len(mass))   # reset values
+        self.temp = np.zeros(len(mass))
         self.color = np.zeros((len(color), 3), int)
         self.base_color = color
-        volume = self.mass / self.den   # volume from mass and density
-        self.rad = self.rad_mult * np.cbrt(3 * volume / (4 * np.pi))   # calculate radius from volume
+        volume = self.mass / self.den
+        self.rad = self.rad_mult * np.cbrt(3 * volume / (4 * np.pi))
         self.rad_sc = np.array([])
         self.types = np.array([])
         self.pos = orb_data["pos"]
         self.vel = orb_data["vel"]
-        self.parents = np.array([], dtype=int)   # parents indices
-        self.simplified_orbit_coi()   # calculate COIs
-        self.find_parents()   # find parents for all bodies
+        self.parents = np.array([], dtype=int)
+        self.simplified_orbit_coi()
+        self.find_parents()
         self.rel_vel = orb_data["vel"] - orb_data["vel"][self.parents]
         self.focus = np.zeros(len(mass))
         self.semi_major = np.zeros(len(mass))
@@ -249,14 +248,14 @@ class Physics():
         self.temp = np.append(self.temp, 0)
         self.color = np.vstack((self.color, (0, 0, 0)))
         self.base_color = np.vstack((self.base_color, data["color"]))
-        volume = self.mass / self.den   # volume from mass and density
-        self.rad = self.rad_mult * np.cbrt(3 * volume / (4 * np.pi))   # calculate radius from volume
+        volume = self.mass / self.den
+        self.rad = self.rad_mult * np.cbrt(3 * volume / (4 * np.pi))
         self.pos = np.vstack((self.pos, data["position"]))
-        self.vel = np.vstack((self.vel, [0, 0]))   # just add placeholder as [0, 0], since vel is calculated later in gravity()
+        self.vel = np.vstack((self.vel, [0, 0]))   # add placeholder as [0, 0], since vel is calculated later in gravity()
         self.parents = np.append(self.parents, 0)
         self.simplified_orbit_coi()   # re-calculate COIs
-        self.find_parents()   # find parents for all bodies
-        self.rel_vel = np.vstack((self.rel_vel, data["velocity"]))   # add new body velocity as relative velocyty
+        self.find_parents()
+        self.rel_vel = np.vstack((self.rel_vel, data["velocity"]))
         self.focus = np.append(self.focus, 0)
         self.semi_major = np.append(self.semi_major, 0)
         self.semi_minor = np.append(self.semi_minor, 0)
@@ -279,7 +278,7 @@ class Physics():
     
     def del_body(self, delete):
         """Remove body from simulation."""
-        if len(self.mass) > 1:   # there must be at lest one body in simulation
+        if len(self.mass) > 1:   # there must be at least one body in simulation
             self.names = np.delete(self.names, delete)
             self.mass = np.delete(self.mass, delete)
             self.den = np.delete(self.den, delete)
@@ -291,15 +290,15 @@ class Physics():
             self.vel = np.delete(self.vel, delete, axis=0)
             self.rel_vel = np.delete(self.rel_vel, delete, axis=0)
             self.parents = np.delete(self.parents, delete)
-            self.simplified_orbit_coi()   # re-calculate COIs
-            self.find_parents()   # find parents for all bodies
+            self.simplified_orbit_coi()
+            self.find_parents()
             self.focus = np.delete(self.focus, delete)
             self.semi_major = np.delete(self.semi_major, delete)
             self.semi_minor = np.delete(self.semi_minor, delete)
             self.periapsis_arg = np.delete(self.periapsis_arg, delete)
             self.ecc_v = np.delete(self.ecc_v, delete, axis=0)
             if self.largest == delete:
-                self.find_parents()   # if root is deleted, we need new one asap
+                self.find_parents()   # if root is deleted, new is needed asap
                 self.simplified_orbit_coi()   # root is identified by coi=0
                 # move new root to (0, 0) and translate all other bodies
                 diff = list(self.pos[self.largest])
@@ -326,8 +325,8 @@ class Physics():
         swap_with_first(self.vel, body)
         swap_with_first(self.rel_vel, body)
         swap_with_first(self.parents, body)
-        self.simplified_orbit_coi()   # re-calculate COIs
-        self.find_parents()   # find parents for all bodies
+        self.simplified_orbit_coi()
+        self.find_parents()
         self.largest = 0
     
     def move_parent(self, body, position):
@@ -344,23 +343,21 @@ class Physics():
         self.largest = np.argmax(self.mass)   # find root
         self.coi = np.zeros([len(self.mass)])
         bodies_sorted = np.sort(self.mass)[-1::-1]   # reverse sort
-        body_indices = np.argsort(self.mass)[-1::-1]   # get sorted indices
-        for num, body_mass in enumerate(bodies_sorted[1:]):   # for all sorted bodies except first one
+        body_indices = np.argsort(self.mass)[-1::-1]
+        for num, body_mass in enumerate(bodies_sorted[1:]):   # for all sorted bodies except
             body = body_indices[num+1]   # get this body index
             # find its parent body:
-            parent = self.largest   # parent is root, until other is found
-            for numL in range(len(bodies_sorted[:num+1])):   # for previously calculated bodies (skip all smaller than this body):
-                pot_parent = body_indices[numL]   # potential parent index
-                # if this body is inside potential parents COI:
+            parent = self.largest
+            for num_l in range(len(bodies_sorted[:num+1])):
+                pot_parent = body_indices[num_l]
                 if (self.pos[body, 0] - self.pos[pot_parent, 0])**2 + (self.pos[body, 1] - self.pos[pot_parent, 1])**2 < (self.coi[pot_parent])**2:
-                    parent = pot_parent   # this body is parent
-                    # loop continues until smallest parent body is found
-            rel_pos = self.pos[parent] - self.pos[body]   # relative position
-            rel_vel = self.vel[parent] - self.vel[body]   # relative velocity
-            u = self.gc * self.mass[parent]   # standard gravitational parameter
-            semi_major = -1 * u / (2*(dot_2d(rel_vel, rel_vel) / 2 - u / mag(rel_pos)))   # semi-major axis
+                    parent = pot_parent
+            rel_pos = self.pos[parent] - self.pos[body]
+            rel_vel = self.vel[parent] - self.vel[body]
+            u = self.gc * self.mass[parent]
+            semi_major = -1 * u / (2*(dot_2d(rel_vel, rel_vel) / 2 - u / mag(rel_pos)))
             if semi_major > 0:   # if eccentricity is larger than 1, semi major will be negative
-                self.coi[body] = semi_major * (body_mass / self.mass[parent])**self.coi_coef   # calculate its COI and save to index
+                self.coi[body] = semi_major * (body_mass / self.mass[parent])**self.coi_coef
             else:
                 self.coi[body] = 0   # if orbit is hyperbola or parabola, body has no COI, otherwise it would be infinite
             
@@ -369,14 +366,14 @@ class Physics():
     def find_parents(self):
         """For each body find its parent body, except for root."""
         self.parents = np.zeros([len(self.coi)], dtype=int)
-        bodies_sorted = np.argsort(self.mass)[-1::-1]   # get indices for for sort bodies by mass
+        bodies_sorted = np.argsort(self.mass)[-1::-1]   # get indices for sort bodies by mass
         self.parents = np.array(list(map(find_parent_one, list(range(len(self.mass))), repeat(bodies_sorted), repeat(self.pos), repeat(self.coi))))
     
     
     def gravity(self):
         """Newtonian simplified n-body orbital physics model."""
-        parents_old = self.parents   # parent memory from last iteration
-        self.find_parents()   # find parents for all bodies
+        parents_old = self.parents   # parents from last iteration
+        self.find_parents()
         rel_pos = self.pos[self.parents] - self.pos
         acc_v = list(map(gravity_one, list(range(len(self.mass))), self.parents, repeat(self.mass), rel_pos, repeat(self.gc)))
         self.rel_vel += acc_v
@@ -387,14 +384,14 @@ class Physics():
                 if body != 0:   # skip root
                     parent = self.parents[body]
                     if self.mass[parent] > self.mass[parents_old[body]]:   # if body is leaving orbit:
-                        self.rel_vel[body] += self.rel_vel[parents_old[body]]   # add velocity of previous parent to body relative velocity
+                        self.rel_vel[body] += self.rel_vel[parents_old[body]]
                     if self.mass[parent] < self.mass[parents_old[body]]:   # if body is entering orbit:
-                        self.rel_vel[body] -= self.rel_vel[parent]   # subtract velocity of new parent to body relative velocity
+                        self.rel_vel[body] -= self.rel_vel[parent]
         
         bodies_sorted = np.argsort(self.mass)[-1::-1]
-        for body in bodies_sorted[1:]:   # for sorted bodies by mass except first one (root)
-            self.vel[body] = self.rel_vel[body] + self.vel[self.parents[body]]   # absolute vel from relative and parents absolute
-        self.pos += self.vel   # update positions
+        for body in bodies_sorted[1:]:   # for sorted bodies by mass except root
+            self.vel[body] = self.rel_vel[body] + self.vel[self.parents[body]]   # absolute vel
+        self.pos += self.vel
     
     
     def kepler_basic(self):
@@ -405,16 +402,16 @@ class Physics():
     
     def kepler_advanced(self, selected):
         """Advanced keplerian orbit parameters, only for selected body."""
-        parent = self.parents[selected]  # get parent body
+        parent = self.parents[selected]
         # calculate additional orbit parameters
-        rel_pos = self.pos[selected] - self.pos[parent]   # relative position
-        rel_vel = self.vel[selected] - self.vel[parent]   # relative velocity
-        semi_major = self.semi_major[selected]   # get semi-major axis of selected body
-        periapsis_arg = self.periapsis_arg[selected]   # get periapsis argument of selected body
-        ecc = mag(self.ecc_v[selected])   # eccentricity
-        u = self.gc * self.mass[parent]   # standard gravitational parameter
+        rel_pos = self.pos[selected] - self.pos[parent]
+        rel_vel = self.vel[selected] - self.vel[parent]
+        semi_major = self.semi_major[selected]
+        periapsis_arg = self.periapsis_arg[selected]
+        ecc = mag(self.ecc_v[selected])
+        u = self.gc * self.mass[parent]
         distance = mag(rel_pos)   # distance to parent
-        speed_orb = mag(rel_vel)   # orbit speed
+        speed_orb = mag(rel_vel)
         true_anomaly = (periapsis_arg - (math.atan2(rel_pos[1], rel_pos[0]) - np.pi)) % (2*np.pi)  # true anomaly from relative position
         momentum = cross_2d(rel_pos, rel_vel)    # orbital momentum, since this is 2d, momentum is scalar
         direction = int(math.copysign(1, momentum[0]))   # if moment is negative, rotation is clockwise (-1)
@@ -424,19 +421,19 @@ class Physics():
         
         
         if direction == -1:   # if direction is clockwise
-            true_anomaly = 2*np.pi - true_anomaly   # invert Ta to be calculated in opposite direction
-        if ecc != 0:   # if orbit is not circle
-            pe_d = semi_major * (1 - ecc)   # periapsis distance and coordinate:
-            if ecc < 1:   # if orbit is ellipse
+            true_anomaly = 2*np.pi - true_anomaly   # invert Ta to be calculated in opposite direction ### BUG ###
+        if ecc != 0:   # not circle
+            pe_d = semi_major * (1 - ecc)
+            if ecc < 1:   # ellipse
                 ecc_anomaly = math.acos((ecc + math.cos(true_anomaly))/(1 + (ecc * math.cos(true_anomaly))))   # eccentric from true anomaly
                 if np.pi < true_anomaly < 2*np.pi:
                     ecc_anomaly = 2*np.pi - ecc_anomaly   # quadrant problems
                 mean_anomaly = (ecc_anomaly - ecc * math.sin(ecc_anomaly)) % (2*np.pi)   # mean anomaly from Keplers equation
-                period = (2 * np.pi * math.sqrt(semi_major**3 / u))   # orbital period
+                period = 2 * np.pi * math.sqrt(semi_major**3 / u)   # orbital period
                 pe_t = orbit_time_to(mean_anomaly, 0, period, -1)   # time to periapsis
                 ap_d = semi_major * (1 + ecc)   # apoapsis distance
-                apoapsis = np.array([ap_d * math.cos(periapsis_arg), ap_d * math.sin(periapsis_arg)]) + self.pos[parent]   # coordinates
-                ap_t = orbit_time_to(mean_anomaly, np.pi, period, -1)   # time to apoapsis
+                apoapsis = np.array([ap_d * math.cos(periapsis_arg), ap_d * math.sin(periapsis_arg)]) + self.pos[parent]
+                ap_t = orbit_time_to(mean_anomaly, np.pi, period, -1)
             else:
                 if ecc > 1:   # hyperbola
                     ecc_anomaly = math.acosh((ecc + math.cos(true_anomaly))/(1 + (ecc * math.cos(true_anomaly))))   # eccentric from true anomaly
@@ -455,9 +452,9 @@ class Physics():
                 ap_t = 0
         else:   # circle
             mean_anomaly = true_anomaly
-            period = (2 * np.pi * math.sqrt(semi_major**3 / u)) / 10   # orbital period
-            pe_d = semi_major * (1 - ecc)   # periapsis distance and coordinate:
-            pe_t = orbit_time_to(mean_anomaly, 0, period, -1)   # time to periapsis
+            period = (2 * np.pi * math.sqrt(semi_major**3 / u)) / 10
+            pe_d = semi_major * (1 - ecc)
+            pe_t = orbit_time_to(mean_anomaly, 0, period, -1)
             # there is no apoapsis
             apoapsis = np.array([0, 0])
             ap_d = 0
@@ -471,9 +468,9 @@ class Physics():
     
     def kepler_inverse(self, body, ecc, omega_deg, pe_d, mean_anomaly_deg, true_anomaly_deg, ap_d, direction):
         """Inverse kepler equations."""
-        parent = self.parents[body]  # get parent body
-        u = self.gc * self.mass[parent]   # standard gravitational parameter
-        omega = omega_deg * np.pi / 180   # periapsis argument from deg to rad
+        parent = self.parents[body]
+        u = self.gc * self.mass[parent]
+        omega = omega_deg * np.pi / 180   # periapsis argument
         mean_anomaly = mean_anomaly_deg * np.pi / 180
         if direction > 0:
             mean_anomaly = -mean_anomaly
@@ -482,25 +479,25 @@ class Physics():
         if ecc >= 1:   # limit to only ellipses
             ecc = 0.95
         
-        if ap_d:   # if there is value for appapsis distance:
-            a = (pe_d + ap_d) / 2   # semi-major axis from periapsis and apoapsis
-            ecc = (ap_d / a) - 1   # eccentricity from apoapsis
+        if ap_d:
+            a = (pe_d + ap_d) / 2
+            ecc = (ap_d / a) - 1
         else:
-            a = - pe_d / (ecc - 1)   # semi-major axis from periapsis
-        b = a * math.sqrt(1 - ecc**2)   # semi minor axis
-        f = math.sqrt(a**2 - b**2)   # focus distance from center of ellipse
+            a = - pe_d / (ecc - 1)
+        b = a * math.sqrt(1 - ecc**2)
+        f = math.sqrt(a**2 - b**2)   # focus distance
         f_rot = [f * math.cos(omega), f * math.sin(omega)]   # focus rotated by omega
-        if true_anomaly_deg:   # if there is value for ta
-            ta = true_anomaly_deg * np.pi / 180   # use it
+        if true_anomaly_deg:
+            ta = true_anomaly_deg * np.pi / 180
             ea = math.acos((ecc + math.cos(ta))/(1 + (ecc * math.cos(ta))))   # ea from ta
         else:
-            ea = newton_root(keplers_eq, keplers_eq_derivative, 0.0, {'Ma': mean_anomaly, 'e': ecc})   # newton root for keplers equation
+            ea = newton_root(keplers_eq, keplers_eq_derivative, 0.0, {'Ma': mean_anomaly, 'e': ecc})
         
         # calculate position vector
         pr_x = a * math.cos(ea) - f
         pr_y = b * math.sin(ea)
         pr = np.array([pr_x * math.cos(omega - np.pi) - pr_y * math.sin(omega - np.pi),
-                       pr_x * math.sin(omega - np.pi) + pr_y * math.cos(omega - np.pi)])   # rotate point by argument of Pe
+                       pr_x * math.sin(omega - np.pi) + pr_y * math.cos(omega - np.pi)])   # rotate point by omega 
         
         p_x, p_y = pr[0] - f * np.cos(omega), pr[1] - f * np.sin(omega)   # point on ellipse relative to its center
         # implicit derivative of rotated ellipse
@@ -513,7 +510,7 @@ class Physics():
         # calcualte angle of velocity vector
         # calculate domain of function and substract some small value (10**-6) so y can be calculated
         x_max = math.sqrt(a**2 * math.cos(2*omega) + a**2 - b**2 * math.cos(2*omega) + b**2)/math.sqrt(2) - 10**-6
-        y_max = rot_ellipse_by_y(x_max, a, b, omega)   # calculate y
+        y_max = rot_ellipse_by_y(x_max, a, b, omega)
         x_max1, y_max1 = x_max + f_rot[0], y_max + f_rot[1]   # add rotated focus since it is origin
         x_max2, y_max2 = -x_max + f_rot[0], -y_max + f_rot[1]   # functon domain is symetrical, so there are 2 points
         # same angle is calculated on positive and negative part of ellipse curve, so:
@@ -521,8 +518,8 @@ class Physics():
             vr_angle += np.pi   # add pi to angle, put it in range (-1/2pi, 3/2pi) range
         vr_angle = vr_angle % (2*np.pi)   # put it in (0, 2pi) range
         
-        prm = mag(pr)   # relative position vector magnitude
-        vrm = direction * math.sqrt((2 * a * u - prm * u) / (a * prm))   # velocity vector magnitude from semi-major axis equation
+        prm = mag(pr)   # distance from parent
+        vrm = direction * math.sqrt((2 * a * u - prm * u) / (a * prm))   # velocity from semi-major axis equation
         
         vr_x = vrm * math.cos(vr_angle)   # eccentricity vector from angle of velocity
         vr_y = vrm * math.sin(vr_angle)
@@ -544,7 +541,7 @@ class Physics():
         
         # calculate curves points # curve[axis, body, point]
         curves = np.zeros((2, len(self.ecc_v), self.curve_points))
-        for num in range(len(self.ecc_v)):
+        for num, _ in enumerate(self.ecc_v):
             ecc = mag(self.ecc_v[num])   # eccentricity
             if ecc < 1:   # ellipse
                 curves[:, num, :] = np.array([self.semi_major[num] * np.cos(self.ell_t), self.semi_minor[num] * np.sin(self.ell_t)])   # raw ellipses
@@ -622,7 +619,7 @@ class Physics():
         # temperature from 10000 to 30000 - BLUE
         self.color[:, 0] = np.where(self.temp > 10000, 255 - ((255 * (self.temp - 10000) / 10000)), self.color[:, 0])   # full red to no red
         self.color[:, 1] = np.where(self.temp > 10000, 255 - ((135 * (self.temp - 10000) / 20000)), self.color[:, 1])   # full green to 120 green
-        self.color = np.clip(self.color, 0, 255)   # limit values to be 0 - 255
+        self.color = np.clip(self.color, 0, 255)
         return self.color
     
     
@@ -696,7 +693,7 @@ class Physics():
         mass_sorted = np.sort(self.mass)[-1::-1]
         bodies_sorted = np.argsort(self.mass)[-1::-1]
         parent = self.largest
-        for num, body_mass in enumerate(mass_sorted):
+        for num, _ in enumerate(mass_sorted):
             pot_parent = bodies_sorted[num]
             if (pos[0] - self.pos[pot_parent, 0])**2 + (pos[1] - self.pos[pot_parent, 1])**2 < (self.coi[pot_parent])**2:
                 parent = pot_parent
