@@ -12,16 +12,6 @@ from volatilespace import fileops
 from volatilespace import defaults
 
 
-###### --Constants-- ######
-c = 299792458   # speed of light in vacuum
-k = 1.381 * 10**-23   # boltzman constant
-m_h = 1.674 * 10**-27    # hydrogen atom mass in kg
-m_he = 6.646 * 10**-27   # helium atom mass in kg
-mp = (m_h * 99 + m_he * 1) / 100   # average particle mass   # depends on star age
-mass_sim_mult = 10**24  # mass simulation multiplier, since real values are needed in core temperature equation
-rad_sim_mult = 10**6   # radius sim multiplier
-
-
 ###### --Functions-- ######
 def newton_root(function, derivative, root_guess, variables={}):
     """Newton root solver"""
@@ -72,16 +62,12 @@ def cross_2d(v1, v2):
     return np.array([v1[0]*v2[1] - v1[1]*v2[0]])
 
 
-def calc_orb_one(body, ref, mass, gc, coi_coef, a, ecc):
-    """Additional body orbital parameters."""
-    if body:   # skip root
-        u = gc * mass[ref]   # standard gravitational parameter
+def calc_orb_one(vessel, ref, body_mass, gc, a, ecc):
+    """Additional vessel orbital parameters."""
+    if vessel:   # skip root
+        u = gc * body_mass[ref]   # standard gravitational parameter
         f = a * ecc
         b = math.sqrt(abs(f**2 - a**2))
-        if a > 0:   # if eccentricity is larger than 1, semi major will be negative
-            coi = a * (mass[body] / mass[ref])**(coi_coef)
-        else:
-            coi = 0
         
         if ecc != 0:   # if orbit is not circle
             pe_d = a * (1 - ecc)
@@ -102,28 +88,9 @@ def calc_orb_one(body, ref, mass, gc, coi_coef, a, ecc):
             # there is no apoapsis
             ap_d = 0
         n = 2*np.pi / period
-        return b, f, coi, pe_d, ap_d, period, n, u
+        return b, f, pe_d, ap_d, period, n, u
     else:
-        return 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
-
-
-def color(temp, base_color):
-    """Set color depending on temperature."""
-    color = base_color[:]
-    # temperature to 1000 - BASE
-    # temperature from 1000 to 3000 - RE
-    color[:, 0] = np.where(temp > 1000, base_color[:, 0] + ((255 - base_color[:, 0]) * (temp - 1000)) / 2000, base_color[:, 0])   # base red to full red
-    color[:, 1] = np.where(temp > 1000, base_color[:, 1] - ((base_color[:, 1]) * (temp - 1000)) / 2000, base_color[:, 1])   # base green to no green
-    color[:, 2] = np.where(temp > 1000, base_color[:, 2] - ((base_color[:, 2]) * (temp - 1000)) / 2000, base_color[:, 2])   # base blue to no blue
-    # temperature from 3000 to 6000 - YELLOW
-    color[:, 1] = np.where(temp > 3000, (255 * (temp - 3000)) / 3000, color[:, 1])   # no green to full green
-    # temperature from 6000 to 10000 - WHITE
-    color[:, 2] = np.where(temp > 6000, (255 * (temp - 6000)) / 4000, color[:, 2])   # no blue to full blue
-    # temperature from 10000 to 30000 - BLUE
-    color[:, 0] = np.where(temp > 10000, 255 - ((255 * (temp - 10000) / 10000)), color[:, 0])   # full red to no red
-    color[:, 1] = np.where(temp > 10000, 255 - ((135 * (temp - 10000) / 20000)), color[:, 1])   # full green to 120 green
-    color = np.clip(color, 0, 255)
-    return color
+        return 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
 
 
 # if numba is enabled, compile functions ahead of time
@@ -139,27 +106,22 @@ if numba_avail and use_numba:
 
 class Physics():
     def __init__(self):
-        # body internal
+        # vessel internal
         self.names = np.array([])
-        self.mass = np.array([])
-        self.den = np.array([])
-        self.base_color = np.empty((0, 3), int)   # original color unaffected by temperature
-        self.types = np.array([])
-        # body orbit main
+        # vessel orbit main
         self.a = np.array([])
         self.ecc = np.array([])
         self.pea = np.array([])
         self.ma = np.array([])
         self.ref = np.array([])
         self.dr = np.array([])
-        # body orbit extra
+        # vessel orbit extra
         self.b = np.array([])
         self.f = np.array([])
         self.pe_d = np.array([])
         self.ap_d = np.array([])
         self.period = np.array([])
         self.n = np.array([])
-        self.coi = np.array([])
         self.curves_rot = np.array([])
         self.pos = np.array([])
         self.ea = np.array([])
@@ -185,14 +147,11 @@ class Physics():
         self.coi_coef = conf["coi_coef"]
     
     
-    def load(self, conf, names, mass, density, color, orb_data):
-        """Load new system."""
+    def load(self, conf, names, orb_data):
+        """Load vessels."""
         self.load_conf(conf)
         self.names = names
-        self.mass = mass
-        self.den = density
-        self.base_color = color
-        # body orbit
+        # vessel orbit
         self.a = orb_data["a"]
         self.ecc = orb_data["ecc"]
         self.pea = orb_data["pe_arg"]
@@ -200,61 +159,40 @@ class Physics():
         self.ref = orb_data["ref"]
         self.dr = orb_data["dir"]
         self.main()
-        self.pos = np.zeros([len(mass), 2])   # position will be updated later
-        self.ea = np.zeros(len(mass))
+        self.pos = np.zeros([len(names), 2])   # position will be updated later
+        self.ea = np.zeros(len(names))
     
     
     def main(self):
-        """Do all body related physics. This should be done only if something changed on body or it's orbit."""
+        """Do all vessel related physics. This should be done only if something changed on vessel or it's orbit."""
         
-        # BODY DATA #
-        volume = self.mass / self.den
-        size = self.rad_mult * np.cbrt(3 * volume / (4 * np.pi))
-        core_temp = (self.gc * mp * self.mass * mass_sim_mult) / ((3/2) * k * size * rad_sim_mult)
-        temp = 0 / core_temp   # surface temperature # ### temporarily ###
-        rad_sc = 2 * self.mass * mass_sim_mult * self.gc / c**2   # Schwarzschild radius
-        color = color(temp, self.base_color)
-        # CLASSIFICATION #
-        self.types = np.zeros(len(self.mass))  # it is moon
-        self.types = np.where(self.mass > 200, 1, self.types)    # if it has high enough mass: it is solid planet
-        self.types = np.where(self.den < 1, 2, self.types)    # if it is not dense enough: it is gas planet
-        self.types = np.where(self.mass > 5000, 3, self.types)   # ### temporarily ###
-        # self.types = np.where(self.temp > 1000, 3, self.types)    # if temperature is over 1000 degrees: it is a star
-        # self.types = np.where(self.rad_sc > self.rad, 4, self.types)   # if schwarzschild radius is greater than radius: it is black hole
-        body_data = {"name": self.names,
-                     "type": self.types,
-                     "mass": self.mass,
-                     "den": self.den,
-                     "temp": temp,
-                     "color_b": self.base_color,
-                     "color": color,
-                     "size": size,
-                     "rad_sc": rad_sc}
+        # VESSEL DATA #
+        vessel_data = {"name": self.names
+                       }
         
         # ORBIT DATA #
-        values = list(map(calc_orb_one, list(range(len(self.mass))), self.ref, repeat(self.mass), repeat(self.gc), repeat(self.coi_coef), self.a, self.ecc))
-        self.b, self.f, self.coi, self.pe_d, self.ap_d, self.period, self.n, self.u = list(map(np.array, zip(*values)))
-        body_orb = {"a": self.a,
-                    "b": self.b,
-                    "f": self.f,
-                    "coi": self.coi,
-                    "ref": self.ref,
-                    "ecc": self.ecc,
-                    "pe_d": self.pe_d,
-                    "ap_d": self.ap_d,
-                    "pea": self.pea,
-                    "dir": self.dr,
-                    "per": self.period}
+        values = list(map(calc_orb_one, list(range(len(self.names))), self.ref, repeat(self.body_mass), repeat(self.gc), self.a, self.ecc))
+        self.b, self.f, self.pe_d, self.ap_d, self.period, self.n, self.u = list(map(np.array, zip(*values)))
+        vessel_orb = {"a": self.a,
+                      "b": self.b,
+                      "f": self.f,
+                      "ref": self.ref,
+                      "ecc": self.ecc,
+                      "pe_d": self.pe_d,
+                      "ap_d": self.ap_d,
+                      "pea": self.pea,
+                      "dir": self.dr,
+                      "per": self.period}
         
-        return body_data, body_orb
+        return vessel_data, vessel_orb
     
     
     def curve(self):
-        """Calculate all RELATIVE conic curves line points coordinates. This should be done only if something changed on body or it's orbit."""
+        """Calculate all RELATIVE conic curves line points coordinates. This should be done only if something changed on vessel or it's orbit."""
         
-        # calculate curves points # curve[axis, body, point]
-        curves = np.zeros((2, len(self.mass), self.curve_points))
-        for num in range(len(self.mass)):
+        # calculate curves points # curve[axis, vessel, point]
+        curves = np.zeros((2, len(self.names), self.curve_points))
+        for num in range(len(self.names)):
             ecc = self.ecc[num]
             if ecc < 1:   # ellipse
                 curves[:, num, :] = np.array([self.a[num] * np.cos(self.ell_t), self.b[num] * np.sin(self.ell_t)])   # raw ellipses
@@ -266,27 +204,27 @@ class Physics():
                     curves[:, num, :] = np.array([-self.a[num] * np.cosh(self.ell_t), self.a[num] * np.sinh(self.ell_t)])   # raw hyperbolas
                 # parametric equation for circle is same as for ellipse, just semi_major = semi_minor, thus it is not required
         
-        # 2D rotation matrix # rot[rotation, rotation, body]
+        # 2D rotation matrix # rot[rotation, rotation, vessel]
         rot = np.array([[np.cos(self.pea), - np.sin(self.pea)], [np.sin(self.pea), np.cos(self.pea)]])
         self.curves_rot = np.zeros((2, curves.shape[1], curves.shape[2]))
-        for body in range(curves.shape[1]):
-            self.curves_rot[:, body, :] = np.dot(rot[:, :, body], curves[:, body, :])   # apply rotation matrix to all curve points
+        for vessel in range(curves.shape[1]):
+            self.curves_rot[:, vessel, :] = np.dot(rot[:, :, vessel], curves[:, vessel, :])   # apply rotation matrix to all curve points
     
     
     def move(self, warp):
-        """Move body with mean motion."""
+        """Move vessel with mean motion."""
         self.ma += self.dr * self.n * warp
         self.ma = np.where(self.ma > 2*np.pi, self.ma - 2*np.pi, self.ma)
         self.ma = np.where(self.ma < 0, self.ma + 2*np.pi, self.ma)
         bodies_sorted = np.argsort(self.coi)[-1::-1]
-        for body in bodies_sorted:
-            ea = newton_root(keplers_eq, keplers_eq_derivative, 0.0, {'Ma': self.ma[body], 'e': self.ecc[body]})
-            pea = self.pea[body]
-            ecc = self.ecc[body]
-            a = self.a[body]
-            b = self.b[body]
+        for vessel in bodies_sorted:
+            ea = newton_root(keplers_eq, keplers_eq_derivative, 0.0, {'Ma': self.ma[vessel], 'e': self.ecc[vessel]})
+            pea = self.pea[vessel]
+            ecc = self.ecc[vessel]
+            a = self.a[vessel]
+            b = self.b[vessel]
             if ecc < 1:
-                pr_x = a * math.cos(ea) - self.f[body]
+                pr_x = a * math.cos(ea) - self.f[vessel]
                 pr_y = b * math.sin(ea)
             elif ecc > 1:
                 pass
@@ -294,29 +232,29 @@ class Physics():
                 pass
             pr = np.array([pr_x * math.cos(pea - np.pi) - pr_y * math.sin(pea - np.pi),
                            pr_x * math.sin(pea - np.pi) + pr_y * math.cos(pea - np.pi)])
-            self.pos[body] = self.pos[self.ref[body]] + pr
-            self.ea[body] = ea
+            self.pos[vessel] = self.pos[self.ref[vessel]] + pr
+            self.ea[vessel] = ea
         
         return self.pos, self.ma
     
     
-    def selected(self, body):
-        """Do physics for selected body. This should be done every tick after body_move()."""
-        if body:
-            pos_ref = self.pos[self.ref[body]]
-            periapsis_arg = self.pea[body]
-            a = self.a[body]
-            b = self.b[body]
-            ecc = self.ecc[body]
-            ea = self.ea[body]
-            ma = self.ma[body]
-            period = self.period[body]
-            u = self.u[body]
-            ap_d = self.ap_d[body]
-            pe_d = self.pe_d[body]
-            dr = self.dr[body]
+    def selected(self, vessel):
+        """Do physics for selected vessel. This should be done every tick after vessel_move()."""
+        if vessel:
+            pos_ref = self.pos[self.ref[vessel]]
+            periapsis_arg = self.pea[vessel]
+            a = self.a[vessel]
+            b = self.b[vessel]
+            ecc = self.ecc[vessel]
+            ea = self.ea[vessel]
+            ma = self.ma[vessel]
+            period = self.period[vessel]
+            ap_d = self.ap_d[vessel]
+            pe_d = self.pe_d[vessel]
+            dr = self.dr[vessel]
+            u = self.u[vessel]
             
-            rel_pos = self.pos[body] - pos_ref
+            rel_pos = self.pos[vessel] - pos_ref
             distance = mag(rel_pos)   # distance to parent
             speed_orb = math.sqrt((2 * a * u - distance * u) / (a * distance))   # velocity vector magnitude from semi-major axis equation
             ta = math.acos((math.cos(ea) - ecc)/(1 - ecc * math. cos(ea)))  # true anomaly from eccentric anomaly
@@ -357,7 +295,7 @@ class Physics():
     
     
     def curve_move(self):
-        """Move all orbit curves to parent position. This should be done every tick after body_move()."""
+        """Move all orbit curves to parent position. This should be done every tick after vessel_move()."""
         focus_x = self.f * np.cos(self.pea)   # focus coords from focus magnitude and angle
         focus_y = self.f * np.sin(self.pea)
         curves_x = self.curves_rot[0, :, :] + focus_x[:, np.newaxis] + self.pos[self.ref, 0, np.newaxis]   # translate to align focus and parent

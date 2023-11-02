@@ -1,7 +1,6 @@
 ### TIMELINE ###
 
 v0.5.0 - vessel physics
-copy from body physics to separate class file
 load/save vessels from save file
 draw vessel as triangle
 temporarily, vessel size as circle, for collisions

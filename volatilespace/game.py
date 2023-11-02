@@ -242,7 +242,7 @@ class Game():
             fileops.save_file(system, self.sim_name, date, self.sim_conf, self.sim_time/self.ptps,
                               self.names, self.mass, self.density, self.color, orb_data)
         
-        physics_body.load_system(self.sim_conf, self.names, self.mass, self.density, self.color, orb_data)
+        physics_body.load(self.sim_conf, self.names, self.mass, self.density, self.color, orb_data)
         self.file_path = system   # this path will be used for load/save
         self.disable_input = False
         self.disable_ui = False
@@ -255,11 +255,11 @@ class Game():
         self.first = True
         
         # userevent may not been run in first iteration, but this values are needed in graphics section:
-        body_data, body_orb = physics_body.body()
+        body_data, body_orb = physics_body.main()
         self.unpack_body(body_data, body_orb)
-        self.pos, self.ma = physics_body.body_move(self.warp)
-        physics_body.body_curve()
-        self.curves = physics_body.body_curve_move()
+        self.pos, self.ma = physics_body.move(self.warp)
+        physics_body.curve()
+        self.curves = physics_body.curve_move()
         self.first = True
     
     
@@ -317,11 +317,11 @@ class Game():
         """Loads system from "load" dialog."""
         if os.path.exists(self.selected_path):
             self.load_system(self.selected_path)
-            body_data, body_orb = physics_body.body()
+            body_data, body_orb = physics_body.main()
             self.unpack_body(body_data, body_orb)
-            self.pos, self.ma = physics_body.body_move(self.warp)
-            physics_body.body_curve()
-            self.curves = physics_body.body_curve_move()
+            self.pos, self.ma = physics_body.move(self.warp)
+            physics_body.curve()
+            self.curves = physics_body.curve_move()
             self.file_path = self.selected_path
             graphics.timed_text_init(rgb.gray, self.fontmd, "Map loaded successfully", (self.screen_x/2, self.screen_y-70), 2, True)
         
@@ -784,8 +784,8 @@ class Game():
         """Do simulation phisycs with warp and pause"""
         if e.type == pygame.USEREVENT:
             if self.pause is False:
-                self.pos, self.ma = physics_body.body_move(self.warp)
-                self.curves = physics_body.body_curve_move()
+                self.pos, self.ma = physics_body.move(self.warp)
+                self.curves = physics_body.curve_move()
                 self.sim_time += 1 * self.warp   # iterate sim_time
                 
                 if self.first:   # this is run only once at userevent start
@@ -895,7 +895,7 @@ class Game():
                 if self.selected is not None and self.selected == body:
                     parent = self.ref[body]
                     body_pos = self.pos[body, :]
-                    ta, pe, pe_t, ap, ap_t, distance, speed_orb, speed_hor, speed_vert = physics_body.body_selected(self.selected)
+                    ta, pe, pe_t, ap, ap_t, distance, speed_orb, speed_hor, speed_vert = physics_body.selected(self.selected)
                     if self.right_menu == 2:
                         self.orbit_data_menu = [self.pe_d[self.selected],
                                                 self.ap_d[self.selected],

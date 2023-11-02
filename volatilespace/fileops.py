@@ -177,6 +177,7 @@ def load_file(path):
             
     if kepler:
         orb_data = {"kepler": kepler, "a": semi_major, "ecc": ecc, "pe_arg": pe_arg, "ma": ma, "ref": parents, "dir": direction}
+        
     else:
         orb_data = {"kepler": kepler, "pos": position, "vel": velocity}
     
