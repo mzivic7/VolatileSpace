@@ -107,7 +107,7 @@ def calc_orb_one(body, ref, mass, gc, coi_coef, a, ecc):
         return 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
 
 
-def color(temp, base_color):
+def temp_color(temp, base_color):
     """Set color depending on temperature."""
     color = base_color[:]
     # temperature to 1000 - BASE
@@ -185,23 +185,23 @@ class Physics():
         self.coi_coef = conf["coi_coef"]
     
     
-    def load(self, conf, names, mass, density, color, orb_data):
+    def load(self, conf, body_data, body_orb_data):
         """Load new system."""
         self.load_conf(conf)
-        self.names = names
-        self.mass = mass
-        self.den = density
-        self.base_color = color
+        self.names = body_data["name"]
+        self.mass = body_data["mass"]
+        self.den = body_data["den"]
+        self.base_color = body_data["color"]
         # body orbit
-        self.a = orb_data["a"]
-        self.ecc = orb_data["ecc"]
-        self.pea = orb_data["pe_arg"]
-        self.ma = orb_data["ma"]
-        self.ref = orb_data["ref"]
-        self.dr = orb_data["dir"]
+        self.a = body_orb_data["a"]
+        self.ecc = body_orb_data["ecc"]
+        self.pea = body_orb_data["pe_arg"]
+        self.ma = body_orb_data["ma"]
+        self.ref = body_orb_data["ref"]
+        self.dr = body_orb_data["dir"]
         self.main()
-        self.pos = np.zeros([len(mass), 2])   # position will be updated later
-        self.ea = np.zeros(len(mass))
+        self.pos = np.zeros([len(self.mass), 2])   # position will be updated later
+        self.ea = np.zeros(len(self.mass))
     
     
     def main(self):
@@ -213,7 +213,7 @@ class Physics():
         core_temp = (self.gc * mp * self.mass * mass_sim_mult) / ((3/2) * k * size * rad_sim_mult)
         temp = 0 / core_temp   # surface temperature # ### temporarily ###
         rad_sc = 2 * self.mass * mass_sim_mult * self.gc / c**2   # Schwarzschild radius
-        color = color(temp, self.base_color)
+        color = temp_color(temp, self.base_color)
         # CLASSIFICATION #
         self.types = np.zeros(len(self.mass))  # it is moon
         self.types = np.where(self.mass > 200, 1, self.types)    # if it has high enough mass: it is solid planet

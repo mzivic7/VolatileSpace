@@ -150,6 +150,8 @@ class Editor():
         self.sim_conf = {}   # simulation related config loaded from save file
         self.new_body_data = defaults.new_body_moon   # body related data when inserting new body
         self.precalc_data = physics.precalculate(self.new_body_data)   # body physics without adding it to sim
+        self.vessel_data = None
+        self.vessel_orb_data = None
         
         self.offset_old = np.array([self.offset_x, self.offset_y])
         self.grid_enable = False   # background grid
@@ -251,11 +253,19 @@ class Editor():
     
     def load_system(self, system):
         """Load system from file and convert to newton orbit if needed"""
-        self.sim_name, self.sim_time, self.sim_conf, self.names, self.mass, self.density, self.color, orb_data = fileops.load_file(system)
+        self.sim_name, self.sim_time, self.sim_conf, body_data, body_orb_data, vessel_data, vessel_orb_data = fileops.load_file(system)
         self.sim_time *= self.ptps   # convert from seconds to userevent iterations
-        if orb_data["kepler"]:   # convert to newtonian model
-            orb_data = physics_convert.to_newton(self.mass, orb_data, self.sim_conf["gc"], self.sim_conf["coi_coef"])
-        physics.load_system(self.sim_conf, self.names, self.mass, self.density, self.color, orb_data)   # add it to physics class
+        self.names = body_data["name"]
+        self.mass = body_data["mass"]
+        self.density = body_data["den"]
+        self.color = body_data["color"]
+        self.vessel_data = None
+        self.vessel_orb_data = None
+        if body_orb_data["kepler"]:   # convert to newtonian model
+            body_orb_data = physics_convert.to_newton(self.mass, body_orb_data, self.sim_conf["gc"], self.sim_conf["coi_coef"])
+            self.vessel_data = vessel_data
+            self.vessel_orb_data = vessel_orb_data
+        physics.load_system(self.sim_conf, body_data, body_orb_data)   # add it to physics class
         self.file_path = system   # this path will be used for load/save
         self.disable_input = False
         self.disable_ui = False
@@ -305,45 +315,40 @@ class Editor():
             self.file_path = self.selected_path   # change currently active file
             graphics.timed_text_init(rgb.gray, self.fontmd, "Map loaded successfully", (self.screen_x/2, self.screen_y-70), 2, True)
         
-    def save(self, path, name=None):
+    def save(self, path, name=None, silent=False):
         """Saves map to file. If name is None, name is not changed. 
         Automatically convert to kepler orbit if overwriting game"""
         base_color = physics.get_base_color()
         date = time.strftime("%d.%m.%Y %H:%M")
-        orb_data = {"kepler": False, "pos": self.position, "vel": self.velocity}
+        body_orb_data = {"kepler": False, "pos": self.position, "vel": self.velocity}
         
         try:   # try to read file to check if it is game, if failed, do normal save
-            _, _, _, _, _, _, _, orb_data_file = fileops.load_file(path)
+            _, _, _, _, orb_data_file, _, _ = fileops.load_file(path)
             kepler = orb_data_file["kepler"]
         except Exception:
             kepler = False
         
         if kepler:   # save with convert
-            orb_data = physics_convert.to_kepler(self.mass, orb_data, self.sim_conf["gc"], self.sim_conf["coi_coef"])
-            graphics.timed_text_init(rgb.gray, self.fontmd, "Map saved successfully to game file.", (self.screen_x/2, self.screen_y-70), 2, True)
+            body_orb_data = physics_convert.to_kepler(self.mass, body_orb_data, self.sim_conf["gc"], self.sim_conf["coi_coef"])
+            if not silent:
+                graphics.timed_text_init(rgb.gray, self.fontmd, "Map saved successfully to game file.", (self.screen_x/2, self.screen_y-70), 2, True)
         else:   # normal save
-            graphics.timed_text_init(rgb.gray, self.fontmd, "Map saved successfully", (self.screen_x/2, self.screen_y-70), 2, True)
+            if not silent:
+                graphics.timed_text_init(rgb.gray, self.fontmd, "Map saved successfully", (self.screen_x/2, self.screen_y-70), 2, True)
         
+        body_data = {"name": self.names, "mass": self.mass, "den": self.density, "color": base_color}
         fileops.save_file(path, name, date, self.sim_conf, self.sim_time/self.ptps,
-                          self.names, self.mass, self.density, base_color, orb_data)
+                          body_data, body_orb_data, self.vessel_data, self.vessel_orb_data)
     
     def quicksave(self):
         """Saves map to quicksave file."""
-        base_color = physics.get_base_color()
-        date = time.strftime("%d.%m.%Y %H:%M")
-        orb_data = {"kepler": False, "pos": self.position, "vel": self.velocity}
-        fileops.save_file("Maps/quicksave.ini", "Quicksave - " + self.sim_name, date, self.sim_conf, self.sim_time/self.ptps,
-                          self.names, self.mass, self.density, base_color, orb_data)
+        self.save("Maps/quicksave.ini", "Quicksave - " + self.sim_name, True)
         graphics.timed_text_init(rgb.gray2, self.fontmd, "Quicksave...", (self.screen_x/2, self.screen_y-70), 2, True)
     
     def autosave(self, e):
-        """Automatically saves current map to autosave.ini at predefined interval.""" 
+        """Automatically saves current map to autosave.ini at predefined interval."""
         if e.type == self.autosave_event:
-            base_color = physics.get_base_color()
-            date = time.strftime("%d.%m.%Y %H:%M")
-            orb_data = {"kepler": False, "pos": self.position, "vel": self.velocity}
-            fileops.save_file("Maps/autosave.ini", "Autosave - " + self.sim_name, date, self.sim_conf, self.sim_time/self.ptps,
-                              self.names, self.mass, self.density, base_color, orb_data)
+            self.save("Maps/autosave.ini", "Autosave - " + self.sim_name, True)
             graphics.timed_text_init(rgb.gray2, self.fontmd, "Autosave...", (self.screen_x/2, self.screen_y-70), 2, True)
     
     def check_new_name(self):
@@ -775,11 +780,7 @@ class Editor():
                                 self.disable_input = False
                                 self.pause = False
                             elif num == 5:   # save and quit
-                                base_color = physics.get_base_color()
-                                date = time.strftime("%d.%m.%Y %H:%M")
-                                orb_data = {"kepler": False, "pos": self.position, "vel": self.velocity}
-                                fileops.save_file(self.file_path, self.sim_name, date, self.sim_conf, self.sim_time/self.ptps,
-                                                  self.names, self.mass, self.density, base_color, orb_data)
+                                self.save(self.file_path, self.sim_name)
                                 self.state = 1
                                 self.pause_menu = False
                                 self.disable_input = False

@@ -147,20 +147,20 @@ class Physics():
         self.coi_coef = conf["coi_coef"]
     
     
-    def load(self, conf, names, orb_data):
+    def load(self, conf, vessel_data, vessel_orb_data):
         """Load vessels."""
         self.load_conf(conf)
-        self.names = names
+        self.names = vessel_data["name"]
         # vessel orbit
-        self.a = orb_data["a"]
-        self.ecc = orb_data["ecc"]
-        self.pea = orb_data["pe_arg"]
-        self.ma = orb_data["ma"]
-        self.ref = orb_data["ref"]
-        self.dr = orb_data["dir"]
+        self.a = vessel_orb_data["a"]
+        self.ecc = vessel_orb_data["ecc"]
+        self.pea = vessel_orb_data["pe_arg"]
+        self.ma = vessel_orb_data["ma"]
+        self.ref = vessel_orb_data["ref"]
+        self.dr = vessel_orb_data["dir"]
         self.main()
-        self.pos = np.zeros([len(names), 2])   # position will be updated later
-        self.ea = np.zeros(len(names))
+        self.pos = np.zeros([len(self.names), 2])   # position will be updated later
+        self.ea = np.zeros(len(self.names))
     
     
     def main(self):
@@ -174,8 +174,6 @@ class Physics():
         values = list(map(calc_orb_one, list(range(len(self.names))), self.ref, repeat(self.body_mass), repeat(self.gc), self.a, self.ecc))
         self.b, self.f, self.pe_d, self.ap_d, self.period, self.n, self.u = list(map(np.array, zip(*values)))
         vessel_orb = {"a": self.a,
-                      "b": self.b,
-                      "f": self.f,
                       "ref": self.ref,
                       "ecc": self.ecc,
                       "pe_d": self.pe_d,

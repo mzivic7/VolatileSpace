@@ -9,6 +9,7 @@ import numpy as np
 
 from volatilespace import fileops
 from volatilespace import physics_game_body
+from volatilespace import physics_game_vessel
 from volatilespace import physics_convert
 from volatilespace.graphics import rgb
 from volatilespace.graphics import graphics
@@ -19,6 +20,7 @@ from volatilespace import defaults
 
 
 physics_body = physics_game_body.Physics()
+physics_vessel = physics_game_vessel.Physics()
 graphics = graphics.Graphics()
 bg_stars = bg_stars.Bg_Stars()
 textinput = textinput.Textinput()
@@ -133,6 +135,9 @@ class Game():
         self.pos = np.array([])
         self.ma = np.array([])
         self.curves = np.array([])
+        self.v_pos = np.array([])
+        self.v_ma = np.array([])
+        self.v_curves = np.array([])
         
         
         self.offset_old = np.array([self.offset_x, self.offset_y])
@@ -233,16 +238,20 @@ class Game():
     
     def load_system(self, system):
         """Load system from file and convert to kepler orbit if needed"""
-        self.sim_name, self.sim_time, self.sim_conf, self.names, self.mass, self.density, self.color, orb_data = fileops.load_file(system)
+        self.sim_name, self.sim_time, self.sim_conf, body_data, body_orb_data, vessel_data, vessel_orb_data = fileops.load_file(system)
         self.sim_time *= self.ptps   # convert from seconds to userevent iterations
-        if not orb_data["kepler"]:   # convert to keplerian model
-            orb_data = physics_convert.to_kepler(self.mass, orb_data, self.sim_conf["gc"], self.sim_conf["coi_coef"])
+        self.names = body_data["name"]
+        self.mass = body_data["mass"]
+        self.density = body_data["den"]
+        self.color = body_data["color"]
+        if not body_orb_data["kepler"]:   # convert to keplerian model
+            body_orb_data = physics_convert.to_kepler(self.mass, body_orb_data, self.sim_conf["gc"], self.sim_conf["coi_coef"])
             os.remove(system)
             date = time.strftime("%d.%m.%Y %H:%M")
             fileops.save_file(system, self.sim_name, date, self.sim_conf, self.sim_time/self.ptps,
-                              self.names, self.mass, self.density, self.color, orb_data)
+                              body_data, body_orb_data, vessel_data, vessel_orb_data)
         
-        physics_body.load(self.sim_conf, self.names, self.mass, self.density, self.color, orb_data)
+        physics_body.load(self.sim_conf, body_data, body_orb_data)
         self.file_path = system   # this path will be used for load/save
         self.disable_input = False
         self.disable_ui = False
@@ -255,8 +264,9 @@ class Game():
         self.first = True
         
         # userevent may not been run in first iteration, but this values are needed in graphics section:
-        body_data, body_orb = physics_body.main()
-        self.unpack_body(body_data, body_orb)
+        body_data, body_orb_data = physics_body.main()
+        self.unpack_body(body_data, body_orb_data)
+        self.unpack_vessel(vessel_data, vessel_orb_data)
         self.pos, self.ma = physics_body.move(self.warp)
         physics_body.curve()
         self.curves = physics_body.curve_move()
@@ -265,7 +275,7 @@ class Game():
     
     ###### --Help functions-- ######
     def focus_point(self, pos, zoom=None):
-        """Claculate offset and zoom, used to focus on specific coordinates"""
+        """Calculate offset and zoom, used to focus on specific coordinates"""
         if zoom:
             self.zoom = zoom
         self.offset_x = - pos[0] + self.screen_x / 2   # follow selected body
@@ -301,8 +311,6 @@ class Game():
         self.rad_sc = body_data["rad_sc"]
         # ORBIT DATA #
         self.a = body_orb["a"]
-        self.b = body_orb["b"]
-        self.f = body_orb["f"]
         self.coi = body_orb["coi"]
         self.ref = body_orb["ref"]
         self.ecc = body_orb["ecc"]
@@ -312,6 +320,19 @@ class Game():
         self.dr = body_orb["dir"]
         self.period = body_orb["per"]
     
+    def unpack_vessel(self, vessel_data, vessel_orb):
+        # BODY DATA #
+        self.v_names = vessel_data["name"]
+        # ORBIT DATA #
+        self.v_a = vessel_orb["a"]
+        self.v_coi = vessel_orb["coi"]
+        self.v_ref = vessel_orb["ref"]
+        self.v_ecc = vessel_orb["ecc"]
+        self.v_pe_d = vessel_orb["pe_d"]
+        self.v_ap_d = vessel_orb["ap_d"]
+        self.v_pea = vessel_orb["pea"]
+        self.v_dr = vessel_orb["dir"]
+        self.v_period = vessel_orb["per"]
     
     def load(self):
         """Loads system from "load" dialog."""
@@ -323,32 +344,29 @@ class Game():
             physics_body.curve()
             self.curves = physics_body.curve_move()
             self.file_path = self.selected_path
-            graphics.timed_text_init(rgb.gray, self.fontmd, "Map loaded successfully", (self.screen_x/2, self.screen_y-70), 2, True)
+            graphics.timed_text_init(rgb.gray, self.fontmd, "Game loaded successfully", (self.screen_x/2, self.screen_y-70), 2, True)
         
     def save(self, path, name=None, silent=False):
         """Saves game to file. If name is None, name is not changed."""
         date = time.strftime("%d.%m.%Y %H:%M")
-        orb_data = {"a": self.a, "ecc": self.ecc, "pe_arg": self.pea, "ma": self.ma, "ref": self.ref, "dir": self.dr}
+        body_data = {"name": self.names, "mass": self.mass, "den": self.density, "color": self.base_color}
+        body_orb_data = {"a": self.a, "ecc": self.ecc, "pe_arg": self.pea, "ma": self.ma, "ref": self.ref, "dir": self.dr}
+        vessel_data = {"name": self.v_names}
+        vessel_orb_data = {"a": self.v_a, "ecc": self.v_ecc, "pe_arg": self.v_pea, "ma": self.v_ma, "ref": self.v_ref, "dir": self.v_dr}
         fileops.save_file(path, name, date, self.sim_conf, self.sim_time/self.ptps,
-                          self.names, self.mass, self.density, self.base_color, orb_data)
+                          body_data, body_orb_data, vessel_data, vessel_orb_data)
         if not silent:
-            graphics.timed_text_init(rgb.gray, self.fontmd, "Map saved successfully", (self.screen_x/2, self.screen_y-70), 2, True)
+            graphics.timed_text_init(rgb.gray, self.fontmd, "Game saved successfully", (self.screen_x/2, self.screen_y-70), 2, True)
     
     def quicksave(self):
         """Saves game to quicksave file."""
-        date = time.strftime("%d.%m.%Y %H:%M")
-        orb_data = {"a": self.a, "ecc": self.ecc, "pe_arg": self.pea, "ma": self.ma, "ref": self.ref, "dir": self.dr}
-        fileops.save_file("Saves/quicksave.ini", "Quicksave - " + self.sim_name, date, self.sim_conf, self.sim_time/self.ptps,
-                          self.names, self.mass, self.density, self.base_color, orb_data)
+        self.save("Saves/quicksave.ini", "Quicksave - " + self.sim_name, True)
         graphics.timed_text_init(rgb.gray2, self.fontmd, "Quicksave...", (self.screen_x/2, self.screen_y-70), 2, True)
     
     def autosave(self, e):
         """Automatically saves current game to autosave.ini at predefined interval."""
         if e.type == self.autosave_event:
-            date = time.strftime("%d.%m.%Y %H:%M")
-            orb_data = {"a": self.a, "ecc": self.ecc, "pe_arg": self.pea, "ma": self.ma, "ref": self.ref, "dir": self.dr}
-            fileops.save_file("Saves/autosave.ini", "Autosave - " + self.sim_name, date, self.sim_conf, self.sim_time/self.ptps,
-                              self.names, self.mass, self.density, self.base_color, orb_data)
+            self.save("Saves/autosave.ini", "Autosave - " + self.sim_name, True)
             graphics.timed_text_init(rgb.gray2, self.fontmd, "Autosave...", (self.screen_x/2, self.screen_y-70), 2, True)
 
     

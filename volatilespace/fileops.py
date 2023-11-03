@@ -141,6 +141,7 @@ def load_file(path):
     mass = np.array([])
     density = np.array([])
     color = np.empty((0, 3), int)
+    vessel_name = np.array([])
     
     position = np.empty((0, 2), int)
     velocity = np.empty((0, 2), int)
@@ -152,39 +153,65 @@ def load_file(path):
     parents = np.array([], dtype=int)
     direction = np.array([])
     
+    v_semi_major = np.array([])
+    v_ecc = np.array([])
+    v_pe_arg = np.array([])
+    v_ma = np.array([])
+    v_parents = np.array([], dtype=int)
+    v_direction = np.array([])
+    
     # load all body parameters into separate arrays
     for body in system.sections():
         if body != "config":
-            body_name = np.append(body_name, body)
-            mass = np.append(mass, float(system.get(body, "mass")))
-            density = np.append(density, float(system.get(body, "density")))
-            color = np.vstack((color, list(map(int, system.get(body, "color").strip("][").split(", ")))))
             
             if not kepler:   # newtonian
                 try:
                     position = np.vstack((position, list(map(float, system.get(body, "position").strip("][").split(", ")))))
                     velocity = np.vstack((velocity, list(map(float, system.get(body, "velocity").strip("][").split(", ")))))
+                    body_name = np.append(body_name, body)
+                    mass = np.append(mass, float(system.get(body, "mass")))
+                    density = np.append(density, float(system.get(body, "density")))
+                    color = np.vstack((color, list(map(int, system.get(body, "color").strip("][").split(", ")))))
                 except Exception:   # if pos or vel values are missing - then try to read kepler
                     kepler = True
             
             if kepler:
-                semi_major = np.append(semi_major, float(system.get(body, "sma")))
-                ecc = np.append(ecc, float(system.get(body, "ecc")))
-                pe_arg = np.append(pe_arg, float(system.get(body, "lpe")))
-                ma = np.append(ma, float(system.get(body, "mna")))
-                parents = np.append(parents, int(system.get(body, "ref")))
-                direction = np.append(direction, float(system.get(body, "dir")))
+                if system.get(body, "obj") == "body":
+                    body_name = np.append(body_name, body)
+                    mass = np.append(mass, float(system.get(body, "mass")))
+                    density = np.append(density, float(system.get(body, "density")))
+                    color = np.vstack((color, list(map(int, system.get(body, "color").strip("][").split(", ")))))
+                    semi_major = np.append(semi_major, float(system.get(body, "sma")))
+                    ecc = np.append(ecc, float(system.get(body, "ecc")))
+                    pe_arg = np.append(pe_arg, float(system.get(body, "lpe")))
+                    ma = np.append(ma, float(system.get(body, "mna")))
+                    parents = np.append(parents, int(system.get(body, "ref")))
+                    direction = np.append(direction, float(system.get(body, "dir")))
+                elif system.get(body, "obj") == "vessel":
+                    vessel_name = np.append(vessel_name, body)
+                    v_semi_major = np.append(v_semi_major, float(system.get(body, "sma")))
+                    v_ecc = np.append(v_ecc, float(system.get(body, "ecc")))
+                    v_pe_arg = np.append(v_pe_arg, float(system.get(body, "lpe")))
+                    v_ma = np.append(v_ma, float(system.get(body, "mna")))
+                    v_parents = np.append(v_parents, int(system.get(body, "ref")))
+                    v_direction = np.append(v_direction, float(system.get(body, "dir")))
             
     if kepler:
-        orb_data = {"kepler": kepler, "a": semi_major, "ecc": ecc, "pe_arg": pe_arg, "ma": ma, "ref": parents, "dir": direction}
-        
+        body_data = {"name": body_name, "mass": mass, "den": density, "color": color}
+        body_orb_data = {"kepler": kepler, "a": semi_major, "ecc": ecc, "pe_arg": pe_arg, "ma": ma, "ref": parents, "dir": direction}
+        vessel_data = {"name": vessel_name}
+        vessel_orb_data = {"a": v_semi_major, "ecc": v_ecc, "pe_arg": v_pe_arg, "ma": v_ma, "ref": v_parents, "dir": v_direction}
     else:
-        orb_data = {"kepler": kepler, "pos": position, "vel": velocity}
+        body_data = {"name": body_name, "mass": mass, "den": density, "color": color}
+        body_orb_data = {"kepler": kepler, "pos": position, "vel": velocity}
+        vessel_data = None
+        vessel_orb_data = None
+        
     
-    return name, time, config, body_name, mass, density, color, orb_data
+    return name, time, config, body_data, body_orb_data, vessel_data, vessel_orb_data
 
 
-def save_file(path, name, date, conf, time, body_names, mass, density, color, orb_data):
+def save_file(path, name, date, conf, time, body_data, body_orb_data, vessel_data={}, vessel_orb_data={}):
     """Save system to file"""
     if not os.path.exists("Maps"):
         os.mkdir("Maps")
@@ -215,21 +242,27 @@ def save_file(path, name, date, conf, time, body_names, mass, density, color, or
         value = str(conf[key])
         system.set("config", key, value)
     
+    body_names = body_data["name"]
+    mass = body_data["mass"]
+    density = body_data["den"]
+    color = body_data["color"]
+    
     kepler = False
     try:
-        position = orb_data["pos"]
-        velocity = orb_data["vel"]
+        position = body_orb_data["pos"]
+        velocity = body_orb_data["vel"]
     except Exception:
         kepler = True
-        semi_major = orb_data["a"]
-        ecc = orb_data["ecc"]
-        pe_arg = orb_data["pe_arg"]
-        ma = orb_data["ma"]
-        parents = orb_data["ref"]
-        direction = orb_data["dir"]
+        semi_major = body_orb_data["a"]
+        ecc = body_orb_data["ecc"]
+        pe_arg = body_orb_data["pe_arg"]
+        ma = body_orb_data["ma"]
+        parents = body_orb_data["ref"]
+        direction = body_orb_data["dir"]
     
-    for body, body_mass in enumerate(mass):
-        body_name = body_names[body]
+    
+    for body, body_name in enumerate(body_names):
+        body_mass = mass[body]
         
         # handle if this body already exists
         num = 1
@@ -238,6 +271,10 @@ def save_file(path, name, date, conf, time, body_names, mass, density, color, or
             num += 1
         
         system.add_section(body_name)
+        
+        if kepler:
+            system.set(body_name, "obj", "body")
+        
         system.set(body_name, "mass", str(body_mass))
         system.set(body_name, "density", str(density[body]))
         system.set(body_name, "color", "[" + str(color[body, 0]) + ", " + str(color[body, 1]) + ", " + str(color[body, 2]) + "]")
@@ -253,6 +290,32 @@ def save_file(path, name, date, conf, time, body_names, mass, density, color, or
             system.set(body_name, "mna", str(ma[body]))
             system.set(body_name, "ref", str(int(parents[body])))
             system.set(body_name, "dir", str(int(direction[body])))
+    
+    if vessel_data:
+        vessel_names = vessel_data["name"]
+        semi_major = vessel_orb_data["a"]
+        ecc = vessel_orb_data["ecc"]
+        pe_arg = vessel_orb_data["pe_arg"]
+        ma = vessel_orb_data["ma"]
+        parents = vessel_orb_data["ref"]
+        direction = vessel_orb_data["dir"]
+        
+        for vessel, vessel_name in enumerate(vessel_names):
+            
+            # handle if this vessel already exists
+            num = 1
+            while vessel_name in system.sections():
+                vessel_name = vessel_name[vessel] + " " + str(num)
+                num += 1
+        
+            system.add_section(vessel_name)
+            system.set(vessel_name, "obj", "vessel")
+            system.set(vessel_name, "sma", str(semi_major[vessel]))
+            system.set(vessel_name, "ecc", str(ecc[vessel]))
+            system.set(vessel_name, "lpe", str(pe_arg[vessel]))
+            system.set(vessel_name, "mna", str(ma[vessel]))
+            system.set(vessel_name, "ref", str(int(parents[vessel])))
+            system.set(vessel_name, "dir", str(int(direction[vessel])))
     
     with open(path, 'w') as f:
         system.write(f)

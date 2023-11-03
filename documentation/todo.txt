@@ -1,7 +1,6 @@
 ### TIMELINE ###
 
-v0.5.0 - vessel physics
-load/save vessels from save file
+v0.5.0 - game-vessel
 draw vessel as triangle
 temporarily, vessel size as circle, for collisions
 physical warp (x2, x4) when enter atmosphere (fake atmosphere temporarily)

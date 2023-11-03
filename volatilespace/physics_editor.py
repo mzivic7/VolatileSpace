@@ -213,25 +213,26 @@ class Physics():
         self.rad_mult = conf["rad_mult"]
         self.coi_coef = conf["coi_coef"]
     
-    def load_system(self, conf, names, mass, density, color, orb_data):
+    def load_system(self, conf, body_data, body_orb_data):
         """Load new system."""
         self.load_conf(conf)
-        self.names = names
+        self.names = body_data["name"]
+        mass = body_data["mass"]
         self.mass = mass
-        self.den = density
+        self.den = body_data["den"]
         self.temp = np.zeros(len(mass))
-        self.color = np.zeros((len(color), 3), int)
-        self.base_color = color
+        self.color = np.zeros((len(body_data["color"]), 3), int)
+        self.base_color = body_data["color"]
         volume = self.mass / self.den
         self.rad = self.rad_mult * np.cbrt(3 * volume / (4 * np.pi))
         self.rad_sc = np.array([])
         self.types = np.array([])
-        self.pos = orb_data["pos"]
-        self.vel = orb_data["vel"]
+        self.pos = body_orb_data["pos"]
+        self.vel = body_orb_data["vel"]
         self.parents = np.array([], dtype=int)
         self.simplified_orbit_coi()
         self.find_parents()
-        self.rel_vel = orb_data["vel"] - orb_data["vel"][self.parents]
+        self.rel_vel = body_orb_data["vel"] - body_orb_data["vel"][self.parents]
         self.focus = np.zeros(len(mass))
         self.semi_major = np.zeros(len(mass))
         self.semi_minor = np.zeros(len(mass))
