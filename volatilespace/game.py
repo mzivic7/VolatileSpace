@@ -158,6 +158,9 @@ class Game():
         body_bh = pygame.image.load("img/bh.png")
         self.body_imgs = [body_moon, body_planet_solid, body_planet_gas, body_star, body_bh]
         
+        # svg
+        self.vessel_img = pygame.image.load("parts/vessel.svg")
+        
         bg_stars.set_screen()
         graphics.set_screen()
     
@@ -204,6 +207,7 @@ class Game():
         bg_stars.reload_settings()
         graphics.reload_settings()
         physics_body.reload_settings()
+        physics_vessel.reload_settings()
         self.set_screen()   # resolution may have been changed
         bg_stars.set_screen()
         graphics.set_screen()
@@ -240,6 +244,7 @@ class Game():
         """Load system from file and convert to kepler orbit if needed"""
         self.sim_name, self.sim_time, self.sim_conf, body_data, body_orb_data, vessel_data, vessel_orb_data = fileops.load_file(system)
         self.sim_time *= self.ptps   # convert from seconds to userevent iterations
+        self.vessel_scale = self.sim_conf["vessel_scale"]
         self.names = body_data["name"]
         self.mass = body_data["mass"]
         self.density = body_data["den"]
@@ -251,7 +256,6 @@ class Game():
             fileops.save_file(system, self.sim_name, date, self.sim_conf, self.sim_time/self.ptps,
                               body_data, body_orb_data, vessel_data, vessel_orb_data)
         
-        physics_body.load(self.sim_conf, body_data, body_orb_data)
         self.file_path = system   # this path will be used for load/save
         self.disable_input = False
         self.disable_ui = False
@@ -264,13 +268,19 @@ class Game():
         self.first = True
         
         # userevent may not been run in first iteration, but this values are needed in graphics section:
+        physics_body.load(self.sim_conf, body_data, body_orb_data)
         body_data, body_orb_data = physics_body.main()
         self.unpack_body(body_data, body_orb_data)
-        self.unpack_vessel(vessel_data, vessel_orb_data)
         self.pos, self.ma = physics_body.move(self.warp)
         physics_body.curve()
         self.curves = physics_body.curve_move()
-        self.first = True
+        
+        physics_vessel.load(self.sim_conf, body_data, vessel_data, vessel_orb_data)
+        vessel_data, vessel_orb_data = physics_vessel.main()
+        self.unpack_vessel(vessel_data, vessel_orb_data)
+        self.v_pos, self.v_ma = physics_vessel.move(self.warp, self.pos)
+        physics_vessel.curve()
+        self.v_curves = physics_vessel.curve_move()
     
     
     ###### --Help functions-- ######
@@ -325,7 +335,6 @@ class Game():
         self.v_names = vessel_data["name"]
         # ORBIT DATA #
         self.v_a = vessel_orb["a"]
-        self.v_coi = vessel_orb["coi"]
         self.v_ref = vessel_orb["ref"]
         self.v_ecc = vessel_orb["ecc"]
         self.v_pe_d = vessel_orb["pe_d"]
@@ -338,11 +347,6 @@ class Game():
         """Loads system from "load" dialog."""
         if os.path.exists(self.selected_path):
             self.load_system(self.selected_path)
-            body_data, body_orb = physics_body.main()
-            self.unpack_body(body_data, body_orb)
-            self.pos, self.ma = physics_body.move(self.warp)
-            physics_body.curve()
-            self.curves = physics_body.curve_move()
             self.file_path = self.selected_path
             graphics.timed_text_init(rgb.gray, self.fontmd, "Game loaded successfully", (self.screen_x/2, self.screen_y-70), 2, True)
         
@@ -802,8 +806,13 @@ class Game():
         """Do simulation phisycs with warp and pause"""
         if e.type == pygame.USEREVENT:
             if self.pause is False:
+                
                 self.pos, self.ma = physics_body.move(self.warp)
                 self.curves = physics_body.curve_move()
+                
+                self.v_pos, self.v_ma = physics_vessel.move(self.warp, self.pos)
+                self.v_curves = physics_vessel.curve_move()
+                
                 self.sim_time += 1 * self.warp   # iterate sim_time
                 
                 if self.first:   # this is run only once at userevent start
@@ -889,7 +898,7 @@ class Game():
         
         
         # bodies drawing
-        for body in range(len(self.mass)):
+        for body, _ in enumerate(self.names):
             curve = np.column_stack(self.screen_coords(self.curves[:, body]))   # line coords on screen
             diff = np.amax(curve, 0) - np.amin(curve, 0)
             if body == 0 or diff[0]+diff[1] > 32:   # skip bodies with too small orbits
@@ -953,11 +962,11 @@ class Game():
                             else:   # in case of hyperbola/parabola (ap_d is negative)
                                 ap_scr = self.screen_coords(pe)
                             scr_dist = abs(parent_scr - ap_scr)
-                            if scr_dist[0] > 5 or scr_dist[1] > 5:   # dont draw Ap and Pe if Ap is too close to parent
+                            if scr_dist[0] > 5 or scr_dist[1] > 5:   # don't draw Ap and Pe if Ap is too close to parent
                                 
                                 pe_scr = self.screen_coords(pe)
                                 pe_scr_dist = abs(parent_scr - pe_scr)
-                                if pe_scr_dist[0] > 5 or pe_scr_dist[1] > 5:   # dont draw Pe if it is too close to parent
+                                if pe_scr_dist[0] > 5 or pe_scr_dist[1] > 5:   # don't draw Pe if it is too close to parent
                                     # periapsis location marker, text: distance and time to it
                                     pe_scr = self.screen_coords(pe)
                                     graphics.draw_circle_fill(screen, rgb.lime1, pe_scr, 3)   # periapsis marker
@@ -973,6 +982,19 @@ class Game():
                                     graphics.text(screen, rgb.lime1, self.fontsm,
                                                   "T - " + str(datetime.timedelta(seconds=round(ap_t/self.ptps))),
                                                   (ap_scr[0], ap_scr[1] + 17), True)
+        
+        
+        # vessels drawing
+        for vessel, _ in enumerate(self.v_names):
+            curve = np.column_stack(self.screen_coords(self.v_curves[:, vessel]))   # line coords on screen
+            diff = np.amax(curve, 0) - np.amin(curve, 0)
+            if diff[0]+diff[1] > 32:   # skip vessels with too small orbits
+                
+                # draw orbit curve lines
+                graphics.draw_lines(screen, (255, 255, 255), curve, 2)
+                
+                # draw vessels
+                graphics.draw_svg(screen, self.vessel_img, self.screen_coords(self.v_pos[vessel]), self.zoom * self.vessel_scale, True)
     
     
     

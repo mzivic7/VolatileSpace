@@ -199,13 +199,11 @@ def load_file(path):
     if kepler:
         body_data = {"name": body_name, "mass": mass, "den": density, "color": color}
         body_orb_data = {"kepler": kepler, "a": semi_major, "ecc": ecc, "pe_arg": pe_arg, "ma": ma, "ref": parents, "dir": direction}
-        vessel_data = {"name": vessel_name}
-        vessel_orb_data = {"a": v_semi_major, "ecc": v_ecc, "pe_arg": v_pe_arg, "ma": v_ma, "ref": v_parents, "dir": v_direction}
     else:
         body_data = {"name": body_name, "mass": mass, "den": density, "color": color}
         body_orb_data = {"kepler": kepler, "pos": position, "vel": velocity}
-        vessel_data = None
-        vessel_orb_data = None
+    vessel_data = {"name": vessel_name}
+    vessel_orb_data = {"a": v_semi_major, "ecc": v_ecc, "pe_arg": v_pe_arg, "ma": v_ma, "ref": v_parents, "dir": v_direction}
         
     
     return name, time, config, body_data, body_orb_data, vessel_data, vessel_orb_data

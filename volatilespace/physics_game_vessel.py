@@ -64,33 +64,31 @@ def cross_2d(v1, v2):
 
 def calc_orb_one(vessel, ref, body_mass, gc, a, ecc):
     """Additional vessel orbital parameters."""
-    if vessel:   # skip root
-        u = gc * body_mass[ref]   # standard gravitational parameter
-        f = a * ecc
-        b = math.sqrt(abs(f**2 - a**2))
-        
-        if ecc != 0:   # if orbit is not circle
-            pe_d = a * (1 - ecc)
-            if ecc < 1:   # if orbit is ellipse
-                period = 2 * np.pi * math.sqrt(a**3 / u)
-                ap_d = a * (1 + ecc)
-            else:
-                if ecc > 1:   # hyperbola
-                    pe_d = a * (1 - ecc)
-                else:   # parabola
-                    pe_d = a
-                period = 0   # period is undefined
-                # there is no apoapsis
-                ap_d = 0
-        else:   # circle
-            period = (2 * np.pi * math.sqrt(a**3 / u)) / 10
-            pe_d = a * (1 - ecc)
+    u = gc * body_mass[ref]   # standard gravitational parameter
+    f = a * ecc
+    b = math.sqrt(abs(f**2 - a**2))
+    
+    if ecc != 0:   # if orbit is not circle
+        pe_d = a * (1 - ecc)
+        if ecc < 1:   # if orbit is ellipse
+            period = 2 * np.pi * math.sqrt(a**3 / u)
+            ap_d = a * (1 + ecc)
+        else:
+            if ecc > 1:   # hyperbola
+                pe_d = a * (1 - ecc)
+            else:   # parabola
+                pe_d = a
+            period = 0   # period is undefined
             # there is no apoapsis
             ap_d = 0
-        n = 2*np.pi / period
-        return b, f, pe_d, ap_d, period, n, u
-    else:
-        return 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
+    else:   # circle
+        period = (2 * np.pi * math.sqrt(a**3 / u)) / 10
+        pe_d = a * (1 - ecc)
+        # there is no apoapsis
+        ap_d = 0
+    n = 2*np.pi / period
+    
+    return b, f, pe_d, ap_d, period, n, u
 
 
 # if numba is enabled, compile functions ahead of time
@@ -126,9 +124,12 @@ class Physics():
         self.pos = np.array([])
         self.ea = np.array([])
         self.u = np.array([])
+        self.body_mass = np.array([])
+        self.body_pos = np.array([])
         self.gc = defaults.sim_config["gc"]
         self.rad_mult = defaults.sim_config["rad_mult"]
         self.coi_coef = defaults.sim_config["coi_coef"]
+        self.vessl_scale = defaults.sim_config["vessel_scale"]
         self.reload_settings()
     
     
@@ -145,10 +146,12 @@ class Physics():
         self.gc = conf["gc"]
         self.rad_mult = conf["rad_mult"]
         self.coi_coef = conf["coi_coef"]
+        self.vessl_scale = conf["vessel_scale"]
     
     
-    def load(self, conf, vessel_data, vessel_orb_data):
+    def load(self, conf, body_data, vessel_data, vessel_orb_data):
         """Load vessels."""
+        self.body_mass = body_data["mass"]
         self.load_conf(conf)
         self.names = vessel_data["name"]
         # vessel orbit
@@ -171,8 +174,9 @@ class Physics():
                        }
         
         # ORBIT DATA #
-        values = list(map(calc_orb_one, list(range(len(self.names))), self.ref, repeat(self.body_mass), repeat(self.gc), self.a, self.ecc))
-        self.b, self.f, self.pe_d, self.ap_d, self.period, self.n, self.u = list(map(np.array, zip(*values)))
+        if self.names:
+            values = list(map(calc_orb_one, list(range(len(self.names))), self.ref, repeat(self.body_mass), repeat(self.gc), self.a, self.ecc))
+            self.b, self.f, self.pe_d, self.ap_d, self.period, self.n, self.u = list(map(np.array, zip(*values)))
         vessel_orb = {"a": self.a,
                       "ref": self.ref,
                       "ecc": self.ecc,
@@ -187,7 +191,6 @@ class Physics():
     
     def curve(self):
         """Calculate all RELATIVE conic curves line points coordinates. This should be done only if something changed on vessel or it's orbit."""
-        
         # calculate curves points # curve[axis, vessel, point]
         curves = np.zeros((2, len(self.names), self.curve_points))
         for num in range(len(self.names)):
@@ -209,13 +212,13 @@ class Physics():
             self.curves_rot[:, vessel, :] = np.dot(rot[:, :, vessel], curves[:, vessel, :])   # apply rotation matrix to all curve points
     
     
-    def move(self, warp):
+    def move(self, warp, body_pos):
         """Move vessel with mean motion."""
+        self.body_pos = body_pos
         self.ma += self.dr * self.n * warp
         self.ma = np.where(self.ma > 2*np.pi, self.ma - 2*np.pi, self.ma)
         self.ma = np.where(self.ma < 0, self.ma + 2*np.pi, self.ma)
-        bodies_sorted = np.argsort(self.coi)[-1::-1]
-        for vessel in bodies_sorted:
+        for vessel, _ in enumerate(self.names):
             ea = newton_root(keplers_eq, keplers_eq_derivative, 0.0, {'Ma': self.ma[vessel], 'e': self.ecc[vessel]})
             pea = self.pea[vessel]
             ecc = self.ecc[vessel]
@@ -230,7 +233,8 @@ class Physics():
                 pass
             pr = np.array([pr_x * math.cos(pea - np.pi) - pr_y * math.sin(pea - np.pi),
                            pr_x * math.sin(pea - np.pi) + pr_y * math.cos(pea - np.pi)])
-            self.pos[vessel] = self.pos[self.ref[vessel]] + pr
+
+            self.pos[vessel] = body_pos[self.ref[vessel]] + pr
             self.ea[vessel] = ea
         
         return self.pos, self.ma
@@ -238,65 +242,60 @@ class Physics():
     
     def selected(self, vessel):
         """Do physics for selected vessel. This should be done every tick after vessel_move()."""
-        if vessel:
-            pos_ref = self.pos[self.ref[vessel]]
-            periapsis_arg = self.pea[vessel]
-            a = self.a[vessel]
-            b = self.b[vessel]
-            ecc = self.ecc[vessel]
-            ea = self.ea[vessel]
-            ma = self.ma[vessel]
-            period = self.period[vessel]
-            ap_d = self.ap_d[vessel]
-            pe_d = self.pe_d[vessel]
-            dr = self.dr[vessel]
-            u = self.u[vessel]
-            
-            rel_pos = self.pos[vessel] - pos_ref
-            distance = mag(rel_pos)   # distance to parent
-            speed_orb = math.sqrt((2 * a * u - distance * u) / (a * distance))   # velocity vector magnitude from semi-major axis equation
-            ta = math.acos((math.cos(ea) - ecc)/(1 - ecc * math. cos(ea)))  # true anomaly from eccentric anomaly
-            if ma > np.pi:
-                ta = 2*np.pi - ta
-            angle = (ta - math.atan(-b * (math.cos(ea)) / (math.sin(ea) * a))) % np.pi
-            speed_vert = speed_orb * math.cos(angle)
-            speed_hor = speed_orb * math.sin(angle)
-            
-            if ecc != 0:   # not circle
-                if ecc < 1:   # ellipse
-                    if np.pi < ta < 2*np.pi:
-                        ea = 2*np.pi - ea   # quadrant problems
-                    pe_t = orbit_time_to(ma, 0, period, dr)
-                    ap = np.array([ap_d * math.cos(periapsis_arg), ap_d * math.sin(periapsis_arg)]) + pos_ref
-                    ap_t = orbit_time_to(ma, np.pi, period, dr)
-                else:
-                    if ecc > 1:   # hyperbola
-                        pe_t = math.sqrt((-a)**3 / u) * ma
-                    else:   # parabola
-                        pe_t = math.sqrt(2*(a/2)**3) * ma
-                    period = 0   # period is undefined
-                    # there is no apoapsis
-                    ap = np.array([0, 0])
-                    ap_t = 0
-            else:   # circle
-                ma = ta
-                period = (2 * np.pi * math.sqrt(a**3 / u)) / 10
+        pos_ref = self.pos[self.ref[vessel]]
+        periapsis_arg = self.pea[vessel]
+        a = self.a[vessel]
+        b = self.b[vessel]
+        ecc = self.ecc[vessel]
+        ea = self.ea[vessel]
+        ma = self.ma[vessel]
+        period = self.period[vessel]
+        ap_d = self.ap_d[vessel]
+        pe_d = self.pe_d[vessel]
+        dr = self.dr[vessel]
+        u = self.u[vessel]
+        
+        rel_pos = self.pos[vessel] - pos_ref
+        distance = mag(rel_pos)   # distance to parent
+        speed_orb = math.sqrt((2 * a * u - distance * u) / (a * distance))   # velocity vector magnitude from semi-major axis equation
+        ta = math.acos((math.cos(ea) - ecc)/(1 - ecc * math. cos(ea)))  # true anomaly from eccentric anomaly
+        if ma > np.pi:
+            ta = 2*np.pi - ta
+        angle = (ta - math.atan(-b * (math.cos(ea)) / (math.sin(ea) * a))) % np.pi
+        speed_vert = speed_orb * math.cos(angle)
+        speed_hor = speed_orb * math.sin(angle)
+        
+        if ecc != 0:   # not circle
+            if ecc < 1:   # ellipse
+                if np.pi < ta < 2*np.pi:
+                    ea = 2*np.pi - ea   # quadrant problems
                 pe_t = orbit_time_to(ma, 0, period, dr)
+                ap = np.array([ap_d * math.cos(periapsis_arg), ap_d * math.sin(periapsis_arg)]) + pos_ref
+                ap_t = orbit_time_to(ma, np.pi, period, dr)
+            else:
+                if ecc > 1:   # hyperbola
+                    pe_t = math.sqrt((-a)**3 / u) * ma
+                else:   # parabola
+                    pe_t = math.sqrt(2*(a/2)**3) * ma
+                period = 0   # period is undefined
                 # there is no apoapsis
                 ap = np.array([0, 0])
                 ap_t = 0
-            pe = np.array([pe_d * math.cos(periapsis_arg - np.pi), pe_d * math.sin(periapsis_arg - np.pi)]) + pos_ref
-            
-            return ta, pe, pe_t, ap, ap_t, distance, speed_orb, speed_hor, speed_vert
-        else:
-            return 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
+        else:   # circle
+            ma = ta
+            period = (2 * np.pi * math.sqrt(a**3 / u)) / 10
+            pe_t = orbit_time_to(ma, 0, period, dr)
+            # there is no apoapsis
+            ap = np.array([0, 0])
+            ap_t = 0
+        pe = np.array([pe_d * math.cos(periapsis_arg - np.pi), pe_d * math.sin(periapsis_arg - np.pi)]) + pos_ref
     
     
     def curve_move(self):
         """Move all orbit curves to parent position. This should be done every tick after vessel_move()."""
         focus_x = self.f * np.cos(self.pea)   # focus coords from focus magnitude and angle
         focus_y = self.f * np.sin(self.pea)
-        curves_x = self.curves_rot[0, :, :] + focus_x[:, np.newaxis] + self.pos[self.ref, 0, np.newaxis]   # translate to align focus and parent
-        curves_y = self.curves_rot[1, :, :] + focus_y[:, np.newaxis] + self.pos[self.ref, 1, np.newaxis]
+        curves_x = self.curves_rot[0, :, :] + focus_x[:, np.newaxis] + self.body_pos[self.ref, 0, np.newaxis]   # translate to align focus and parent
+        curves_y = self.curves_rot[1, :, :] + focus_y[:, np.newaxis] + self.body_pos[self.ref, 1, np.newaxis]
         curves = np.stack([curves_x, curves_y])
         return curves

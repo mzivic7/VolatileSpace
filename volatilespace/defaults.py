@@ -55,7 +55,8 @@ keybindings = {"forward": pg.K_w,
 
 sim_config = {"gc": 1.0,
               "rad_mult": 10.0,
-              "coi_coef": 0.4
+              "coi_coef": 0.4,
+              "vessel_scale": 0.1
               }
 
 

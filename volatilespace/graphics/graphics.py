@@ -97,18 +97,28 @@ class Graphics():
                 pygame.draw.circle(surface, color, center, radius - 1)
     
     
+    def draw_svg(self, surface, svg, pos, scale=1, center=False):
+        """Draw svg image"""
+        svg_rect = svg.get_rect(center=pos)
+        svg = pygame.transform.smoothscale_by(svg, scale)
+        svg_rect = svg.get_rect(center=pos)
+        if center:
+            pos = svg_rect
+        surface.blit(svg, pos)
+    
+    
     def text(self, screen, color, font, text, pos, center=False, bg_color=False):
         """Display text on screen, optionally centered to given coordinates"""
         if center is True:
             text = font.render(text, True, color)
-            text_rect = text.get_rect(center=(pos[0], pos[1]))
+            text_rect = text.get_rect(center=pos)
             if bg_color is not False:
                 pygame.draw.rect(screen, bg_color, text_rect)
             screen.blit(text, text_rect)
         else:
             if bg_color is not False:
                 text = font.render(text, True, color)
-                text_rect = text.get_rect(topleft=(pos[0], pos[1]))
+                text_rect = text.get_rect(topleft=pos)
                 pygame.draw.rect(screen, bg_color, text_rect)
                 screen.blit(text, text_rect)
             else:

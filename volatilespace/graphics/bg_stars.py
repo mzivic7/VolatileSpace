@@ -106,7 +106,9 @@ class Bg_Stars():
     ###### --Init after pygame-- ######
     def set_screen(self):
         """Load pygame-related variables, this should be run after pygame has initialised or resolution has changed"""
-        self.res = pygame.display.get_surface().get_size()   # window width, window height
+        self.star_field = np.empty((0, 5), dtype=object)   # [x, y, radius, speed, color]
+        self.clusters = np.empty((0, 4), dtype=object)   # [cx, cy, vel, [sx, sy, rad, col]]
+        self.res = pygame.display.get_surface().get_size()
         graphics.set_screen()
         
         # generate initial star filed

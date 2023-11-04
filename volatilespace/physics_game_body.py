@@ -184,7 +184,6 @@ class Physics():
         self.rad_mult = conf["rad_mult"]
         self.coi_coef = conf["coi_coef"]
     
-    
     def load(self, conf, body_data, body_orb_data):
         """Load new system."""
         self.load_conf(conf)
