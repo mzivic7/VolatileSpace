@@ -1,33 +1,37 @@
 ### TIMELINE ###
 
 v0.5.0 - game-vessel
-vessel selecting, draw markers, vessel zoom
-parts config
+follow lock parent/vessel
 physical warp (x2, x4) when enter atmosphere (fake atmosphere temporarily)
-physical warp when close to other vessel (define distance)
+physical warp when close to other vessel/body (define distance)
 break regular warp when entering physical (check next iteration to not move into atmosphere)
 check collisions in physical warp
-add velocity in prograde/retrograde, radial/antiradial
+add velocity with W/A/S/D
 documentation (savefiles, parts, physics)
 
 editor: prograde/retrograde, radial/antiradial
 
-v0.5.1 - game gui
-display vessel data in right menus
-separate selection for body and vessel
-display selected body data in right menu
-
-v0.5.2 - rotation
+v0.5.1 - rotation
+parts config
 planets rotation
-vessel rotation
-- vessels stop rotating in regular warp
-- add velocity only in facing direction
+vessel rotation with A/D
+vessels stop rotating in regular warp
+add velocity only in facing direction with W
 documentation
 
-v0.5.3 - advanced body orbit
+v0.5.2 - game gui
+Orbit
+Surface
+Vessel
+Maneuver - placeholder
+Thermal - placeholder
+Selected body
+Selected body orbit
+
+v0.5.3 - advanced orbit
 leave/enter orbit and landing point
-show/hide mouseover menu for point, ap/pe leave/enter, landing
-lock/unlock click menu for point, ap/pe leave/enter, landing
+mouseover menu for: ap/pe, leave/enter
+click menu for point, ap/pe leave/enter
 time-to point
 distance to center
 dont draw some parts of orbit

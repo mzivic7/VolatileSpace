@@ -36,7 +36,7 @@ buttons_load = ["Cancel", "Load"]
 buttons_new_map = ["Cancel", "Create"]
 body_types = ["Moon", "Solid planet", "Gas planet", "Star", "Black Hole"]
 text_edit_orb = ["Selected body: ",
-                 "Parent body: ",
+                 "Ref body: ",
                  "Periapsis: ",
                  "Apoapsis: ",
                  "Eccentricity: ",
@@ -71,6 +71,7 @@ text_insert_body = ["Body name: ", "Type: ", "Mass: ", "Density: ", "Radius: "]
 prop_insert_body = [1, 5, 1, 1, 0]
 text_insert_start = "Start inserting"
 text_insert_stop = "Stop inserting"
+text_grid_mode = ["Default", "Active vessel", "Orbited body"]
 
 
 class Editor():
@@ -253,8 +254,9 @@ class Editor():
     
     def load_system(self, system):
         """Load system from file and convert to newton orbit if needed"""
-        self.sim_name, self.sim_time, self.sim_conf, body_data, body_orb_data, vessel_data, vessel_orb_data = fileops.load_file(system)
-        self.sim_time *= self.ptps   # convert from seconds to userevent iterations
+        game_data, self.sim_conf, body_data, body_orb_data, vessel_data, vessel_orb_data = fileops.load_file(system)
+        self.sim_name = game_data["name"]
+        self.sim_time = game_data["time"]
         self.names = body_data["name"]
         self.mass = body_data["mass"]
         self.density = body_data["den"]
@@ -323,7 +325,7 @@ class Editor():
         body_orb_data = {"kepler": False, "pos": self.position, "vel": self.velocity}
         
         try:   # try to read file to check if it is game, if failed, do normal save
-            _, _, _, _, orb_data_file, _, _ = fileops.load_file(path)
+            _, _, _, orb_data_file, _, _ = fileops.load_file(path)
             kepler = orb_data_file["kepler"]
         except Exception:
             kepler = False
@@ -337,8 +339,10 @@ class Editor():
                 graphics.timed_text_init(rgb.gray, self.fontmd, "Map saved successfully", (self.screen_x/2, self.screen_y-70), 2, True)
         
         body_data = {"name": self.names, "mass": self.mass, "den": self.density, "color": base_color}
-        fileops.save_file(path, name, date, self.sim_conf, self.sim_time/self.ptps,
-                          body_data, body_orb_data, self.vessel_data, self.vessel_orb_data)
+        game_data = {"name": name, "date": date, "time": 0, "vessel": None}
+        fileops.save_file(path, game_data, self.sim_conf,
+                          body_data, body_orb_data,
+                          self.vessel_data, self.vessel_orb_data)
     
     def quicksave(self):
         """Saves map to quicksave file."""
@@ -544,8 +548,7 @@ class Editor():
             
             if not self.disable_input or self.allow_keys:
                 if e.key == self.keys["interactive_pause"]:
-                    if self.pause is False:
-                        self.pause = not self.pause
+                    self.pause = not self.pause
                 
                 elif e.key == self.keys["focus_home"]:
                     self.follow = False
@@ -562,6 +565,8 @@ class Editor():
                         self.grid_mode += 1   # cycle grid modes (0 - global, 1 - selected body, 2 - parent)
                         if self.grid_mode >= 3:
                             self.grid_mode = 0
+                        grid_mode_txt = text_grid_mode[self.grid_mode]
+                        graphics.timed_text_init(rgb.gray, self.fontmd, "Grid mode: " + grid_mode_txt, (self.screen_x/2, 70), 1.5, True)
                 
                 elif e.key == self.keys["screenshot"]:
                     if not os.path.exists("Screenshots"):
@@ -1403,17 +1408,17 @@ class Editor():
                             else:   # in case of hyperbola/parabola (ap_d is negative)
                                 ap_scr = self.screen_coords(periapsis)
                             ap_scr_dist = abs(parent_scr - ap_scr)
-                            if ap_scr_dist[0] > 5 or ap_scr_dist[1] > 5:   # dont draw Ap and Pe if Ap is too close to parent
+                            if ap_scr_dist[0] > 8 or ap_scr_dist[1] > 8:   # dont draw Ap and Pe if Ap is too close to parent
                                 
                                 pe_scr = self.screen_coords(periapsis)
                                 pe_scr_dist = abs(parent_scr - pe_scr)
-                                if pe_scr_dist[0] > 5 or pe_scr_dist[1] > 5:   # dont draw Pe if it is too close to parent
+                                if pe_scr_dist[0] > 8 or pe_scr_dist[1] > 8:   # dont draw Pe if it is too close to parent
                                     # periapsis location marker, text: distance and time to it
                                     graphics.draw_circle_fill(screen, rgb.lime1, pe_scr, 3)   # periapsis marker
                                     graphics.text(screen, rgb.lime1, self.fontsm, "Periapsis: " + str(round(pe_d, 1)), (pe_scr[0], pe_scr[1] + 7), True)
                                     graphics.text(screen, rgb.lime1, self.fontsm,
-                                                "T - " + str(datetime.timedelta(seconds=round(pe_t/self.ptps))),
-                                                (pe_scr[0], pe_scr[1] + 17), True)
+                                                  "T - " + str(datetime.timedelta(seconds=round(pe_t/self.ptps))),
+                                                  (pe_scr[0], pe_scr[1] + 17), True)
                                 
                                 if ecc < 1:   # if orbit is ellipse
                                     # apoapsis location marker, text: distance and time to it
@@ -1565,9 +1570,9 @@ class Editor():
                                      "WIP",
                                      "WIP"]
                     texts_planet = []
-                    for i, _ in enumerate(text_edit_planet):
-                        if isinstance(self.input_value, int):
-                            texts_planet.append(text_edit_planet[i] + values_planet[i])
+                    for i, _ in enumerate(text_insert_body):
+                        if isinstance(values_planet[i], (int, str)):
+                            texts_planet.append(text_insert_body[i] + values_planet[i])
                         else:
                             texts_planet.append(values_planet[i])
                     texts_merged += texts_planet
@@ -1635,7 +1640,7 @@ class Editor():
                                      "WIP"]
                     texts_planet = []
                     for i, _ in enumerate(text_edit_planet):
-                        if isinstance(self.input_value, int):
+                        if isinstance(values_planet[i], (int, str)):
                             texts_planet.append(text_edit_planet[i] + values_planet[i])
                         else:
                             texts_planet.append(values_planet[i])

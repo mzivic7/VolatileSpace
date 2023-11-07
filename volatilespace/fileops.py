@@ -57,8 +57,8 @@ def gen_game_list():
         game_save = ConfigParser()
         game_save.read("Saves/" + game_file)
         try:
-            name = game_save.get("config", "name").strip('"')
-            date = game_save.get("config", "date").strip('"')
+            name = game_save.get("game_data", "name").strip('"')
+            date = game_save.get("game_data", "date").strip('"')
             games = np.vstack((games, [game_file, name, date]))
         except Exception:
             pass
@@ -97,8 +97,8 @@ def gen_map_list():
         map_save = ConfigParser()
         map_save.read("Maps/" + map_file)
         try:
-            name = map_save.get("config", "name").strip('"')
-            date = map_save.get("config", "date").strip('"')
+            name = map_save.get("game_data", "name").strip('"')
+            date = map_save.get("game_data", "date").strip('"')
             maps = np.vstack((maps, [map_file, name, date]))
         except Exception:
             pass
@@ -123,9 +123,15 @@ def load_file(path):
     system = ConfigParser()
     system.read(path)
     
-    # read config section
-    name = system.get("config", "name").strip('"')
-    time = float(system.get("config", "time"))
+    # read data section
+    name = system.get("game_data", "name").strip('"')
+    date = system.get("game_data", "date").strip('"')
+    time = float(system.get("game_data", "time"))
+    try:
+        vessel = int(system.get("game_data", "vessel"))
+    except Exception:
+        vessel = None
+    game_data = {"name": name, "date": date, "time": time, "vessel": vessel}
     
     # physics related config
     try:
@@ -162,7 +168,7 @@ def load_file(path):
     
     # load all body parameters into separate arrays
     for body in system.sections():
-        if body != "config":
+        if body not in ["game_data", "config"]:
             
             if not kepler:   # newtonian
                 try:
@@ -206,11 +212,16 @@ def load_file(path):
     vessel_orb_data = {"a": v_semi_major, "ecc": v_ecc, "pe_arg": v_pe_arg, "ma": v_ma, "ref": v_parents, "dir": v_direction}
         
     
-    return name, time, config, body_data, body_orb_data, vessel_data, vessel_orb_data
+    return game_data, config, body_data, body_orb_data, vessel_data, vessel_orb_data
 
 
-def save_file(path, name, date, conf, time, body_data, body_orb_data, vessel_data={}, vessel_orb_data={}):
+def save_file(path, game_data, conf, body_data, body_orb_data, vessel_data={}, vessel_orb_data={}):
     """Save system to file"""
+    name = game_data["name"]
+    date = game_data["date"]
+    time = game_data["time"]
+    vessel = game_data["vessel"]
+    
     if not os.path.exists("Maps"):
         os.mkdir("Maps")
     if not os.path.exists("Saves"):
@@ -223,7 +234,7 @@ def save_file(path, name, date, conf, time, body_data, body_orb_data, vessel_dat
             map_name = ConfigParser()
             map_name.read(path)
             try:
-                name = map_name.get("config", "name").strip('"')
+                name = map_name.get("game_data", "name").strip('"')
             except Exception:
                 name = "New map"
         open(path, "w").close()   # delete file
@@ -231,11 +242,13 @@ def save_file(path, name, date, conf, time, body_data, body_orb_data, vessel_dat
     system = ConfigParser()
     system.read(path)
     
-    system.add_section("config")   # special section for config
-    system.set("config", "name", name)
-    system.set("config", "date", date)
-    system.set("config", "time", str(time))
+    system.add_section("game_data")
+    system.set("game_data", "name", name)
+    system.set("game_data", "date", date)
+    system.set("game_data", "time", str(time))
+    system.set("game_data", "vessel", str(vessel))
     
+    system.add_section("config")   # special section for config
     for key in conf.keys():   # physics related config
         value = str(conf[key])
         system.set("config", key, value)
@@ -342,11 +355,12 @@ def new_map(name, date):
     system = ConfigParser()   # load config class
     system.read(new_name + ".ini")   # load system
     
-    system.add_section("config")   # special section for config
-    system.set("config", "name", new_name)
-    system.set("config", "date", date)
-    system.set("config", "time", "0")
+    system.add_section("game_data")
+    system.set("game_data", "name", new_name)
+    system.set("game_data", "date", date)
+    system.set("game_data", "time", "0")
     
+    system.add_section("config")   # special section for config
     for key in defaults.sim_config.keys():   # physics related config
         value = str(defaults.sim_config[key])
         system.set("config", key, value)
@@ -379,7 +393,7 @@ def rename_map(path, name):
         new_name = name + " " + str(num)
         num += 1
     
-    system.set("config", "name", new_name)
+    system.set("game_data", "name", new_name)
     with open(path, 'w') as f:
         system.write(f)
 
@@ -406,11 +420,12 @@ def new_game(name, date):
     system = ConfigParser()
     system.read(new_name + ".ini")
     
-    system.add_section("config")   # special section for config
-    system.set("config", "name", new_name)
-    system.set("config", "date", date)
-    system.set("config", "time", "0")
+    system.add_section("game_data")
+    system.set("game_data", "name", new_name)
+    system.set("game_data", "date", date)
+    system.set("game_data", "time", "0")
     
+    system.add_section("config")   # special section for config
     
     with open(path, 'w') as f:
         system.write(f)
@@ -433,7 +448,7 @@ def rename_game(path, name):
         new_name = name + " " + str(num)
         num += 1
     
-    game.set("config", "name", new_name)
+    game.set("game_data", "name", new_name)
     with open(path, 'w') as f:
         game.write(f)
 

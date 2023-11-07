@@ -225,13 +225,19 @@ class Menu():
                         self.rename = False
                     else:
                         date = time.strftime("%d.%m.%Y %H:%M")
-                        if self.menu == 1:
-                            _ = fileops.new_game(self.text, date)
-                            self.gen_game_list()
-                        else:
+                        if self.menu == 2:
                             _ = fileops.new_map(self.text, date)
                             self.gen_map_list()
-                        self.new_map = False
+                            self.new_map = False
+                        if self.new_game:
+                            self.new_game = False
+                            game_path = self.selected_ng_path.replace("Maps/", "Saves/").replace(".ini", "") + " " + date + ".ini"
+                            game_name = self.maps[self.selected_ng_item, 1] + " " + date
+                            shutil.copy2(self.selected_ng_path, game_path)    # copy map to games
+                            fileops.rename_game(game_path, game_name)
+                            self.selected_path = game_path   # select new created game
+                            self.state = 3
+                            self.menu = 0
                     self.disable_buttons = False
         
         elif e.type == pygame.KEYDOWN:
@@ -257,21 +263,24 @@ class Menu():
                     textinput.initial_text(self.maps[self.selected_item, 1], selected=True)
             
             elif e.key == pygame.K_RETURN:
-                if self.menu == 1:
-                    self.state = 3
-                    self.menu = 0
-                if self.menu == 3:
-                    self.state = 2
-                    self.menu = 0
                 if self.are_you_sure:
                     try:
                         os.remove(self.selected_path)
+                        self.selected_item -= 1
+                        if self.selected_item < 0:
+                            self.selected_item = 0
                     except Exception:
                         pass
                     self.gen_map_list()
                     self.gen_game_list()
                     self.are_you_sure = False
                     self.disable_buttons = False
+                elif self.menu == 1:
+                    self.state = 3
+                    self.menu = 0
+                elif self.menu == 3:
+                    self.state = 2
+                    self.menu = 0
             
             # key arrows to move selection in list menu
             elif self.menu in [1, 3]:
@@ -500,6 +509,8 @@ class Menu():
                                     try:
                                         os.remove(self.selected_path)
                                         self.selected_item -= 1
+                                        if self.selected_item < 0:
+                                            self.selected_item = 0
                                     except Exception:
                                         pass
                                     self.gen_game_list()
@@ -605,6 +616,8 @@ class Menu():
                                     try:
                                         os.remove(self.selected_path)
                                         self.selected_item -= 1
+                                        if self.selected_item < 0:
+                                            self.selected_item = 0
                                     except Exception:
                                         pass
                                     self.gen_map_list()

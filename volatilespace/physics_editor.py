@@ -200,6 +200,7 @@ class Physics():
         self.coi_coef = defaults.sim_config["coi_coef"]
         self.reload_settings()
     
+    
     def reload_settings(self):
         """Reload all settings, should be run every time editor is entered"""
         self.curve_points = int(fileops.load_settings("graphics", "curve_points"))   # number of points from which curve is drawn
@@ -207,12 +208,13 @@ class Physics():
         self.ell_t = np.linspace(-np.pi, np.pi, self.curve_points)   # ellipse and hyperbola parameter
         self.par_t = np.linspace(- np.pi - 1, np.pi + 1, self.curve_points)   # parabola parameter
     
+    
     def load_conf(self, conf):
         """Loads physics related config."""
         self.gc = conf["gc"]
         self.rad_mult = conf["rad_mult"]
         self.coi_coef = conf["coi_coef"]
-        print(self.rad_mult)
+    
     
     def load_system(self, conf, body_data, body_orb_data):
         """Load new system."""
@@ -240,6 +242,7 @@ class Physics():
         self.periapsis_arg = np.zeros(len(mass))
         self.ecc_v = np.zeros([len(mass), 2])
         self.body()   # re-calculate body related physics
+    
     
     def add_body(self, data):
         """Add body to simulation."""
@@ -278,6 +281,7 @@ class Physics():
         for body in bodies_sorted:
             self.vel[body] = self.rel_vel[body] + self.vel[self.parents[body]]
     
+    
     def del_body(self, delete):
         """Remove body from simulation."""
         if len(self.mass) > 1:   # there must be at least one body in simulation
@@ -312,7 +316,8 @@ class Physics():
             return 0
         else:
             return 1
-        
+    
+    
     def set_root(self, body):
         """Make first body be root by swapping it with current first body. 
         BAD things happen if root is not first"""
@@ -331,6 +336,7 @@ class Physics():
         self.find_parents()
         self.largest = 0
     
+    
     def move_parent(self, body, position):
         """Moves body with all bodies orbiting it, if any."""
         movement = position - self.pos[body]
@@ -338,7 +344,7 @@ class Physics():
         children = np.where(self.parents == body)[0]   # find all bodies orbiting this
         for child in children:   # update their position by movement
             self.pos[child] += movement
-        
+    
     
     def simplified_orbit_coi(self):
         """Calculate COI for simplified gravity model. Root has COI=0."""
@@ -739,10 +745,12 @@ class Physics():
         """Get bodies information."""
         return self.names, self.types, self.mass, self.den, self.temp, self.pos, self.vel, self.color, self.rad, self.rad_sc
     
+    
     def get_base_color(self):
         """Get base color (original color unaffected by temperature)."""
         return self.base_color
-      
+    
+    
     def get_body_orbits(self):
         """Get keplerian body orbit information."""
         return self.semi_major, self.semi_minor, self.coi, self.parents
@@ -751,6 +759,7 @@ class Physics():
     def set_body_name(self, body, name):
         """Change body name."""
         self.names[body] = name
+    
     
     def set_body_mass(self, body, mass):
         """Change body mass and change root if necessary."""
@@ -767,6 +776,7 @@ class Physics():
             if self.largest != 0:   # make sure largest body is first
                 self.set_root(self.largest)
     
+    
     def set_body_den(self, body, density):
         """Change body density."""
         if density < 0.05:
@@ -774,15 +784,18 @@ class Physics():
         self.den[body] = density
         self.simplified_orbit_coi()
     
+    
     def set_body_pos(self, body, position):
         """Change body position."""
         self.pos[body] = position
         self.simplified_orbit_coi()
     
+    
     def set_body_vel(self, body, velocity):
         """Change body velocity."""
         self.rel_vel[body] = velocity - self.vel[self.parents[body]]  # update body relative velocity
         self.simplified_orbit_coi()
+    
     
     def set_body_color(self, body, color):   # set body base color
         """Change body base color (original color unaffected by temperature)."""

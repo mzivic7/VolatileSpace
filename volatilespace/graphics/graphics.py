@@ -6,8 +6,6 @@ from pygame import gfxdraw   # gfxdraw ### DEPRECATED ###
 from volatilespace import fileops
 from volatilespace.graphics import rgb
 
-grid_mode_txts = ["Default", "Selected body", "Orbited body"]   # text displayed on screen
-
 
 class Graphics():
     def __init__(self):
@@ -35,19 +33,19 @@ class Graphics():
         self.click = False
         self.mouse = [0, 0]
         self.disable_buttons = False
-        
+    
     
     def set_screen(self):
         """Load pygame-related variables, this should be run after pygame has initialised or resolution has changed"""
         self.screen_x, self.screen_y = pygame.display.get_surface().get_size()
-        
+    
     
     def reload_settings(self):
         """Reload all settings, should be run every time settings are applied"""
         self.antial = leval(fileops.load_settings("graphics", "antialiasing"))
         self.spacing_min = int(fileops.load_settings("graphics", "grid_spacing_min"))   # minimum and maximum size spacing of grid
         self.spacing_max = int(fileops.load_settings("graphics", "grid_spacing_max"))
-        
+    
     
     def draw_line(self, surface, color, point_1, point_2, thickness):
         """Draw a straight line"""
@@ -63,7 +61,7 @@ class Graphics():
             pygame.draw.aalines(surface, colors, closed, points)
         else:
             pygame.draw.lines(surface, colors, closed, points, thickness)
-
+    
     
     def draw_circle(self, surface, color, center, radius, thickness):   # gfxdraw ### DEPRECATED ###
         """Draw a circle"""
@@ -77,7 +75,7 @@ class Graphics():
                             gfxdraw.aacircle(surface, int(center[0]), int(center[1]), int(radius)+num, color)
             else:
                 pygame.draw.circle(surface, color, center, radius, thickness)
-        
+    
     
     def draw_circle_fill(self, surface, color, center, radius, antial=None):   # gfxdraw ### DEPRECATED ###
         """Draw a filled circle"""
@@ -97,14 +95,31 @@ class Graphics():
                 pygame.draw.circle(surface, color, center, radius - 1)
     
     
-    def draw_svg(self, surface, svg, pos, scale=1, center=False):
-        """Draw svg image"""
-        svg_rect = svg.get_rect(center=pos)
-        svg = pygame.transform.smoothscale_by(svg, scale)
-        svg_rect = svg.get_rect(center=pos)
+    def fill(self, surface, color):
+        """Fill all pixels of the surface with color, preserving transparency."""
+        w, h = surface.get_size()
+        colored_surface = surface.copy()
+        if len(color) == 3:
+            r, g, b = color
+        else:
+            r, g, b, _ = color
+        
+        for x in range(w):
+            for y in range(h):
+                a = surface.get_at((x, y))[3]
+                colored_surface.set_at((x, y), pygame.Color(r, g, b, a))
+        
+        return colored_surface
+    
+    
+    def draw_img(self, surface, img, pos, scale=1, center=False):
+        """Draw image"""
+        img_rect = img.get_rect(center=pos)
+        img = pygame.transform.smoothscale_by(img, scale)
+        img_rect = img.get_rect(center=pos)
         if center:
-            pos = svg_rect
-        surface.blit(svg, pos)
+            pos = img_rect
+        surface.blit(img, pos)
     
     
     def text(self, screen, color, font, text, pos, center=False, bg_color=False):
@@ -129,6 +144,7 @@ class Graphics():
         """Timed text on screen, optionally centered to given coordinates, this is activated once"""
         self.timed_text_enable = True
         self.color, self.font, self.text_str, self.pos, self.time, self.center = color, font, text, pos, time, center
+        self.timer = 0
     
     
     def timed_text(self, screen, clock):
@@ -163,11 +179,6 @@ class Graphics():
             spacing /= 2.  # double decrease spacing
         line_num_x = math.ceil(self.screen_x / spacing)
         line_num_y = math.ceil(self.screen_y / spacing)
-        # if grid mode has changed, print message on screen
-        grid_mode_txt = grid_mode_txts[grid_mode]
-        if self.grid_mode_prev != self.grid_mode:
-            self.timed_text_init(rgb.gray, self.fontmd, "Grid mode: " + grid_mode_txt, (self.screen_x/2, 70), 1.5, True)
-        self.grid_mode_prev = self.grid_mode
         
         for line in range(line_num_x):   # for each vertical line
             pos_x = origin[0] + (spacing * line)   # calculate its position from origin line

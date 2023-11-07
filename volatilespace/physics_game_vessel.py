@@ -174,7 +174,7 @@ class Physics():
                        }
         
         # ORBIT DATA #
-        if self.names:
+        if len(self.names):
             values = list(map(calc_orb_one, list(range(len(self.names))), self.ref, repeat(self.body_mass), repeat(self.gc), self.a, self.ecc))
             self.b, self.f, self.pe_d, self.ap_d, self.period, self.n, self.u = list(map(np.array, zip(*values)))
         vessel_orb = {"a": self.a,
@@ -242,7 +242,7 @@ class Physics():
     
     def selected(self, vessel):
         """Do physics for selected vessel. This should be done every tick after vessel_move()."""
-        pos_ref = self.pos[self.ref[vessel]]
+        pos_ref = self.body_pos[self.ref[vessel]]
         periapsis_arg = self.pea[vessel]
         a = self.a[vessel]
         b = self.b[vessel]
@@ -289,6 +289,8 @@ class Physics():
             ap = np.array([0, 0])
             ap_t = 0
         pe = np.array([pe_d * math.cos(periapsis_arg - np.pi), pe_d * math.sin(periapsis_arg - np.pi)]) + pos_ref
+        
+        return ta, pe, pe_t, ap, ap_t, distance, speed_orb, speed_hor, speed_vert
     
     
     def curve_move(self):
