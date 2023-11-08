@@ -97,7 +97,7 @@ class Game():
         self.btn_w_h = 200   # for horizontal placement
         self.btn_w_l = 500   # for lists
         self.btn_w_h_3 = (self.btn_w_l + 16)/3   # fits 3 btn in width of list button
-        self.btn_w_h_2 = (self.btn_w_l + 16)/2  # fits 2 btn in width of list button
+        self.btn_w_h_2 = (self.btn_w_l + 26)/2  # fits 2 btn in width of list button
         self.txt_y_margin = 8  # empty space between text and button edge
         self.btn_h = self.fontbt.get_height() + self.txt_y_margin * 2   # button height from font height
         self.btn_s = 36   # small square button
@@ -126,7 +126,6 @@ class Game():
         self.target_type = None   # vessel/body
         self.active_vessel = None
         self.follow = False
-        self.first = True
         self.mouse = [0, 0]   # in simulation
         self.mouse_raw = [0, 0]   # on screen
         self.mouse_raw_old = [0, 0]
@@ -270,7 +269,7 @@ class Game():
         self.selected_item = 0
         self.warp_index = 0
         self.warp = 1
-        self.first = True
+        self.follow = True
         
         # userevent may not be run in first iteration, but this values are needed in graphics section:
         physics_body.load(self.sim_conf, body_data, body_orb_data)
@@ -290,9 +289,13 @@ class Game():
         self.active_vessel = game_data["vessel"]
         if self.active_vessel is not None and self.active_vessel < len(self.v_ref):
             self.target = self.v_ref[self.active_vessel]
+            self.focus_point(self.v_pos[self.active_vessel], 0.5)
         else:
             self.active_vessel = None
+            self.focus_point([0, 0], 0.5)
         self.target_type = 0
+        
+        
     
     
     ###### --Help functions-- ######
@@ -362,7 +365,7 @@ class Game():
         if os.path.exists(self.selected_path):
             self.load_system(self.selected_path)
             self.file_path = self.selected_path
-            graphics.timed_text_init(rgb.gray, self.fontmd, "Game loaded successfully", (self.screen_x/2, self.screen_y-70), 2, True)
+            graphics.timed_text_init(rgb.gray0, self.fontmd, "Game loaded successfully", (self.screen_x/2, self.screen_y-70), 2, True)
     
     
     def save(self, path, name=None, silent=False):
@@ -377,20 +380,20 @@ class Game():
                           body_data, body_orb_data,
                           vessel_data, vessel_orb_data)
         if not silent:
-            graphics.timed_text_init(rgb.gray, self.fontmd, "Game saved successfully", (self.screen_x/2, self.screen_y-70), 2, True)
+            graphics.timed_text_init(rgb.gray0, self.fontmd, "Game saved successfully", (self.screen_x/2, self.screen_y-70), 2, True)
     
     
     def quicksave(self):
         """Saves game to quicksave file."""
         self.save("Saves/quicksave.ini", "Quicksave - " + self.sim_name, True)
-        graphics.timed_text_init(rgb.gray2, self.fontmd, "Quicksave...", (self.screen_x/2, self.screen_y-70), 2, True)
+        graphics.timed_text_init(rgb.gray0, self.fontmd, "Quicksave...", (self.screen_x/2, self.screen_y-70), 2, True)
     
     
     def autosave(self, e):
         """Automatically saves current game to autosave.ini at predefined interval."""
         if e.type == self.autosave_event:
             self.save("Saves/autosave.ini", "Autosave - " + self.sim_name, True)
-            graphics.timed_text_init(rgb.gray2, self.fontmd, "Autosave...", (self.screen_x/2, self.screen_y-70), 2, True)
+            graphics.timed_text_init(rgb.gray1, self.fontmd, "Autosave...", (self.screen_x/2, self.screen_y-70), 2, True)
 
     
     
@@ -490,7 +493,7 @@ class Game():
                         if self.grid_mode >= 3:
                             self.grid_mode = 0
                         grid_mode_txt = text_grid_mode[self.grid_mode]
-                        graphics.timed_text_init(rgb.gray, self.fontmd, "Grid mode: " + grid_mode_txt, (self.screen_x/2, 70), 1.5, True)
+                        graphics.timed_text_init(rgb.gray0, self.fontmd, "Grid mode: " + grid_mode_txt, (self.screen_x/2, 70), 1.5, True)
                 
                 elif e.key == self.keys["screenshot"]:
                     if not os.path.exists("Screenshots"):
@@ -855,10 +858,6 @@ class Game():
                 
                 self.sim_time += 1 * self.warp   # iterate sim_time
                 
-                if self.first:   # this is run only once at userevent start
-                    self.first = False
-                    self.focus_point([0, 0], 0.5)
-                    self.follow = True
     
     
     
@@ -1135,7 +1134,7 @@ class Game():
             screenshot_path = "Screenshots/Screenshot from " + date + ".png"
             pygame.image.save(screen, screenshot_path)
             if not self.disable_ui:
-                graphics.timed_text_init(rgb.gray, self.fontmd, "Screenshot saved at: " + screenshot_path, (self.screen_x/2, self.screen_y-70), 2, True)
+                graphics.timed_text_init(rgb.gray0, self.fontmd, "Screenshot saved at: " + screenshot_path, (self.screen_x/2, self.screen_y-70), 2, True)
             self.screenshot = False
         
         # new game

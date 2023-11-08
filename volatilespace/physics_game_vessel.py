@@ -164,6 +164,10 @@ class Physics():
         self.main()
         self.pos = np.zeros([len(self.names), 2])   # position will be updated later
         self.ea = np.zeros(len(self.names))
+        
+        # those need to be cleared, in case game with less vessels is loaded
+        self.n = np.array([])
+        self.f = np.array([])
     
     
     def main(self):

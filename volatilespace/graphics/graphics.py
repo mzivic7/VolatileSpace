@@ -2,7 +2,7 @@ from ast import literal_eval as leval
 import math
 import pygame
 from pygame import gfxdraw   # gfxdraw ### DEPRECATED ###
-
+import time
 from volatilespace import fileops
 from volatilespace.graphics import rgb
 
@@ -15,7 +15,8 @@ class Graphics():
         self.timed_text_enable = False   # for drawing timed text on screen
         self.timer = 0   # timer for drawing timed text on screen
         self.reload_settings()
-        self.color, self.font, self.text_str, self.pos, self.time, self.center = (0, 0, 0), 0, 0, [0, 0], 0, 0   # initial vars for timed text
+        self.color, self.font, self.text_str, self.pos, self.time, self.center = (0, 0, 0), 0, 0, [0, 0], 0, 0
+        self.fade = 0.2
         self.fontbt = pygame.font.Font("fonts/LiberationSans-Regular.ttf", 22)   # button text font
         self.fontmd = pygame.font.Font("fonts/LiberationSans-Regular.ttf", 16)   # medium text font
         self.fontsm = pygame.font.Font("fonts/LiberationSans-Regular.ttf", 10)   # small text font
@@ -122,37 +123,41 @@ class Graphics():
         surface.blit(img, pos)
     
     
-    def text(self, screen, color, font, text, pos, center=False, bg_color=False):
+    def text(self, screen, color, font, text, pos, center=False, bg_color=False, alpha=255):
         """Display text on screen, optionally centered to given coordinates"""
+        text_surf = font.render(text, True, color)
         if center is True:
-            text = font.render(text, True, color)
-            text_rect = text.get_rect(center=pos)
-            if bg_color is not False:
+            text_rect = text_surf.get_rect(center=pos)
+            if bg_color:
                 pygame.draw.rect(screen, bg_color, text_rect)
-            screen.blit(text, text_rect)
         else:
-            if bg_color is not False:
-                text = font.render(text, True, color)
-                text_rect = text.get_rect(topleft=pos)
+            text_rect = text_surf.get_rect(topleft=pos)
+            if bg_color:
                 pygame.draw.rect(screen, bg_color, text_rect)
-                screen.blit(text, text_rect)
-            else:
-                screen.blit(font.render(text, True, color), pos)
+        if alpha != 255:
+            text_surf.set_alpha(alpha)
+        screen.blit(text_surf, text_rect)
     
     
-    def timed_text_init(self, color, font, text, pos, time=2, center=False):
+    def timed_text_init(self, color, font, text, pos, time=2, center=False, fade=0.2):
         """Timed text on screen, optionally centered to given coordinates, this is activated once"""
         self.timed_text_enable = True
-        self.color, self.font, self.text_str, self.pos, self.time, self.center = color, font, text, pos, time, center
+        self.color, self.font, self.text_str, self.pos, self.center = color, font, text, pos, center
+        self.fade = fade * 60
+        self.time = time * 60
         self.timer = 0
     
     
     def timed_text(self, screen, clock):
-        """Print timed text on screen"""
+        """Print timed text on screen with fade out effect"""
         if self.timed_text_enable is True:
-            time_s = self.time * clock.get_fps()   # time from seconds to frames
-            self.text(screen, self.color, self.font, self.text_str, self.pos, self.center)
-            if self.timer > time_s:   # timer that disables timed text after specified time
+            
+            alpha = 255
+            
+            if self.timer > self.time - self.fade:
+                alpha = ((self.time) - self.timer) * 255 / (self.fade)
+            self.text(screen, self.color, self.font, self.text_str, self.pos, self.center, alpha=alpha)
+            if self.timer > self.time:   # timer that disables timed text after specified time
                 self.timed_text_enable = False
                 self.timer = 0
             self.timer += 1

@@ -106,7 +106,7 @@ class Editor():
         self.btn_w_h = 200   # for horizontal placement
         self.btn_w_l = 500   # for lists
         self.btn_w_h_3 = (self.btn_w_l + 16)/3   # fits 3 btn in width of list button
-        self.btn_w_h_2 = (self.btn_w_l + 16)/2  # fits 2 btn in width of list button
+        self.btn_w_h_2 = (self.btn_w_l + 26)/2  # fits 2 btn in width of list button
         self.txt_y_margin = 8  # empty space between text and button edge
         self.btn_h = self.fontbt.get_height() + self.txt_y_margin * 2   # button height from font height
         self.btn_s = 36   # small square button
@@ -137,7 +137,6 @@ class Editor():
         self.selected = None 
         self.direction = None   # keyboard buttons wasd
         self.follow = False
-        self.first = True
         self.mouse = [0, 0]   # in simulation
         self.mouse_raw = [0, 0]   # on screen
         self.mouse_raw_old = [0, 0]
@@ -278,11 +277,11 @@ class Editor():
         self.selected = None
         self.warp_index = 0
         self.warp = 1
-        self.first = True
+        self.focus_point([0, 0], 0.5)
+        self.selected = 0
         
         # userevent may not been run in first iteration, but this values are needed in graphics section:
         self.names, self.types, self.mass, self.density, self.temp, self.position, self.velocity, self.colors, self.size, self.rad_sc = physics.get_bodies()
-        self.first = True
     
     
     ###### --Help functions-- ######
@@ -315,7 +314,7 @@ class Editor():
             self.load_system(self.selected_path)
             self.names, self.types, self.mass, self.density, self.temp, self.position, self.velocity, self.colors, self.size, self.rad_sc = physics.get_bodies()
             self.file_path = self.selected_path   # change currently active file
-            graphics.timed_text_init(rgb.gray, self.fontmd, "Map loaded successfully", (self.screen_x/2, self.screen_y-70), 2, True)
+            graphics.timed_text_init(rgb.gray0, self.fontmd, "Map loaded successfully", (self.screen_x/2, self.screen_y-70), 2, True)
         
     def save(self, path, name=None, silent=False):
         """Saves map to file. If name is None, name is not changed. 
@@ -333,10 +332,10 @@ class Editor():
         if kepler:   # save with convert
             body_orb_data = physics_convert.to_kepler(self.mass, body_orb_data, self.sim_conf["gc"], self.sim_conf["coi_coef"])
             if not silent:
-                graphics.timed_text_init(rgb.gray, self.fontmd, "Map saved successfully to game file.", (self.screen_x/2, self.screen_y-70), 2, True)
+                graphics.timed_text_init(rgb.gray0, self.fontmd, "Map saved successfully to game file.", (self.screen_x/2, self.screen_y-70), 2, True)
         else:   # normal save
             if not silent:
-                graphics.timed_text_init(rgb.gray, self.fontmd, "Map saved successfully", (self.screen_x/2, self.screen_y-70), 2, True)
+                graphics.timed_text_init(rgb.gray0, self.fontmd, "Map saved successfully", (self.screen_x/2, self.screen_y-70), 2, True)
         
         body_data = {"name": self.names, "mass": self.mass, "den": self.density, "color": base_color}
         game_data = {"name": name, "date": date, "time": 0, "vessel": None}
@@ -347,13 +346,13 @@ class Editor():
     def quicksave(self):
         """Saves map to quicksave file."""
         self.save("Maps/quicksave.ini", "Quicksave - " + self.sim_name, True)
-        graphics.timed_text_init(rgb.gray2, self.fontmd, "Quicksave...", (self.screen_x/2, self.screen_y-70), 2, True)
+        graphics.timed_text_init(rgb.gray0, self.fontmd, "Quicksave...", (self.screen_x/2, self.screen_y-70), 2, True)
     
     def autosave(self, e):
         """Automatically saves current map to autosave.ini at predefined interval."""
         if e.type == self.autosave_event:
             self.save("Maps/autosave.ini", "Autosave - " + self.sim_name, True)
-            graphics.timed_text_init(rgb.gray2, self.fontmd, "Autosave...", (self.screen_x/2, self.screen_y-70), 2, True)
+            graphics.timed_text_init(rgb.gray1, self.fontmd, "Autosave...", (self.screen_x/2, self.screen_y-70), 2, True)
     
     def check_new_name(self):
         """Check if new body name is already taken and append number to it"""
@@ -566,7 +565,7 @@ class Editor():
                         if self.grid_mode >= 3:
                             self.grid_mode = 0
                         grid_mode_txt = text_grid_mode[self.grid_mode]
-                        graphics.timed_text_init(rgb.gray, self.fontmd, "Grid mode: " + grid_mode_txt, (self.screen_x/2, 70), 1.5, True)
+                        graphics.timed_text_init(rgb.gray0, self.fontmd, "Grid mode: " + grid_mode_txt, (self.screen_x/2, self.screen_y-70), 1.5, True)
                 
                 elif e.key == self.keys["screenshot"]:
                     if not os.path.exists("Screenshots"):
@@ -1256,12 +1255,6 @@ class Editor():
                     physics.body()
                     body_del = physics.inelastic_collision()
                     self.sim_time += 1
-                    
-                    if self.first:   # this is run only once at userevent start
-                        self.first = False
-                        self.focus_point([0, 0], 0.5)
-                        self.selected = 0
-                        self.follow = True
         
         if body_del is not None:   # if there is collision
             if self.selected is not None:
@@ -1497,7 +1490,7 @@ class Editor():
             screenshot_path = "Screenshots/Screenshot from " + date + ".png"
             pygame.image.save(screen, screenshot_path)
             if not self.disable_ui:
-                graphics.timed_text_init(rgb.gray, self.fontmd, "Screenshot saved at: " + screenshot_path, (self.screen_x/2, self.screen_y-70), 2, True)
+                graphics.timed_text_init(rgb.gray0, self.fontmd, "Screenshot saved at: " + screenshot_path, (self.screen_x/2, self.screen_y-70), 2, True)
             self.screenshot = False
         
         # new map
