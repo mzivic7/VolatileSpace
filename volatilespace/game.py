@@ -62,6 +62,7 @@ text_data_star = ["(Surface temp):",
                   "(H/He ratio): "]
 text_data_bh = ["Schwarzschild radius: "]
 text_grid_mode = ["Default", "Active vessel", "Orbited body"]
+text_follow_mode = ["Disabled", "Active vessel", "Orbited body"]
 
 
 class Game():
@@ -125,12 +126,14 @@ class Game():
         self.target = None   # 0-body, 1-vessel
         self.target_type = None   # vessel/body
         self.active_vessel = None
-        self.follow = False
+        self.follow = 1   # 0-disabled, 1-active vessel, 2-orbited body
         self.mouse = [0, 0]   # in simulation
         self.mouse_raw = [0, 0]   # on screen
         self.mouse_raw_old = [0, 0]
         self.offset_x = self.screen_x / 2   # initial centered offset to 0, 0 coordinates
         self.offset_y = self.screen_y / 2
+        self.follow_offset_x = self.screen_x / 2   # offset when following
+        self.follow_offset_y = self.screen_y / 2
         self.mouse_fix_x = False   # fix mouse movement when jumping off screen edge
         self.mouse_fix_y = False
         self.zoom_step = 0.05
@@ -151,9 +154,9 @@ class Game():
         # icons
         menu_img = pygame.image.load("img/menu.png")
         body_list_img = pygame.image.load("img/body_list.png")
-        orbit_img = pygame.image.load("img/orbit.png")
-        body_img = pygame.image.load("img/body.png")
-        self.ui_imgs = [menu_img, body_list_img, orbit_img, body_img]
+        orbit_sel_img = pygame.image.load("img/orbit_select.png")
+        body_img = pygame.image.load("img/body_select.png")
+        self.ui_imgs = [menu_img, body_list_img, orbit_sel_img, body_img]
         body_moon = pygame.image.load("img/moon.png")
         body_planet_solid = pygame.image.load("img/planet_solid.png")
         body_planet_gas = pygame.image.load("img/planet_gas.png")
@@ -262,6 +265,7 @@ class Game():
                               vessel_data, vessel_orb_data)
         
         self.file_path = system   # this path will be used for load/save
+        self.pause_menu = 0
         self.disable_input = False
         self.disable_ui = False
         self.disable_labels = False
@@ -269,7 +273,9 @@ class Game():
         self.selected_item = 0
         self.warp_index = 0
         self.warp = 1
-        self.follow = True
+        self.follow = 1
+        self.follow_offset_x = self.screen_x / 2
+        self.follow_offset_y = self.screen_y / 2
         
         # userevent may not be run in first iteration, but this values are needed in graphics section:
         physics_body.load(self.sim_conf, body_data, body_orb_data)
@@ -292,6 +298,7 @@ class Game():
             self.focus_point(self.v_pos[self.active_vessel], 0.5)
         else:
             self.active_vessel = None
+            self.target = None
             self.focus_point([0, 0], 0.5)
         self.target_type = 0
         
@@ -437,7 +444,8 @@ class Game():
                             self.save(self.selected_path)
                             self.file_path = self.selected_path
                         self.menu = None
-                        self.pause_menu = True
+                        self.pause_menu = False
+                        self.disable_input = False
                         self.ask = None
                     if self.menu == 0:
                         self.ask = "save"
@@ -474,26 +482,33 @@ class Game():
                     self.pause = not self.pause
                 
                 elif e.key == self.keys["focus_home"]:
-                    self.follow = True
+                    self.follow = 1   # follow vessel
                     if self.active_vessel is not None:
                         pos = self.v_pos[self.active_vessel]
                     else:
                         pos = [0, 0]
                     self.focus_point(pos, self.zoom)
                     
-                elif e.key == self.keys["follow_selected_body"]:
-                    self.follow = not self.follow
+                elif e.key == self.keys["cycle_follow"]:
+                    if self.active_vessel is not None:
+                        self.follow += 1   # cycle follow modes (0-disabled, 1-active vessel, 2-orbited body)
+                        if self.follow > 2:
+                            self.follow = 0
+                        self.follow_offset_x = self.screen_x / 2
+                        self.follow_offset_y = self.screen_y / 2
+                        text = text_follow_mode[self.follow]
+                        graphics.timed_text_init(rgb.gray0, self.fontmd, "Follow mode: " + text, (self.screen_x/2, self.screen_y-70), 1.5, True)
                 
                 elif e.key == self.keys["toggle_background_grid"]:
                     self.grid_enable = not self.grid_enable
                 
                 elif e.key == self.keys["cycle_grid_modes"]:
                     if self.grid_enable:
-                        self.grid_mode += 1   # cycle grid modes (0 - global, 1 - selected body, 2 - parent)
-                        if self.grid_mode >= 3:
+                        self.grid_mode += 1   # cycle grid modes (0-disabled, 1-active vessel, 2-orbited body)
+                        if self.grid_mode > 2:
                             self.grid_mode = 0
-                        grid_mode_txt = text_grid_mode[self.grid_mode]
-                        graphics.timed_text_init(rgb.gray0, self.fontmd, "Grid mode: " + grid_mode_txt, (self.screen_x/2, 70), 1.5, True)
+                        text = text_grid_mode[self.grid_mode]
+                        graphics.timed_text_init(rgb.gray0, self.fontmd, "Grid mode: " + text, (self.screen_x/2, self.screen_y-70), 1.5, True)
                 
                 elif e.key == self.keys["screenshot"]:
                     if not os.path.exists("Screenshots"):
@@ -699,7 +714,8 @@ class Game():
                                             if self.file_path == self.selected_path:   # don't ask to save over current file
                                                 self.save(self.file_path)
                                                 self.menu = None
-                                                self.pause_menu = True
+                                                self.pause_menu = False
+                                                self.disable_input = False
                                             else:
                                                 self.ask = "save"
                                             self.click = False   # dont carry click to ask window
@@ -717,7 +733,8 @@ class Game():
                                     if self.file_path == self.selected_path:   # don't ask to save over current file
                                         self.save(self.file_path)
                                         self.menu = None
-                                        self.pause_menu = True
+                                        self.pause_menu = False
+                                        self.disable_input = False
                                     else:
                                         self.ask = "save"
                                 elif num == 2:   # new save
@@ -770,7 +787,8 @@ class Game():
                                     self.save(self.selected_path)
                                     self.file_path = self.selected_path
                             self.menu = None
-                            self.pause_menu = True
+                            self.pause_menu = False
+                            self.disable_input = False
                             self.ask = None
                         x_pos += self.btn_w_h + self.space
             
@@ -812,7 +830,6 @@ class Game():
                             if self.r_menu_x_btn <= self.mouse_raw[0]-1 <= self.r_menu_x_btn + 280 and y_pos <= self.mouse_raw[1]-1 <= y_pos + 21:
                                 self.target = num
                                 self.target_type = 0
-                                self.follow = True
                             y_pos += 26
             
             # scrollbar
@@ -867,9 +884,18 @@ class Game():
         screen.fill((0, 0, 0))
         
         # follow vessel (this must be before drawing objects to prevent them from vibrating when moving)
-        if self.follow and self.active_vessel is not None:
-            self.offset_x = - self.v_pos[self.active_vessel, 0] + self.screen_x / 2
-            self.offset_y = - self.v_pos[self.active_vessel, 1] + self.screen_y / 2
+        if self.follow:
+            if self.active_vessel is not None:
+                if self.follow == 1:
+                    self.offset_x = - self.v_pos[self.active_vessel, 0] + self.follow_offset_x
+                    self.offset_y = - self.v_pos[self.active_vessel, 1] + self.follow_offset_y
+                else:
+                    ref = self.v_ref[self.active_vessel]
+                    self.offset_x = - self.pos[ref, 0] + self.follow_offset_x
+                    self.offset_y = - self.pos[ref, 1] + self.follow_offset_y
+            else:
+                self.follow = 0
+            
         
         # screen movement
         if self.move:   # this is not in userevent to allow moving while paused
@@ -880,12 +906,12 @@ class Game():
                 self.mouse_old[1] = self.mouse[1]
                 self.mouse_fix_y = False
             
-            mouse_move = math.dist((self.mouse_raw[0], self.mouse_raw[1]), (self.mouse_raw_old[0], self.mouse_raw_old[1]))
-            self.offset_x += self.mouse[0] - self.mouse_old[0]   # add mouse movement to offset
-            self.offset_y += self.mouse[1] - self.mouse_old[1]
-            # save mouse position for next iteration to calculate movement
-            if mouse_move > self.select_sens:   # stop following if mouse distance is more than sensitivity
-                self.follow = False
+            if self.follow:
+                self.follow_offset_x += self.mouse[0] - self.mouse_old[0]
+                self.follow_offset_y += self.mouse[1] - self.mouse_old[1]
+            else:
+                self.offset_x += self.mouse[0] - self.mouse_old[0]   # add mouse movement to offset
+                self.offset_y += self.mouse[1] - self.mouse_old[1]
             
             if self.mouse_wrap:
                 if self.mouse_raw[0] >= self.screen_x-1:   # if mouse hits screen edge
@@ -908,12 +934,9 @@ class Game():
             offset_diff = self.offset_old - np.array([self.offset_x, self.offset_y])   # movement vector in one iterration
             offset_diff = offset_diff * min(self.zoom, 3)   # add zoom to speed calculation and limit zoom
             self.offset_old = np.array([self.offset_x, self.offset_y])
-            if not self.first:
-                speed = math.sqrt(offset_diff.dot(offset_diff))/3   # speed as movement vector magnitude
-                while speed > 300:   # limits speed when view is jumping (focus home, distant body...)
-                    speed = math.sqrt(speed)
-            else:
-                speed = 0
+            speed = math.sqrt(offset_diff.dot(offset_diff))/3   # speed as movement vector magnitude
+            while speed > 300:   # limits speed when view is jumping (focus home, distant body...)
+                speed = math.sqrt(speed)
             direction = math.atan2(offset_diff[1], offset_diff[0])   # movement vector angle from atan2
             bg_stars.draw_bg(screen, speed, direction, self.zoom)
         
@@ -924,10 +947,7 @@ class Game():
                 origin = self.screen_coords([0, 0])
             if self.target is not None:
                 if self.grid_mode == 1:      # grid mode: selected body
-                    if self.follow is False:
-                        origin = self.screen_coords(self.v_pos[self.active_vessel])
-                    else:   # When following body, origin is in center of screen
-                        origin = [(- self.zoom_x + self.screen_x/2) * self.zoom, self.screen_y - (- self.zoom_y + self.screen_y/2) * self.zoom]
+                    origin = self.screen_coords(self.v_pos[self.active_vessel])
                 if self.grid_mode == 2:   # grid mode: orbited body
                     origin = self.screen_coords(self.pos[self.v_ref[self.active_vessel]])
             else:

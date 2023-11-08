@@ -163,7 +163,7 @@ class Editor():
         body_list_img = pygame.image.load("img/body_list.png")
         insert_img = pygame.image.load("img/insert.png")
         orbit_img = pygame.image.load("img/orbit.png")
-        body_img = pygame.image.load("img/body.png")
+        body_img = pygame.image.load("img/body_edit.png")
         settings_img = pygame.image.load("img/settings.png")
         self.ui_imgs = [menu_img, body_list_img, insert_img, orbit_img, body_img, settings_img]
         body_moon = pygame.image.load("img/moon.png")
@@ -414,7 +414,8 @@ class Editor():
                             self.save(self.selected_path)
                             self.file_path = self.selected_path
                         self.menu = None
-                        self.pause_menu = True
+                        self.pause_menu = False
+                        self.disable_input = False
                         self.ask = None
                     if self.menu == 0:
                         self.ask = "save"
@@ -553,7 +554,7 @@ class Editor():
                     self.follow = False
                     self.focus_point([0, 0], self.zoom)   # return to (0,0) coordinates
                     
-                elif e.key == self.keys["follow_selected_body"]:
+                elif e.key == self.keys["cycle_follow"]:
                     self.follow = not self.follow
                 
                 elif e.key == self.keys["toggle_background_grid"]:
@@ -561,11 +562,11 @@ class Editor():
                 
                 elif e.key == self.keys["cycle_grid_modes"]:
                     if self.grid_enable:
-                        self.grid_mode += 1   # cycle grid modes (0 - global, 1 - selected body, 2 - parent)
-                        if self.grid_mode >= 3:
+                        self.grid_mode += 1   # cycle grid modes (0-global, 1-selected body, 2-parent)
+                        if self.grid_mode > 2:
                             self.grid_mode = 0
-                        grid_mode_txt = text_grid_mode[self.grid_mode]
-                        graphics.timed_text_init(rgb.gray0, self.fontmd, "Grid mode: " + grid_mode_txt, (self.screen_x/2, self.screen_y-70), 1.5, True)
+                        text = text_grid_mode[self.grid_mode]
+                        graphics.timed_text_init(rgb.gray0, self.fontmd, "Grid mode: " + text, (self.screen_x/2, self.screen_y-70), 1.5, True)
                 
                 elif e.key == self.keys["screenshot"]:
                     if not os.path.exists("Screenshots"):
@@ -826,7 +827,8 @@ class Editor():
                                             if self.file_path == self.selected_path:   # don't ask to save over current file
                                                 self.save(self.file_path)
                                                 self.menu = None
-                                                self.pause_menu = True
+                                                self.pause_menu = False
+                                                self.disable_input = False
                                             else:
                                                 self.ask = "save"
                                             self.click = False   # dont carry click to ask window
@@ -844,7 +846,8 @@ class Editor():
                                     if self.file_path == self.selected_path:   # don't ask to save over current file
                                         self.save(self.file_path)
                                         self.menu = None
-                                        self.pause_menu = True
+                                        self.pause_menu = False
+                                        self.disable_input = False
                                     else:
                                         self.ask = "save"
                                 elif num == 2:   # new save
@@ -985,7 +988,8 @@ class Editor():
                                     self.save(self.selected_path)
                                     self.file_path = self.selected_path
                             self.menu = None
-                            self.pause_menu = True
+                            self.pause_menu = False
+                            self.disable_input = False
                             self.ask = None
                         x_pos += self.btn_w_h + self.space
             
@@ -1294,7 +1298,7 @@ class Editor():
             mouse_move = math.dist((self.mouse_raw[0], self.mouse_raw[1]), (self.mouse_raw_old[0], self.mouse_raw_old[1]))
             self.offset_x += self.mouse[0] - self.mouse_old[0]   # add mouse movement to offset
             self.offset_y += self.mouse[1] - self.mouse_old[1]
-            # save mouse position for next iteration to calculate movement
+            
             if mouse_move > self.select_sens:   # stop following if mouse distance is more than sensitivity
                 self.follow = False
             
@@ -1319,12 +1323,9 @@ class Editor():
             offset_diff = self.offset_old - np.array([self.offset_x, self.offset_y])   # movement vector in one iterration
             offset_diff = offset_diff * min(self.zoom, 3)   # add zoom to speed calculation and limit zoom
             self.offset_old = np.array([self.offset_x, self.offset_y])
-            if not self.first:
-                speed = math.sqrt(offset_diff.dot(offset_diff))/3   # speed as movement vector magnitude
-                while speed > 300:   # limits speed when view is jumping (focus home, distant body...)
-                    speed = math.sqrt(speed)
-            else:
-                speed = 0
+            speed = math.sqrt(offset_diff.dot(offset_diff))/3   # speed as movement vector magnitude
+            while speed > 300:   # limits speed when view is jumping (focus home, distant body...)
+                speed = math.sqrt(speed)
             direction = math.atan2(offset_diff[1], offset_diff[0])   # movement vector angle from atan2
             bg_stars.draw_bg(screen, speed, direction, self.zoom)
         
