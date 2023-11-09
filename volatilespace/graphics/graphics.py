@@ -30,6 +30,7 @@ class Graphics():
         self.txt_y_margin = 8  # empty space between text and button edge
         self.btn_h = self.fontbt.get_height() + self.txt_y_margin * 2   # button height from font height
         self.btn_s = 36   # small square button
+        self.btn_sm = 22   # very small square button
         self.space = 10
         self.click = False
         self.mouse = [0, 0]
@@ -528,8 +529,8 @@ class Graphics():
         pygame.draw.rect(screen, rgb.black, (left_x - 2, cover_bot_y, middle_x-left_x+4, self.screen_y-cover_bot_y))
     
     
-    def buttons_small(self, screen, imgs, pos, prop=None, selected=None):
-        """Draws small square buttons with icons.
+    def buttons_small_v(self, screen, imgs, pos, prop=None, selected=None):
+        """Draws small square buttons with icons VERTICALLY.
         Properties are passed as list with value for each button.
         Values can be: None - no effect, 0 - disabled button, 1 - green color (ON)"""
         (x, y) = pos
@@ -559,6 +560,23 @@ class Graphics():
             screen.blit(img, (x, y))
             y += self.btn_s + 1
             pygame.draw.line(screen, rgb.white, (x, y-1), (x + self.btn_s, y-1), 1)
+    
+    
+    def buttons_small_h(self, screen, imgs, pos):
+        """Draws small square buttons with icons HORIZONTALLY."""
+        (x, y) = pos
+        for num, img in enumerate(imgs):
+            color = rgb.black
+            # mouse over button
+            if x <= self.mouse[0] <= x + self.btn_sm and y <= self.mouse[1] <= y + self.btn_sm and self.disable_buttons is False:
+                color = rgb.gray2
+                # click on button
+                if self.click is True:
+                    color = rgb.gray1
+            pygame.draw.rect(screen, color, (x, y, self.btn_sm, self.btn_sm))
+            screen.blit(img, (x, y))
+            x += self.btn_sm + 1
+            pygame.draw.line(screen, rgb.white, (x-1, y), (x-1, y + self.btn_sm), 1)
     
     
     def text_list(self, screen, texts, pos, size, space, imgs=None, prop=None, selected=0):

@@ -1,7 +1,6 @@
 ### TIMELINE ###
 
 v0.5.0 - game-vessel
-Top UI buttons
 physical warp (x2, x4) when enter atmosphere (fake atmosphere temporarily)
 physical warp when close to other vessel/body (define distance)
 break regular warp when entering physical (check next iteration to not move into atmosphere)
@@ -10,6 +9,7 @@ add velocity with W/A/S/D
 documentation (savefiles, parts, physics)
 
 editor: prograde/retrograde, radial/antiradial with W/A/S/D
+editor: relative inserting position and velocity
 
 v0.5.1 - rotation
 parts config

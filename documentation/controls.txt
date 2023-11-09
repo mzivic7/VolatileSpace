@@ -10,9 +10,8 @@ W/A/S/D            Add velocity, in that direction, to body
 ./,                Time warp increase/decrease
 /                  Stop time warp
 H                  Focus on Home (0, 0) coordinates 
-F                  Follow selected body
-G                  Toggle background grid
-V                  Cycle grid modes (global, selected body, parent)
+F                  Cycle follow modes (disabled, vessel, orbited body)
+G                  Cycle grid modes (disabled, global, vessel, orbited body)
 Escape             Pause menu
 F1                 Screenshot
 F2                 Toggle UI visibility
