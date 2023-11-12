@@ -18,8 +18,6 @@ k = 1.381 * 10**-23   # boltzman constant
 m_h = 1.674 * 10**-27    # hydrogen atom mass in kg
 m_he = 6.646 * 10**-27   # helium atom mass in kg
 mp = (m_h * 99 + m_he * 1) / 100   # average particle mass   # depends on star age
-mass_sim_mult = 10**24  # mass simulation multiplier, since real values are needed in core temperature equation
-rad_sim_mult = 10**6   # radius sim multiplier
 
 
 ###### --Functions-- ######
@@ -145,6 +143,9 @@ class Physics():
         self.den = np.array([])
         self.base_color = np.empty((0, 3), int)   # original color unaffected by temperature
         self.types = np.array([])
+        self.atm_pres0 = np.array([])
+        self.atm_scale_h = np.array([])
+        self.atm_den = np.array([])
         # body orbit main
         self.a = np.array([])
         self.ecc = np.array([])
@@ -191,6 +192,9 @@ class Physics():
         self.mass = body_data["mass"]
         self.den = body_data["den"]
         self.base_color = body_data["color"]
+        self.atm_pres0 = body_data["atm_pres0"]
+        self.atm_scale_h = body_data["atm_scale_h"]
+        self.atm_den = body_data["atm_den"]
         # body orbit
         self.a = body_orb_data["a"]
         self.ecc = body_orb_data["ecc"]
@@ -209,10 +213,19 @@ class Physics():
         # BODY DATA #
         volume = self.mass / self.den
         size = self.rad_mult * np.cbrt(3 * volume / (4 * np.pi))
-        core_temp = (self.gc * mp * self.mass * mass_sim_mult) / ((3/2) * k * size * rad_sim_mult)
+        core_temp = (self.gc * mp * self.mass) / ((3/2) * k * size * self.rad_mult)
         temp = 0 / core_temp   # surface temperature # ### temporarily ###
-        rad_sc = 2 * self.mass * mass_sim_mult * self.gc / c**2   # Schwarzschild radius
+        rad_sc = 2 * self.mass * self.gc / c**2   # Schwarzschild radius
         color = temp_color(temp, self.base_color)
+        surf_grav = self.gc * self.mass / size**2
+        atm_h = np.zeros(len(self.mass))
+        for body, _ in enumerate(self.mass):
+            if self.atm_pres0[body]:
+                atm_h[body] = - self.atm_scale_h[body] * math.log(0.001 / self.atm_den[body] / self.atm_pres0[body]) * self.rad_mult
+            else:
+                atm_h[body] = 0
+        
+        
         # CLASSIFICATION #
         self.types = np.zeros(len(self.mass))  # it is moon
         self.types = np.where(self.mass > 200, 1, self.types)    # if it has high enough mass: it is solid planet
@@ -228,7 +241,9 @@ class Physics():
                      "color_b": self.base_color,
                      "color": color,
                      "size": size,
-                     "rad_sc": rad_sc}
+                     "rad_sc": rad_sc,
+                     "surf_grav": surf_grav,
+                     "atm_h": atm_h}
         
         # ORBIT DATA #
         values = list(map(calc_orb_one, list(range(len(self.mass))), self.ref, repeat(self.mass), repeat(self.gc), repeat(self.coi_coef), self.a, self.ecc))

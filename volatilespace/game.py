@@ -53,9 +53,8 @@ text_data_orb = ["Target: ",
 text_data_body = ["Target: ", "Type: ", "Mass: ", "Density: ", "Radius: ", "COI altitude: "]
 text_data_planet = ["(Rotation period): ",
                     "Color: ",
-                    "(Atmosphere amount): ",
-                    "(Atmosphere height): ",
-                    "(surface gravity): "]
+                    "Atmosphere height: ",
+                    "Surface gravity: "]
 text_data_star = ["(Surface temp):",
                   "(Luminosity): ",
                   "Color: ",
@@ -118,9 +117,13 @@ class Game():
         self.zoom = 0.15
         self.select_sens = 5   # how many pixels are tolerable for mouse to move while selecting body
         self.drag_sens = 0.02   # drag sensitivity when inserting body
-        self.warp_range = [1, 2, 3, 4, 5, 10, 50, 100]   # all possible warps, by order
+        self.warp_range = [1, 2, 3, 4, 5, 10, 50, 100, 1000]   # all possible warps, by order
         self.warp_index = 0
         self.warp = self.warp_range[self.warp_index]
+        self.warp_phys_active = True
+        self.warp_phys_range = [1, 2, 4, 8]
+        self.warp_phys_index = 0
+        self.warp_phys = self.warp_range[self.warp_index]
         self.sim_time = 0
         self.pause = False
         self.move = False
@@ -172,6 +175,10 @@ class Game():
         warp_2_img = pygame.image.load("img/warp_2.png")
         warp_3_img = pygame.image.load("img/warp_3.png")
         self.top_ui_img_warp = [warp_0_img, warp_1_img, warp_2_img, warp_3_img]
+        self.top_ui_img_warp_phys = [warp_0_img, 
+                                     graphics.fill(warp_1_img, rgb.orange), 
+                                     graphics.fill(warp_2_img, rgb.orange),
+                                     graphics.fill(warp_3_img, rgb.orange)]
         grid_global_img = pygame.image.load("img/grid_global.png")
         grid_vessel_img = pygame.image.load("img/grid_vessel.png")
         grid_ref_img = pygame.image.load("img/grid_ref.png")
@@ -292,9 +299,13 @@ class Game():
         self.disable_labels = False
         self.gen_game_list()
         self.selected_item = 0
-        self.do_pause(False)
+        self.set_pause(False)
         self.warp_index = 0
         self.warp = 1
+        self.warp_phys_active = False
+        self.warp_phys_index = 0
+        self.warp_phys = 1
+        self.set_warp_ui(True)
         self.follow = 1
         self.grid_mode = 0
         self.follow_offset_x = self.screen_x / 2
@@ -363,6 +374,8 @@ class Game():
         self.temp = body_data["temp"]
         self.base_color = body_data["color_b"]
         self.color = body_data["color"]
+        self.atm_h = body_data["atm_h"]
+        self.surf_grav = body_data["surf_grav"]
         self.size = body_data["size"]
         self.rad_sc = body_data["rad_sc"]
         # ORBIT DATA #
@@ -427,7 +440,7 @@ class Game():
             graphics.timed_text_init(rgb.gray1, self.fontmd, "Autosave...", (self.screen_x/2, self.screen_y-70), 2, True)
     
     
-    def do_pause(self, do=None):
+    def set_pause(self, do=None):
         """Pause game, set warp to x1 and update top UI"""
         if do is not None:
             self.pause = do
@@ -438,15 +451,27 @@ class Game():
         self.top_ui_imgs[0] = self.top_ui_img_warp[int(not self.pause)]
     
     
-    def set_ui_warp(self):
-        if self.warp_index < 3:
-            ui_warp_index = 1
-        elif self.warp_index < 5:
-            ui_warp_index = 2
+    def set_warp_ui(self, silent=False):
+        if self.warp_phys_active:
+            if self.warp_phys_index < 2:
+                ui_warp_index = 1
+            elif self.warp_phys_index == 2:
+                ui_warp_index = 2
+            else:
+                ui_warp_index = 3
+            self.top_ui_imgs[0] = self.top_ui_img_warp_phys[ui_warp_index]
+            if not silent:
+                graphics.timed_text_init(rgb.orange, self.fontmd, "Physical warp: x" + str(self.warp_phys), (self.screen_x/2, self.screen_y-70), 1, True)
         else:
-            ui_warp_index = 3
-        self.top_ui_imgs[0] = self.top_ui_img_warp[ui_warp_index]
-        graphics.timed_text_init(rgb.gray0, self.fontmd, "Time warp: x" + str(self.warp), (self.screen_x/2, self.screen_y-70), 1, True)
+            if self.warp_index < 3:
+                ui_warp_index = 1
+            elif self.warp_index < 6:
+                ui_warp_index = 2
+            else:
+                ui_warp_index = 3
+            self.top_ui_imgs[0] = self.top_ui_img_warp[ui_warp_index]
+            if not silent:
+                graphics.timed_text_init(rgb.gray0, self.fontmd, "Time warp: x" + str(self.warp), (self.screen_x/2, self.screen_y-70), 1, True)
     
     
     
@@ -513,18 +538,18 @@ class Game():
                     if self.pause_menu:
                         self.pause_menu = False
                         self.disable_input = False
-                        self.do_pause(False)
+                        self.set_pause(False)
                     else:
                         self.pause_menu = True
                         self.disable_input = True
-                        self.do_pause(True)
+                        self.set_pause(True)
                 else:   # exit from ask window
                     self.ask = None
                     self.disable_input = False
             
             if not self.disable_input or self.allow_keys:
                 if e.key == self.keys["interactive_pause"]:
-                    self.do_pause()
+                    self.set_pause()
                 
                 elif e.key == self.keys["focus_home"]:
                     self.follow = 1   # follow vessel
@@ -571,19 +596,38 @@ class Game():
                 # time warp
                 if not self.pause:
                     if e.key == self.keys["decrease_time_warp"]:
-                        if self.warp_index != 0:   # stop index from going out of range
-                            self.warp_index -= 1
-                        self.warp = self.warp_range[self.warp_index]
-                        self.set_ui_warp()
+                        if self.warp_phys_active:
+                            if self.warp_phys_index > 0:   # stop index from going out of range
+                                self.warp_phys_index -= 1
+                                self.warp_phys = self.warp_phys_range[self.warp_phys_index]
+                                self.set_warp_ui()
+                        else:
+                            if self.warp_index > 0:
+                                self.warp_index -= 1
+                                self.warp = self.warp_range[self.warp_index]
+                                self.set_warp_ui()
                     if e.key == self.keys["increase_time_warp"]:
-                        if self.warp_index != len(self.warp_range)-1:   # stop index from going out of range
-                            self.warp_index += 1
-                        self.warp = self.warp_range[self.warp_index]
-                        self.set_ui_warp()
+                        if self.warp_phys_active:
+                            if self.warp_phys_index < len(self.warp_phys_range)-1:
+                                self.warp_phys_index += 1
+                                self.warp_phys = self.warp_phys_range[self.warp_phys_index]
+                                self.set_warp_ui()
+                        else:
+                            if self.warp_index < len(self.warp_range)-1:
+                                self.warp_index += 1
+                                self.warp = self.warp_range[self.warp_index]
+                                self.set_warp_ui()
                     if e.key == self.keys["stop_time_warp"]:
+                        self.warp_phys_index = 0
+                        self.warp_phys = self.warp_phys_range[self.warp_phys_index]
                         self.warp_index = 0
                         self.warp = self.warp_range[self.warp_index]
-                        self.set_ui_warp()
+                        if self.warp_phys_active:
+                            if self.warp_phys != 0:
+                                self.set_warp_ui()
+                        else:
+                            if self.warp != 0:
+                                self.set_warp_ui()
     
     
     
@@ -703,7 +747,7 @@ class Game():
                             if num == 0:   # resume
                                 self.pause_menu = False
                                 self.disable_input = False
-                                self.do_pause(False)
+                                self.set_pause(False)
                             elif num == 1:   # save
                                 self.menu = 0
                                 self.pause_menu = False
@@ -718,13 +762,13 @@ class Game():
                                 self.state = 1
                                 self.pause_menu = False
                                 self.disable_input = False
-                                self.do_pause(False)
+                                self.set_pause(False)
                             elif num == 5:   # save and quit
                                 self.save(self.file_path, name=self.sim_name, silent=True)
                                 self.state = 1
                                 self.pause_menu = False
                                 self.disable_input = False
-                                self.do_pause(False)
+                                self.set_pause(False)
                         y_pos += self.btn_h + self.space
                 
                 # disable scrollbar_drag when release click
@@ -848,7 +892,7 @@ class Game():
                         if num == 0:   # menu
                             self.pause_menu = True
                             self.disable_input = True
-                            self.do_pause(True)
+                            self.set_pause(True)
                             self.right_menu = None
                         else:
                             if self.right_menu == num:
@@ -875,11 +919,17 @@ class Game():
                 for num, _ in enumerate(self.top_ui_imgs):
                     if x_pos <= self.mouse_raw[0] <= x_pos + self.btn_sm and 0 <= self.mouse_raw[1] <= self.btn_sm:
                         if num == 0:   # warp
-                            self.warp_index += 1
-                            if self.warp_index >= len(self.warp_range):
-                                self.warp_index = 0
-                            self.warp = self.warp_range[self.warp_index]
-                            self.set_ui_warp()
+                            if self.warp_phys_active:
+                                self.warp_phys_index += 1
+                                if self.warp_phys_index >= len(self.warp_phys_range):
+                                    self.warp_phys_index = 0
+                                self.warp_phys = self.warp_phys_range[self.warp_phys_index]
+                            else:
+                                self.warp_index += 1
+                                if self.warp_index >= len(self.warp_range):
+                                    self.warp_index = 0
+                                self.warp = self.warp_range[self.warp_index]
+                            self.set_warp_ui()
                             
                         if num == 1:
                             if self.active_vessel is not None:   # follow
@@ -946,13 +996,28 @@ class Game():
             if self.pause is False:
                 debug_time = time.time()   # ### DEBUG ###
                 
-                self.pos, self.ma = physics_body.move(self.warp)
-                self.curves = physics_body.curve_move()
+                # physical warp toggle
+                # ### TODO ###
                 
-                self.v_pos, self.v_ma = physics_vessel.move(self.warp, self.pos)
-                self.v_curves = physics_vessel.curve_move()
-                
-                self.sim_time += 1 * self.warp   # iterate sim_time
+                if self.warp_phys_active:
+                    # physical warp
+                    for _ in range(self.warp_phys):
+                        self.pos, self.ma = physics_body.move(self.warp_phys)
+                        self.v_pos, self.v_ma = physics_vessel.move(self.warp_phys, self.pos)
+                    
+                    self.curves = physics_body.curve_move()
+                    self.v_curves = physics_vessel.curve_move()
+                    
+                    self.sim_time += 1 * self.warp_phys   # iterate sim_time
+                else:
+                    # regular warp
+                    self.pos, self.ma = physics_body.move(self.warp)
+                    self.v_pos, self.v_ma = physics_vessel.move(self.warp, self.pos)
+                    
+                    self.curves = physics_body.curve_move()
+                    self.v_curves = physics_vessel.curve_move()
+                    
+                    self.sim_time += 1 * self.warp   # iterate sim_time
                 
                 self.physics_debug_time = time.time() - debug_time   # ### DEBUG ###
     
@@ -995,16 +1060,16 @@ class Game():
             
             if self.mouse_wrap:
                 if self.mouse_raw[0] >= self.screen_x-1:   # if mouse hits screen edge
-                    pygame.mouse.set_pos(1, self.mouse_raw[1])   # move it to opposite edge ### BUG ###
+                    pygame.mouse.set_pos(1, self.mouse_raw[1])   # move it to opposite edge
                     self.mouse_fix_x = True   # in next itteration, dont calculate that as movement
                 if self.mouse_raw[0] <= 0:
-                    pygame.mouse.set_pos(self.screen_x, self.mouse_raw[1]-1)    # ### BUG ###
+                    pygame.mouse.set_pos(self.screen_x, self.mouse_raw[1]-1)
                     self.mouse_fix_x = True
                 if self.mouse_raw[1] >= self.screen_y-1:
-                    pygame.mouse.set_pos(self.mouse_raw[0], 1)    # ### BUG ###
+                    pygame.mouse.set_pos(self.mouse_raw[0], 1)
                     self.mouse_fix_y = True
                 if self.mouse_raw[1] <= 0:
-                    pygame.mouse.set_pos(self.mouse_raw[0], self.screen_y-1)    # ### BUG ###
+                    pygame.mouse.set_pos(self.mouse_raw[0], self.screen_y-1)
                     self.mouse_fix_y = True
             self.mouse_old = self.mouse
         
@@ -1050,6 +1115,11 @@ class Game():
                 scr_body_size = self.size[body] * self.zoom
                 body_color = tuple(self.color[body])
                 if scr_body_size >= 5:
+                    if self.atm_h[body]:
+                        atm_color = tuple(np.append(self.color[body], 30))   # add alpha
+                        scr_atm_size = (self.size[body] + self.atm_h[body]) * self.zoom
+                        graphics.draw_circle_fill(screen, atm_color, self.screen_coords(self.pos[body]), scr_atm_size)
+                    graphics.draw_circle_fill(screen, body_color, self.screen_coords(self.pos[body]), scr_body_size)
                     graphics.draw_circle_fill(screen, body_color, self.screen_coords(self.pos[body]), scr_body_size)
                 else:   # if body is too small, draw marker with fixed size
                     graphics.draw_circle_fill(screen, rgb.gray1, self.screen_coords(self.pos[body]), 6)
@@ -1334,9 +1404,8 @@ class Game():
                     color = self.color[self.target]
                     values_planet = ["WIP",
                                      " R: " + str(color[0]) + "   G: " + str(color[1]) + "   B: " + str(color[2]),
-                                     "WIP",
-                                     "WIP",
-                                     "WIP"]
+                                     metric.format_si(self.atm_h[self.target], 3),
+                                     metric.format_si(self.surf_grav[self.target], 3)]
                     texts_planet = []
                     for i, _ in enumerate(text_data_planet):
                         if isinstance(values_planet[i], str):

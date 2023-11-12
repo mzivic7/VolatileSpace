@@ -10,6 +10,8 @@ def format_si(value, decimal=3):
     
     if value == 0:   # log does not work with 0
         return str(value)
+    if value is None:
+        return str(0)
     
     size = int(math.log10(abs(value)) / 3)   # calculate number size
     prefix = ''

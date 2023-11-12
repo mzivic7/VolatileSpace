@@ -1,25 +1,20 @@
 ### TIMELINE ###
 
-v0.5.0 - game-vessel
-physical warp (x2, x4) when enter atmosphere (fake atmosphere temporarily)
-physical warp when close to other vessel/body (define distance)
-break regular warp when entering physical (check next iteration to not move into atmosphere)
-check collisions in physical warp
-add velocity with W/A/S/D
-documentation (savefiles, parts, physics)
-
 editor: prograde/retrograde, radial/antiradial with W/A/S/D
 editor: relative inserting position and velocity
+tab when typing value switch to next
 
-v0.5.1 - rotation
+v0.5.1 - game-vessel: rotation, collisions
 parts config
 planets rotation
 vessel rotation with A/D
 vessels stop rotating in regular warp
-add velocity only in facing direction with W
+velocity slider
+add velocity in facing direction
+check pixel collisions
 documentation
 
-v0.5.2 - game gui
+v0.5.2 - game-gui
 Orbit
 Surface
 Vessel
@@ -29,7 +24,7 @@ Thermal - placeholder
 Selected body
 Selected body orbit
 
-v0.5.3 - advanced orbit
+v0.5.3 - game-vessel: advanced orbit
 leave/enter orbit and landing point
 mouseover menu for: ap/pe, leave/enter
 click menu for point, ap/pe leave/enter
@@ -38,32 +33,34 @@ distance to center
 dont draw some parts of orbit
 documentation
 
-v0.5.4 - warp to point
+v0.5.4 - game-vessel: warp to point
 warp to point
 warp to next orbit
 
-v0.5.5 - second orbit
+v0.5.5 - game-vessel: second orbit
 draw second orbit
 documentation
 
-v0.5.6 - rebuild editor physics
+v0.5.6 - editor: rebuild physics
 rebuild editor physics
 documentation
 
 
 
 
-### STAR PHYSICS ###
+### BODY PHYSICS ###
 calculate surface temp
 calculate luminosity
 shadows
+pressure
+gas planets
 body classification
 ??? star age - composition: H - He
 ??? star physics tick warp system
 black holes
 support non-main-sequence stars
 simulation sizes adjustment
-star classification
+classification
 
 
 
@@ -74,13 +71,14 @@ engine
 maneuvers
 fuel
 icons, modules, markers
+advanced rotation
+advanced collisions
 SAS
 deltaV
 vessel parts and editor
-advanced rotation
-advanced collisions
 docking
 launch / staging
+aerodynamics
 heat
 communications
 electrical power
@@ -90,10 +88,10 @@ electrical power
 ### BODY TEXTURES ###
 stars
 black hole
-planets 
+planets
 atmosphere
 random life, water, ice
-special bodies (pulasar, neutron star, black hole...)
+special bodies (pulsar, neutron star, black hole...)
 surface rendering in high zoom
 
 

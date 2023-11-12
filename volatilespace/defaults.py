@@ -65,7 +65,10 @@ new_body_moon = {"name": "New moon",
                  "density": 1.0,
                  "position": [0, 0],
                  "velocity": [0, 0],
-                 "color": [255, 255, 255]
+                 "color": [255, 255, 255],
+                 "atm_pres0": 0,
+                 "atm_scale_h": 0,
+                 "atm_den": 0
                  }
 
 new_body_planet = {"name": "New planet",
@@ -74,7 +77,10 @@ new_body_planet = {"name": "New planet",
                    "density": 1.0,
                    "position": [0, 0],
                    "velocity": [0, 0],
-                   "color": [255, 255, 255]
+                   "color": [255, 255, 255],
+                   "atm_pres0": 0,
+                   "atm_coef": 0,
+                   "atm_den": 0
                    }
 
 new_body_gas = {"name": "New gas planet",
@@ -83,7 +89,10 @@ new_body_gas = {"name": "New gas planet",
                 "density": 0.3,
                 "position": [0, 0],
                 "velocity": [0, 0],
-                "color": [255, 255, 255]
+                "color": [255, 255, 255],
+                "atm_pres0": 0,
+                "atm_coef": 0,
+                "atm_den": 0
                 }
 
 new_body_star = {"name": "New star",
@@ -92,7 +101,10 @@ new_body_star = {"name": "New star",
                  "density": 1.0,
                  "position": [0, 0],
                  "velocity": [0, 0],
-                 "color": [255, 255, 255]
+                 "color": [255, 255, 255],
+                 "atm_pres0": 0,
+                 "atm_coef": 0,
+                 "atm_den": 0
                  }
 
 new_body_bh = {"name": "New black hole",
@@ -101,5 +113,8 @@ new_body_bh = {"name": "New black hole",
                "density": 100.0,
                "position": [0, 0],
                "velocity": [0, 0],
-               "color": [50, 50, 50]
+               "color": [50, 50, 50],
+               "atm_pres0": 0,
+                "atm_coef": 0,
+                "atm_den": 0
                }

@@ -147,6 +147,10 @@ def load_file(path):
     mass = np.array([])
     density = np.array([])
     color = np.empty((0, 3), int)
+    atm_pres0 = np.array([])
+    atm_scale_h = np.array([])
+    atm_den = np.array([])
+    
     vessel_name = np.array([])
     
     position = np.empty((0, 2), int)
@@ -178,6 +182,14 @@ def load_file(path):
                     mass = np.append(mass, float(system.get(body, "mass")))
                     density = np.append(density, float(system.get(body, "density")))
                     color = np.vstack((color, list(map(int, system.get(body, "color").strip("][").split(", ")))))
+                    try:
+                        atm_pres0 = np.append(atm_pres0, float(system.get(body, "atm_pres0")))
+                        atm_scale_h = np.append(atm_scale_h, float(system.get(body, "atm_scale_h")))
+                        atm_den = np.append(atm_den, float(system.get(body, "atm_den")))
+                    except Exception:
+                        atm_pres0 = np.append(atm_pres0, 0.0)
+                        atm_scale_h = np.append(atm_scale_h, 0.0)
+                        atm_den = np.append(atm_den, 0.0)
                 except Exception:   # if pos or vel values are missing - then try to read kepler
                     kepler = True
             
@@ -187,6 +199,14 @@ def load_file(path):
                     mass = np.append(mass, float(system.get(body, "mass")))
                     density = np.append(density, float(system.get(body, "density")))
                     color = np.vstack((color, list(map(int, system.get(body, "color").strip("][").split(", ")))))
+                    try:
+                        atm_pres0 = np.append(atm_pres0, float(system.get(body, "atm_pres0")))
+                        atm_scale_h = np.append(atm_scale_h, float(system.get(body, "atm_scale_h")))
+                        atm_den = np.append(atm_den, float(system.get(body, "atm_den")))
+                    except Exception:
+                        atm_pres0 = np.append(atm_pres0, 0.0)
+                        atm_scale_h = np.append(atm_scale_h, 0.0)
+                        atm_den = np.append(atm_den, 0.0)
                     semi_major = np.append(semi_major, float(system.get(body, "sma")))
                     ecc = np.append(ecc, float(system.get(body, "ecc")))
                     pe_arg = np.append(pe_arg, float(system.get(body, "lpe")))
@@ -201,16 +221,14 @@ def load_file(path):
                     v_ma = np.append(v_ma, float(system.get(body, "mna")))
                     v_parents = np.append(v_parents, int(system.get(body, "ref")))
                     v_direction = np.append(v_direction, float(system.get(body, "dir")))
-            
+    
+    body_data = {"name": body_name, "mass": mass, "den": density, "color": color, "atm_pres0": atm_pres0, "atm_scale_h": atm_scale_h, "atm_den": atm_den}
     if kepler:
-        body_data = {"name": body_name, "mass": mass, "den": density, "color": color}
         body_orb_data = {"kepler": kepler, "a": semi_major, "ecc": ecc, "pe_arg": pe_arg, "ma": ma, "ref": parents, "dir": direction}
     else:
-        body_data = {"name": body_name, "mass": mass, "den": density, "color": color}
         body_orb_data = {"kepler": kepler, "pos": position, "vel": velocity}
     vessel_data = {"name": vessel_name}
     vessel_orb_data = {"a": v_semi_major, "ecc": v_ecc, "pe_arg": v_pe_arg, "ma": v_ma, "ref": v_parents, "dir": v_direction}
-        
     
     return game_data, config, body_data, body_orb_data, vessel_data, vessel_orb_data
 
@@ -257,6 +275,9 @@ def save_file(path, game_data, conf, body_data, body_orb_data, vessel_data={}, v
     mass = body_data["mass"]
     density = body_data["den"]
     color = body_data["color"]
+    atm_pres0 = body_data["atm_pres0"]
+    atm_scale_h = body_data["atm_scale_h"]
+    atm_den = body_data["atm_den"]
     
     kepler = False
     try:
@@ -289,6 +310,10 @@ def save_file(path, game_data, conf, body_data, body_orb_data, vessel_data={}, v
         system.set(body_name, "mass", str(body_mass))
         system.set(body_name, "density", str(density[body]))
         system.set(body_name, "color", "[" + str(color[body, 0]) + ", " + str(color[body, 1]) + ", " + str(color[body, 2]) + "]")
+        if all(x != 0 for x in [atm_pres0[body], atm_scale_h[body], atm_den[body]]):
+            system.set(body_name, "atm_pres0", str(atm_pres0[body]))
+            system.set(body_name, "atm_scale_h", str(atm_scale_h[body]))
+            system.set(body_name, "atm_den", str(atm_den[body]))
         
         if not kepler:
             system.set(body_name, "position", "[" + str(position[body, 0]) + ", " + str(position[body, 1]) + "]")

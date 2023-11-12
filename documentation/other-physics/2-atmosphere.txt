@@ -1,0 +1,19 @@
+### atmosphere ###
+
+
+# To calculate density and pressure of atmosphere at specific height, there are too many variables
+# and formulas change for different altitudes, some are empirical, and apply only for earth
+# see [2]
+# Because of that simplified equation is used where user can define 3 parameters:
+# p_0 = atmosphere pressure at surface 
+# p_H = atmosphere height coefficient
+# rho_coef = atmosphere pressure to density coefficient
+# Atmosphere radius is point where rho < 0.001
+
+
+p_h = p_0 * e^(-h/p_H)   # pressure at height [2]
+rho_h = p_h * rho_coef   # density at height [2]
+a_h = -p_H * ln(0.001 / rho_coef/p_0)   # atmosphere radius (from above equations)
+
+References:
+[2] https://en.wikipedia.org/wiki/Density_of_air#Variation_with_altitude

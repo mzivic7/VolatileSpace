@@ -18,8 +18,6 @@ k = 1.381 * 10**-23   # boltzman constant
 m_h = 1.674 * 10**-27    # hydrogen atom mass in kg
 m_he = 6.646 * 10**-27   # helium atom mass in kg
 mp = (m_h * 99 + m_he * 1) / 100   # average particle mass   # depends on star age
-mass_sim_mult = 10**24  # mass simulation multiplier, since real values are needed in core temperature equation
-rad_sim_mult = 10**6   # radius sim multiplier
 
 
 ###### --Functions-- ######
@@ -183,6 +181,11 @@ class Physics():
         self.rad = np.array([])
         self.rad_sc = np.array([])  # Schwarzschild radius
         self.types = np.array([])
+        self.surf_grav = np.array([])
+        self.atm_pres0 = np.array([])
+        self.atm_scale_h = np.array([])
+        self.atm_den = np.array([])
+        self.atm_h = np.array([])
         # orbit:
         self.pos = np.empty((0, 2), float)
         self.vel = np.empty((0, 2), float)
@@ -229,6 +232,11 @@ class Physics():
         volume = self.mass / self.den
         self.rad = self.rad_mult * np.cbrt(3 * volume / (4 * np.pi))
         self.rad_sc = np.array([])
+        self.surf_grav = np.array([])
+        self.atm_pres0 = body_data["atm_pres0"]
+        self.atm_scale_h = body_data["atm_scale_h"]
+        self.atm_den = body_data["atm_den"]
+        self.atm_h = np.zeros(len(mass))
         self.types = np.array([])
         self.pos = body_orb_data["pos"]
         self.vel = body_orb_data["vel"]
@@ -253,8 +261,12 @@ class Physics():
         self.temp = np.append(self.temp, 0)
         self.color = np.vstack((self.color, (0, 0, 0)))
         self.base_color = np.vstack((self.base_color, data["color"]))
+        self.atm_h = np.append(self.atm_h, 0)
         volume = self.mass / self.den
         self.rad = self.rad_mult * np.cbrt(3 * volume / (4 * np.pi))
+        self.atm_pres0 = np.append(self.atm_pres0, data["atm_pres0"])
+        self.atm_scale_h = np.append(self.atm_scale_h, data["atm_scale_h"])
+        self.atm_den = np.append(self.atm_den, data["atm_den"])
         self.pos = np.vstack((self.pos, data["position"]))
         self.vel = np.vstack((self.vel, [0, 0]))   # add placeholder as [0, 0], since vel is calculated later in gravity()
         self.parents = np.append(self.parents, 0)
@@ -292,6 +304,9 @@ class Physics():
             self.color = np.delete(self.color, delete, axis=0)
             self.base_color = np.delete(self.base_color, delete, axis=0)
             self.rad = np.delete(self.rad, delete)
+            self.atm_pres0 = np.delete(self.atm_pres0, delete)
+            self.atm_scale_h = np.delete(self.atm_scale_h, delete)
+            self.atm_den = np.delete(self.atm_den, delete)
             self.pos = np.delete(self.pos, delete, axis=0)
             self.vel = np.delete(self.vel, delete, axis=0)
             self.rel_vel = np.delete(self.rel_vel, delete, axis=0)
@@ -603,14 +618,22 @@ class Physics():
         """Body related physics (size, thermal, bh...)"""
         # radius
         volume = self.mass / self.den   # volume from mass and density
-        self.rad = self.rad_mult * np.cbrt(3 * volume / (4 * np.pi))   # calculate radius from volume
+        self.rad = self.rad_mult * np.cbrt(3 * volume / (4 * np.pi))   # radius from volume
+        
+        # atmosphere
+        self.surf_grav = self.gc * self.mass / self.rad**2
+        for body, _ in enumerate(self.mass):
+            if self.atm_pres0[body]:
+                self.atm_h[body] = - self.atm_scale_h[body] * math.log(0.001 / self.atm_den[body] / self.atm_pres0[body]) * self.rad_mult
+            else:
+                self.atm_h[body] = 0
         
         # thermal
-        core_temp = (self.gc * mp * self.mass * mass_sim_mult) / ((3/2) * k * self.rad * rad_sim_mult)   # core temperature
+        core_temp = (self.gc * mp * self.mass) / ((3/2) * k * self.rad * self.rad_mult)   # core temperature
         self.temp = 0 / core_temp   # surface temperature # ### temporarily ###
         
         # black hole
-        self.rad_sc = 2 * self.mass * mass_sim_mult * self.gc / c**2   # Schwarzschild radius
+        self.rad_sc = 2 * self.mass * self.gc / c**2   # Schwarzschild radius
     
     
     def body_color(self):
@@ -647,16 +670,27 @@ class Physics():
         mass = body_data["mass"]
         density = body_data["density"]
         base_color = body_data["color"]
+        atm_pres0 = body_data["atm_pres0"]
+        atm_scale_h = body_data["atm_scale_h"]
+        atm_den = body_data["atm_den"]
         
         volume = mass / density
         radius = self.rad_mult * np.cbrt(3 * volume / (4 * np.pi))
         
+        # atmosphere
+        surf_grav = self.gc * mass / radius**2
+        
+        if all(x != 0 for x in [atm_pres0, atm_scale_h, atm_den]):
+            atm_h = - atm_scale_h * math.log(0.001 / atm_den / atm_pres0) * self.rad_mult
+        else:
+            atm_h = 0
+        
         # thermal
-        core_temp = (self.gc * mp * mass * mass_sim_mult) / ((3/2) * k * radius * rad_sim_mult)   # core temperature
+        core_temp = (self.gc * mp * mass) / ((3/2) * k * radius * self.rad_mult)   # core temperature
         temp = 0 / core_temp   # surface temperature # ### temporarily ###
         
         # bh
-        rad_sc = 2 * mass * mass_sim_mult * self.gc / c**2   # Schwarzschild radius
+        rad_sc = 2 * mass * self.gc / c**2   # Schwarzschild radius
         
         # classify
         body_type = 0  # it is moon
@@ -690,7 +724,16 @@ class Physics():
             if value > 255:
                 color[num] = 255
         
-        precalculated_data = {"radius": radius, "type": body_type, "temp": temp, "real_color": color, "rad_sc": rad_sc}
+        precalculated_data = {"radius": radius,
+                              "type": body_type,
+                              "temp": temp,
+                              "real_color": color,
+                              "rad_sc": rad_sc,
+                              "surf_grav": surf_grav,
+                              "atm_pres0": atm_pres0,
+                              "atm_scale_h": atm_scale_h,
+                              "atm_den": atm_den,
+                              "atm_h": atm_h}
         return precalculated_data
     
     
@@ -743,7 +786,12 @@ class Physics():
     
     def get_bodies(self):
         """Get bodies information."""
-        return self.names, self.types, self.mass, self.den, self.temp, self.pos, self.vel, self.color, self.rad, self.rad_sc
+        return self.names, self.types, self.mass, self.den, self.temp, self.pos, self.vel, self.color, self.rad, self.rad_sc, self.surf_grav
+    
+    
+    def get_atmosphere(self):
+        """Get bodies atmosphere information."""
+        return self.atm_pres0, self.atm_scale_h, self.atm_den, self.atm_h
     
     
     def get_base_color(self):
@@ -800,3 +848,19 @@ class Physics():
     def set_body_color(self, body, color):   # set body base color
         """Change body base color (original color unaffected by temperature)."""
         self.base_color[body] = color
+    
+    
+    def set_body_atmos(self, body, atm_pres0, atm_scale_h, atm_den):
+        """Change body atmosphere amount."""
+        if isinstance(atm_pres0, (list, np.ndarray)):
+            self.atm_pres0[body] = atm_pres0[body]
+        else:
+            self.atm_pres0[body] = atm_pres0
+        if isinstance(atm_scale_h, (list, np.ndarray)):
+            self.atm_scale_h[body] = atm_scale_h[body]
+        else:
+            self.atm_scale_h[body] = atm_scale_h
+        if isinstance(atm_den, (list, np.ndarray)):
+            self.atm_den[body] = atm_den[body]
+        else:
+            self.atm_den[body] = atm_den
