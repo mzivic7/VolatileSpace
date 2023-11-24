@@ -1,5 +1,6 @@
 [0. Variables and constants](other-physics/0-variables-constants.txt)  
 [1. Planet](other-physics/1-planet.txt)  
 [2. Atmosphere](other-physics/2-atmosphere.txt)  
-[3. Warp](other-physics/3-warp.txt)
-[4. References](other-physics/4-references.txt)
+[3. Warp](other-physics/3-warp.txt)  
+[4. Ellipse-circle intersection](other-physics/4-ellipse-circle.txt)  
+[5. References](other-physics/4-references.txt)  

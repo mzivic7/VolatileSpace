@@ -149,7 +149,7 @@ def load_file(path):
     color = np.empty((0, 3), int)
     atm_pres0 = np.array([])
     atm_scale_h = np.array([])
-    atm_den = np.array([])
+    atm_den0 = np.array([])
     
     vessel_name = np.array([])
     
@@ -185,11 +185,11 @@ def load_file(path):
                     try:
                         atm_pres0 = np.append(atm_pres0, float(system.get(body, "atm_pres0")))
                         atm_scale_h = np.append(atm_scale_h, float(system.get(body, "atm_scale_h")))
-                        atm_den = np.append(atm_den, float(system.get(body, "atm_den")))
+                        atm_den0 = np.append(atm_den0, float(system.get(body, "atm_den0")))
                     except Exception:
                         atm_pres0 = np.append(atm_pres0, 0.0)
                         atm_scale_h = np.append(atm_scale_h, 0.0)
-                        atm_den = np.append(atm_den, 0.0)
+                        atm_den0 = np.append(atm_den0, 0.0)
                 except Exception:   # if pos or vel values are missing - then try to read kepler
                     kepler = True
             
@@ -202,11 +202,11 @@ def load_file(path):
                     try:
                         atm_pres0 = np.append(atm_pres0, float(system.get(body, "atm_pres0")))
                         atm_scale_h = np.append(atm_scale_h, float(system.get(body, "atm_scale_h")))
-                        atm_den = np.append(atm_den, float(system.get(body, "atm_den")))
+                        atm_den0 = np.append(atm_den0, float(system.get(body, "atm_den0")))
                     except Exception:
                         atm_pres0 = np.append(atm_pres0, 0.0)
                         atm_scale_h = np.append(atm_scale_h, 0.0)
-                        atm_den = np.append(atm_den, 0.0)
+                        atm_den0 = np.append(atm_den0, 0.0)
                     semi_major = np.append(semi_major, float(system.get(body, "sma")))
                     ecc = np.append(ecc, float(system.get(body, "ecc")))
                     pe_arg = np.append(pe_arg, float(system.get(body, "lpe")))
@@ -222,7 +222,7 @@ def load_file(path):
                     v_parents = np.append(v_parents, int(system.get(body, "ref")))
                     v_direction = np.append(v_direction, float(system.get(body, "dir")))
     
-    body_data = {"name": body_name, "mass": mass, "den": density, "color": color, "atm_pres0": atm_pres0, "atm_scale_h": atm_scale_h, "atm_den": atm_den}
+    body_data = {"name": body_name, "mass": mass, "den": density, "color": color, "atm_pres0": atm_pres0, "atm_scale_h": atm_scale_h, "atm_den0": atm_den0}
     if kepler:
         body_orb_data = {"kepler": kepler, "a": semi_major, "ecc": ecc, "pe_arg": pe_arg, "ma": ma, "ref": parents, "dir": direction}
     else:
@@ -277,7 +277,7 @@ def save_file(path, game_data, conf, body_data, body_orb_data, vessel_data={}, v
     color = body_data["color"]
     atm_pres0 = body_data["atm_pres0"]
     atm_scale_h = body_data["atm_scale_h"]
-    atm_den = body_data["atm_den"]
+    atm_den0 = body_data["atm_den0"]
     
     kepler = False
     try:
@@ -310,10 +310,10 @@ def save_file(path, game_data, conf, body_data, body_orb_data, vessel_data={}, v
         system.set(body_name, "mass", str(body_mass))
         system.set(body_name, "density", str(density[body]))
         system.set(body_name, "color", "[" + str(color[body, 0]) + ", " + str(color[body, 1]) + ", " + str(color[body, 2]) + "]")
-        if all(x != 0 for x in [atm_pres0[body], atm_scale_h[body], atm_den[body]]):
+        if all(x != 0 for x in [atm_pres0[body], atm_scale_h[body], atm_den0[body]]):
             system.set(body_name, "atm_pres0", str(atm_pres0[body]))
             system.set(body_name, "atm_scale_h", str(atm_scale_h[body]))
-            system.set(body_name, "atm_den", str(atm_den[body]))
+            system.set(body_name, "atm_den0", str(atm_den0[body]))
         
         if not kepler:
             system.set(body_name, "position", "[" + str(position[body, 0]) + ", " + str(position[body, 1]) + "]")

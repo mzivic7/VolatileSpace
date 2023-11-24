@@ -72,8 +72,8 @@ class Bg_Stars():
         self.star_field = np.empty((0, 5), dtype=object)   # [x, y, radius, speed, color]
         self.clusters = np.empty((0, 4), dtype=object)   # [cx, cy, vel, [sx, sy, rad, col]]
         self.res = [0, 0]
-        
-        
+
+    
     def reload_settings(self):
         """Reload all settings, should be run every time settings are applied"""
         self.antial = leval(fileops.load_settings("background", "stars_antialiasing"))
@@ -95,14 +95,14 @@ class Bg_Stars():
         self.zoom_max = float(fileops.load_settings("background", "stars_zoom_max"))
         self.zoom_sim_mult = float(fileops.load_settings("background", "zoom_mult"))   # simulation zoom multiplier to get bg_zoom
         graphics.reload_settings()
-        
+
         if self.opacity > 1:
             self.opacity = 1   # limit opacity from 0 to 1
         if self.opacity < 0:
             self.opacity = 0
-    
-    
-    
+
+
+
     ###### --Init after pygame-- ######
     def set_screen(self):
         """Load pygame-related variables, this should be run after pygame has initialised or resolution has changed"""
@@ -110,7 +110,7 @@ class Bg_Stars():
         self.clusters = np.empty((0, 4), dtype=object)   # [cx, cy, vel, [sx, sy, rad, col]]
         self.res = pygame.display.get_surface().get_size()
         graphics.set_screen()
-        
+
         # generate initial star filed
         for _ in range(self.num):
             star_x = np.random.randint(0, self.res[0]+self.extra*2)-self.extra
@@ -121,7 +121,7 @@ class Bg_Stars():
                 speed = np.sqrt(speed)  # decrease speed for few fast and large stars
             color = random_star_color(radius, speed, self.opacity)
             self.star_field = np.vstack((self.star_field, np.array([star_x, star_y, radius, speed, color], dtype=object)))
-        
+
         # generate initial clusters
         for _ in range(self.cluster_num):
             cluster_x = np.random.randint(-self.extra, self.res[0]+self.extra)
@@ -130,9 +130,9 @@ class Bg_Stars():
             # stars in cluster:
             stars = random_cluster_stars(self.cluster_stars, self.size_mult, cluster_speed, self.radius_prob, self.opacity)
             self.clusters = np.vstack((self.clusters, np.array([cluster_x, cluster_y, cluster_speed, stars], dtype=object)))
-    
-    
-    
+
+
+
     ###### --Draw background stars-- ######
     def draw_bg(self, screen, speed_mult, direction, zoom_in):
         """Draw stars and clusters on screen with movement in direction, and zoom effect"""
@@ -146,12 +146,12 @@ class Bg_Stars():
         stars_zoom_pos = np.column_stack((self.star_field[:, 0]*zoom + zoom_off[0], self.star_field[:, 1]*zoom + zoom_off[1]))   # star position with zoom
         for num, star in enumerate(self.star_field):
             star_zoom = stars_zoom_pos[num]
-            
+
             if self.new_color and change:
                 star[4] = random_star_color(star[2], star[3])
             if star_zoom[0] >= -1 and star_zoom[1] >= -1 and star_zoom[0] <= self.res[0]+1 and star_zoom[1] <= self.res[1]+1:   # if star is on screen
                 graphics.draw_circle_fill(screen, star[4], star_zoom, star[2], self.antial)   # screen, color, pos, radius
-        
+
         if self.cluster_enable is True:
             self.clusters[:, 0] -= self.clusters[:, 2] * speed_mult * np.cos(direction) * self.custom_speed  # move cluster
             self.clusters[:, 1] += self.clusters[:, 2] * speed_mult * np.sin(direction) * self.custom_speed

@@ -2,19 +2,28 @@
 
 editor: prograde/retrograde, radial/antiradial with W/A/S/D
 editor: relative inserting position and velocity
-tab when typing value switch to next
+bg_stars: relative stars movement to parent
+global: tab when typing value switch to next
+editor/game: zoom should affect bg_stars speed less
 
-v0.5.1 - game-vessel: rotation, collisions
+v0.5.1 - game-vessel
 parts config
 planets rotation
 vessel rotation with A/D
 vessels stop rotating in regular warp
+
+v0.5.2 - game-vessel
 velocity slider
 add velocity in facing direction
+entering/leaving coi
 check pixel collisions
+
+v0.5.3 - game-vessel
+calculate radius around vessel from vessel size and scale
+switch warp if vessel will be inside that radius
 documentation
 
-v0.5.2 - game-gui
+v0.5.4 - game-gui
 Orbit
 Surface
 Vessel
@@ -24,24 +33,24 @@ Thermal - placeholder
 Selected body
 Selected body orbit
 
-v0.5.3 - game-vessel: advanced orbit
-leave/enter orbit and landing point
-mouseover menu for: ap/pe, leave/enter
-click menu for point, ap/pe leave/enter
+v0.5.5 - game-gui
 time-to point
-distance to center
-dont draw some parts of orbit
+for points: ap/pe, leave/enter, impact
+mouseover - show data and warp button
+click - toggle show data
 documentation
 
-v0.5.4 - game-vessel: warp to point
+v0.5.6 - game-vessel
 warp to point
 warp to next orbit
 
-v0.5.5 - game-vessel: second orbit
+v0.5.7 - game-vessel
+enter orbit point prediction and drawig
+don't draw ap and pe outside orbit line
 draw second orbit
 documentation
 
-v0.5.6 - editor: rebuild physics
+v0.5.8 - editor
 rebuild editor physics
 documentation
 
@@ -55,8 +64,7 @@ shadows
 pressure
 gas planets
 body classification
-??? star age - composition: H - He
-??? star physics tick warp system
+star H-He ratio
 black holes
 support non-main-sequence stars
 simulation sizes adjustment
@@ -66,19 +74,19 @@ classification
 
 ### GAME ###
 advanced game GUI
-vessel close
+vessel close view
 engine
 maneuvers
 fuel
 icons, modules, markers
-advanced rotation
-advanced collisions
+advanced collisions (rotation, destruction threshold)
 SAS
 deltaV
 vessel parts and editor
 docking
 launch / staging
 aerodynamics
+planet surface
 heat
 communications
 electrical power

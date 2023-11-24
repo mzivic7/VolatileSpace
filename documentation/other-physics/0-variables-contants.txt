@@ -11,4 +11,4 @@ R = radius in m
 g = surface gravity
 rho = gas density
 vol = volume
-
+P = position vector

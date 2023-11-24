@@ -41,8 +41,8 @@ class Keybinding():
         self.list_limit = self.keyb_y_ui - self.keyb_y - self.space - 12
         self.list_size = len(self.keyb_dict) * self.btn_h + len(self.keyb_dict) * self.space
         self.keybindings_for_screen()
-    
-    
+
+
     def keybindings_for_screen(self):
         """Generate keybindings list for displaying on screen"""
         keyb_list = list(self.keyb_dict.keys())
@@ -57,9 +57,8 @@ class Keybinding():
         for value in val_list:
             value_text = pygame.key.name(int(value)).replace("left ", "L ").replace("right", "R ").replace(" lock", "").title()
             self.val_list_screen.append(value_text)
-        
 
-    
+
     def input_keys(self, e):
         """Keyboard input"""
         if e.type == pygame.KEYDOWN:
@@ -73,14 +72,14 @@ class Keybinding():
                     self.keyb_dict[key] = e.key
                     self.keybindings_for_screen()
                     self.selected_item = None
-    
-    
+
+
     def input_mouse(self, e):
         """Mouse input"""
         self.mouse = list(pygame.mouse.get_pos())
         if e.type == pygame.MOUSEBUTTONDOWN and e.button == 1:
             self.click = True
-            
+
             # scroll bar
             scrollable_len = max(0, self.list_size - self.list_limit)
             scrollbar_limit = self.list_limit - 40 + 4
@@ -94,11 +93,11 @@ class Keybinding():
                 self.scrollbar_drag = True
                 self.scrollbar_drag_start = self.mouse[1]
                 self.disable_buttons = True
-        
+
         if e.type == pygame.MOUSEBUTTONUP and e.button == 1:
             if self.click is True:
                 if self.disable_buttons is False:
-                
+
                     # list
                     if self.keyb_y - self.space <= self.mouse[1]-1 <= self.keyb_y + self.list_limit:
                         y_pos = self.keyb_y - self.scroll
@@ -108,7 +107,7 @@ class Keybinding():
                                 if self.keyb_x <= self.mouse[0]-1 <= self.keyb_x + self.btn_w_l and y_pos <= self.mouse[1]-1 <= y_pos + self.btn_h:
                                     self.selected_item = num
                             y_pos += self.btn_h + self.space
-                    
+
                     # ui
                     x_pos = self.keyb_x_ui
                     for num, _ in enumerate(buttons_keyb_ui):
@@ -121,13 +120,13 @@ class Keybinding():
                             elif num == 2:   # load default
                                 fileops.default_keybindings()
                         x_pos += self.btn_w_h + self.space
-                
+
                 if self.scrollbar_drag is True:   # disable scrollbar_drag when release click
                     self.scrollbar_drag = False
                     self.disable_buttons = False
-                
+
                 self.click = False
-        
+
         # moving scrollbar with cursor
         if self.scrollbar_drag is True:
             scrollbar_pos = self.mouse[1] - self.keyb_y
@@ -138,7 +137,7 @@ class Keybinding():
                 self.scroll = 0
             elif self.scroll > max(0, self.list_size - self.list_limit):
                 self.scroll = max(0, self.list_size - self.list_limit)
-        
+
         if e.type == pygame.MOUSEWHEEL:
             if self.scrollbar_drag is False:
                 # scrolling inside list area
@@ -148,18 +147,18 @@ class Keybinding():
                         self.scroll = 0
                     elif self.scroll > max(0, self.list_size - self.list_limit):
                         self.scroll = max(0, self.list_size - self.list_limit)
-        
+
         graphics.update_mouse(self.mouse, self.click, self.disable_buttons)
         return self.run
-    
-    
+
+
     def gui(self, screen):
         """Draw buttons"""
         screen.fill((0, 0, 0))
-        
+
         graphics.buttons_list_2col(screen, self.key_list_screen, self.val_list_screen, (self.keyb_x, self.keyb_y), self.list_limit, self.scroll, self.selected_item)
         graphics.buttons_horizontal(screen, buttons_keyb_ui, (self.keyb_x_ui, self.keyb_y_ui))
-        
+
         if self.selected_item is not None:
             graphics.text(screen, rgb.red, self.fontmd, "Press key you want to bind.", (self.screen_x/2, self.keyb_y_ui-12), True)
 

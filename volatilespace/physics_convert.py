@@ -48,7 +48,7 @@ def to_kepler(mass, orb_data, gc, coi_coef):
     """Converts form newtonian (position, velocity) values to keplerian orbit parameters"""
     pos = orb_data["pos"]
     vel = orb_data["vel"]
-    
+
     coi = np.zeros([len(mass)])
     ref_l = np.zeros([len(mass)], dtype=int)
     semi_major_l = np.zeros([len(mass)])
@@ -56,7 +56,7 @@ def to_kepler(mass, orb_data, gc, coi_coef):
     pe_arg_l = np.zeros([len(mass)])
     ma_l = np.zeros([len(mass)])
     direction_l = np.zeros([len(mass)])
-    
+
     # calculate coi and find parents
     bodies_sorted = np.argsort(mass)[-1::-1]   # get indices for sort bodies by mass
     for body_s in range(len(mass)):
@@ -77,7 +77,7 @@ def to_kepler(mass, orb_data, gc, coi_coef):
             coi[body] = semi_major * (mass[body] / mass[ref])**coi_coef   # calculate its COI and save to index
         else:
             coi[body] = 0   # if orbit is hyperbola or parabola, body has no COI, otherwise it would be infinite
-    
+
     # calculate all other stuff
     for body in range(len(mass)):
         if body:   # skip root
@@ -93,7 +93,7 @@ def to_kepler(mass, orb_data, gc, coi_coef):
             ecc = mag(ecc_v)
             pe_arg = ((3 * np.pi / 2) + math.atan2(-ecc_v[0], ecc_v[1])) % (2*np.pi)
             direction = int(math.copysign(1, momentum[0]))   # if moment is negative, rotation is clockwise (-1)
-            
+
             ta = (pe_arg - (math.atan2(rel_pos[1], rel_pos[0]) - np.pi)) % (2*np.pi)
             if direction == -1:   # clockwise
                 ta = 2*np.pi - ta   # invert Ta to be calculated in opposite direction
@@ -105,13 +105,13 @@ def to_kepler(mass, orb_data, gc, coi_coef):
             else:
                 ea = math.acosh((ecc + math.cos(ta))/(1 + (ecc * math.cos(ta))))
                 ma = ecc * math.sinh(ea) - ea
-            
+
             semi_major_l[body] = semi_major
             ecc_l[body] = ecc
             pe_arg_l[body] = pe_arg
             ma_l[body] = ma
             direction_l[body] = direction
-    
+
     return {"kepler": True, "a": semi_major_l, "ecc": ecc_l, "pe_arg": pe_arg_l, "ma": ma_l, "ref": ref_l, "dir": direction_l}
 
 
@@ -123,17 +123,17 @@ def to_newton(mass, orb_data, gc, coi_coef):
     ma_l = orb_data["ma"]
     ref_l = orb_data["ref"]
     direction_l = orb_data["dir"]
-    
+
     coi = np.zeros([len(mass)])
     pos = np.zeros((len(mass), 2), float)
     vel = np.zeros((len(mass), 2), float)
-    
+
     # find coi sizes so bodies can be calculated in that order
     for body, _ in enumerate(mass):
         a = semi_major_l[body]
         ref = ref_l[body]
         coi[body] = a * (mass[body] / mass[ref])**(coi_coef)
-    
+
     # calculate positions from largest coi to smallest
     # because parent position is needed to calculate correct position
     bodies_sorted = np.argsort(coi)[-1::-1]
@@ -147,26 +147,26 @@ def to_newton(mass, orb_data, gc, coi_coef):
             dr = direction_l[body]
             ref = ref_l[body]
             u = gc * mass[ref]
-            
+
             if dr > 0:
                 ma = -ma
-            
+
             if ecc == 0:   # to avoid division by zero
                 ecc = 0.00001
             if ecc >= 1:   # limit to only ellipses
                 ecc = 0.95
-            
+
             b = a * math.sqrt(1 - ecc**2)
             f = math.sqrt(a**2 - b**2)
             f_rot = [f * math.cos(pe_arg), f * math.sin(pe_arg)]   # focus rotated by pe_arg
             ea = newton_root(keplers_eq, keplers_eq_derivative, 0.0, {'Ma': ma, 'e': ecc})
-            
+
             # calculate position vector
             pr_x = a * math.cos(ea) - f
             pr_y = b * math.sin(ea)
             pr = np.array([pr_x * math.cos(pe_arg - np.pi) - pr_y * math.sin(pe_arg - np.pi),
                            pr_x * math.sin(pe_arg - np.pi) + pr_y * math.cos(pe_arg - np.pi)])   # rotate point by argument of Pe
-            
+
             p_x, p_y = pr[0] - f * np.cos(pe_arg), pr[1] - f * np.sin(pe_arg)   # point on ellipse relative to its center
             # implicit derivative of rotated ellipse
             vr_angle = np.arctan(
@@ -174,7 +174,7 @@ def to_newton(mass, orb_data, gc, coi_coef):
                   b**2 * p_y * math.sin(pe_arg) * math.cos(pe_arg) - a**2 * p_y * math.sin(pe_arg) * math.cos(pe_arg)) /
                  (a**2 * p_y * math.cos(pe_arg)**2 + b**2 * p_y * math.sin(pe_arg)**2 +
                   b**2 * p_x * math.sin(pe_arg) * math.cos(pe_arg) - a**2 * p_x * math.sin(pe_arg) * math.cos(pe_arg)))
-            
+
             # calcualte angle of velocity vector
             # calculate domain of function and subtract some small value (10**-6) so y can be calculated
             x_max = math.sqrt(a**2 * math.cos(2*pe_arg) + a**2 - b**2 * math.cos(2*pe_arg) + b**2)/math.sqrt(2) - 10**-6
@@ -185,15 +185,15 @@ def to_newton(mass, orb_data, gc, coi_coef):
             if ((x_max2 - x_max1) * (pr[1] - y_max1)) - ((y_max2 - y_max1) * (pr[0] - x_max1)) < 0:   # when in positive part of curve:
                 vr_angle += np.pi   # add pi to angle, put it in range (-1/2pi, 3/2pi) range
             vr_angle = vr_angle % (2*np.pi)   # put it in (0, 2pi) range
-            
+
             prm = mag(pr)
             vrm = dr * math.sqrt((2 * a * u - prm * u) / (a * prm))   # velocity vector magnitude from semi-major axis equation
-            
+
             vr_x = vrm * math.cos(vr_angle)
             vr_y = vrm * math.sin(vr_angle)
             vr = np.array([vr_x, vr_y])
-            
+
             pos[body] = pos[ref] + pr
             vel[body] = vel[ref] + vr
-    
+
     return {"kepler": False, "pos": pos, "vel": vel}

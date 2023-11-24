@@ -145,7 +145,7 @@ class Physics():
         self.types = np.array([])
         self.atm_pres0 = np.array([])
         self.atm_scale_h = np.array([])
-        self.atm_den = np.array([])
+        self.atm_den0 = np.array([])
         # body orbit main
         self.a = np.array([])
         self.ecc = np.array([])
@@ -194,7 +194,7 @@ class Physics():
         self.base_color = body_data["color"]
         self.atm_pres0 = body_data["atm_pres0"]
         self.atm_scale_h = body_data["atm_scale_h"]
-        self.atm_den = body_data["atm_den"]
+        self.atm_den0 = body_data["atm_den0"]
         # body orbit
         self.a = body_orb_data["a"]
         self.ecc = body_orb_data["ecc"]
@@ -202,12 +202,11 @@ class Physics():
         self.ma = body_orb_data["ma"]
         self.ref = body_orb_data["ref"]
         self.dr = body_orb_data["dir"]
-        self.main()
         self.pos = np.zeros([len(self.mass), 2])   # position will be updated later
         self.ea = np.zeros(len(self.mass))
     
     
-    def main(self):
+    def initial(self, warp):
         """Do all body related physics. This should be done only if something changed on body or it's orbit."""
         
         # BODY DATA #
@@ -221,10 +220,9 @@ class Physics():
         atm_h = np.zeros(len(self.mass))
         for body, _ in enumerate(self.mass):
             if self.atm_pres0[body]:
-                atm_h[body] = - self.atm_scale_h[body] * math.log(0.001 / self.atm_den[body] / self.atm_pres0[body]) * self.rad_mult
+                atm_h[body] = - self.atm_scale_h[body] * math.log(0.001 / self.atm_den0[body]) * self.rad_mult
             else:
                 atm_h[body] = 0
-        
         
         # CLASSIFICATION #
         self.types = np.zeros(len(self.mass))  # it is moon
@@ -243,6 +241,9 @@ class Physics():
                      "size": size,
                      "rad_sc": rad_sc,
                      "surf_grav": surf_grav,
+                     "atm_pres0": self.atm_pres0,
+                     "atm_scale_h": self.atm_scale_h,
+                     "atm_den0": self.atm_den0,
                      "atm_h": atm_h}
         
         # ORBIT DATA #
@@ -260,7 +261,12 @@ class Physics():
                     "dir": self.dr,
                     "per": self.period}
         
-        return body_data, body_orb
+        # MOVE #
+        self.move(warp)
+        self.curve()
+        curves = self.curve_move()
+        
+        return body_data, body_orb, self.pos, self.ma, curves
     
     
     def curve(self):
@@ -294,7 +300,7 @@ class Physics():
         self.ma = np.where(self.ma < 0, self.ma + 2*np.pi, self.ma)
         bodies_sorted = np.argsort(self.coi)[-1::-1]
         for body in bodies_sorted:
-            ea = newton_root(keplers_eq, keplers_eq_derivative, 0.0, {'Ma': self.ma[body], 'e': self.ecc[body]})
+            ea = newton_root(keplers_eq, keplers_eq_derivative, self.ea[body], {'Ma': self.ma[body], 'e': self.ecc[body]})
             pea = self.pea[body]
             ecc = self.ecc[body]
             a = self.a[body]

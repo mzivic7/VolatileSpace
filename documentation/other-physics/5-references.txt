@@ -1,0 +1,6 @@
+### references ###
+[1] https://en.wikipedia.org/wiki/Surface_gravity
+[2] https://en.wikipedia.org/wiki/Density_of_air#Variation_with_altitude
+[3] https://en.wikipedia.org/wiki/Tangent_half-angle_substitution#The_substitution
+[4] https://en.wikipedia.org/wiki/Ellipse#Parametric_representation
+[5] https://en.wikipedia.org/wiki/Quartic_equation

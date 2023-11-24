@@ -68,7 +68,7 @@ new_body_moon = {"name": "New moon",
                  "color": [255, 255, 255],
                  "atm_pres0": 0,
                  "atm_scale_h": 0,
-                 "atm_den": 0
+                 "atm_den0": 0
                  }
 
 new_body_planet = {"name": "New planet",

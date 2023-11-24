@@ -9,7 +9,7 @@ Space              Pause
 W/A/S/D            Add velocity, in that direction, to body
 ./,                Time warp increase/decrease
 /                  Stop time warp
-H                  Focus on Home (0, 0) coordinates 
+H                  Focus on Home (0, 0) coordinates
 F                  Cycle follow modes (disabled, vessel, orbited body)
 G                  Cycle grid modes (disabled, global, vessel, orbited body)
 Escape             Pause menu

@@ -82,7 +82,7 @@ def main():
                     game.reload_settings()
             if e.type == pygame.QUIT:
                 run = False
-    
+
     pygame.quit()
 
 
