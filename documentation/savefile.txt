@@ -3,7 +3,7 @@ Savefiles uses ini format.
 
 It is divided in sections by this rule:
 First section is [game_data], used for storing game related variables
-Second section is called [config], it is used for physics related variables. 
+Second section is called [config], it is used for physics related variables.
 This section is followed with sections with object names, each section for one object.
 Objects can be body and vessel.
 Editor loads and uses only body objects but can edit maps without loosing vessels.
@@ -34,7 +34,7 @@ obj = body   # this sets object type to be body
 mass = 100000   # body mass
 density = 1.0   # body density
 color = [70, 200, 200]   # body base color
-atm_pres0 = 1.0   # atmosphere pressure at surface 
+atm_pres0 = 1.0   # atmosphere pressure at surface
 atm_scale_h = 0.01   # atmosphere scale height
 atm_den = 1.2   # atmosphere pressure to density coefficient
 
@@ -60,3 +60,8 @@ lpe = 1.9   # longitude of periapsis (radians)
 mna = 2.8   # mean anomaly (radians)
 ref = 5   # reference body
 dir = 1   # direction
+
+
+# NOTE:
+# if orbit is hyperbolic, i.e. ecc > 1
+# semi major axis (sma) will and must be negative

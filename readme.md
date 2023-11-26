@@ -21,7 +21,7 @@ Written in Python with PyGame.
 
 ### About numba
 build.py script by default builds with numba, to build without numba use: `python build.py nonumba`  
-Or just uninstall numba: `pip uninstall numba`  
+Or just uninstall numba: `pipenv uninstall numba`  
 This also disables 'Numba' and 'FastMath' options in settings.  
 
 ## How it works?

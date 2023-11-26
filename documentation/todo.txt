@@ -2,13 +2,10 @@
 
 editor: prograde/retrograde, radial/antiradial with W/A/S/D
 editor: relative inserting position and velocity
-bg_stars: relative stars movement to parent
 global: tab when typing value switch to next
-editor/game: zoom should affect bg_stars speed less
 
 v0.5.1 - game-vessel
 parts config
-planets rotation
 vessel rotation with A/D
 vessels stop rotating in regular warp
 
@@ -45,7 +42,7 @@ warp to point
 warp to next orbit
 
 v0.5.7 - game-vessel
-enter orbit point prediction and drawig
+enter-orbit-point prediction and drawing
 don't draw ap and pe outside orbit line
 draw second orbit
 documentation
@@ -58,6 +55,7 @@ documentation
 
 
 ### BODY PHYSICS ###
+planets rotation
 calculate surface temp
 calculate luminosity
 shadows

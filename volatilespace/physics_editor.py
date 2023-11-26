@@ -415,14 +415,14 @@ class Physics():
         for body in bodies_sorted[1:]:   # for sorted bodies by mass except root
             self.vel[body] = self.rel_vel[body] + self.vel[self.parents[body]]   # absolute vel
         self.pos += self.vel
-    
-    
+
+
     def kepler_basic(self):
         """Basic keplerian orbit (only used in drawing orbit line)."""
         values = list(map(kepler_basic_one, list(range(len(self.mass))), self.parents, repeat(self.mass), repeat(self.pos), repeat(self.vel), repeat(self.gc), repeat(self.coi_coef)))
         self.focus, self.ecc_v, self.semi_major, self.semi_minor, self.periapsis_arg, self.coi = list(map(np.array, zip(*values)))
 
-    
+
     def kepler_advanced(self, selected):
         """Advanced keplerian orbit parameters, only for selected body."""
         parent = self.parents[selected]
@@ -462,7 +462,7 @@ class Physics():
                     ecc_anomaly = math.acosh((ecc + math.cos(true_anomaly))/(1 + (ecc * math.cos(true_anomaly))))   # eccentric from true anomaly
                     mean_anomaly = ecc * math.sinh(ecc_anomaly) - ecc_anomaly
                     pe_d = semi_major * (1 - ecc)
-                    pe_t = math.sqrt((-semi_major)**3 / u) * mean_anomaly
+                    pe_t = math.sqrt((abs(semi_major))**3 / u) * mean_anomaly
                 else:   # parabola
                     ecc_anomaly = math.tan(true_anomaly/2)
                     mean_anomaly = ecc_anomaly + (ecc_anomaly**3)/3

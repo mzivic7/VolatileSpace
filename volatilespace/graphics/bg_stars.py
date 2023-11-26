@@ -73,9 +73,9 @@ class Bg_Stars():
         self.clusters = np.empty((0, 4), dtype=object)   # [cx, cy, vel, [sx, sy, rad, col]]
         self.res = [0, 0]
 
-    
+
     def reload_settings(self):
-        """Reload all settings, should be run every time settings are applied"""
+        """Reload all settings, should be run every time settings are changed"""
         self.antial = leval(fileops.load_settings("background", "stars_antialiasing"))
         self.num = int(fileops.load_settings("background", "stars_num"))   # how many stars on extended screen
         self.new_color = leval(fileops.load_settings("background", "stars_new_color"))

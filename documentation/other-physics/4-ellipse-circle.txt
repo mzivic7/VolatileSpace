@@ -65,5 +65,5 @@ y = (x_n * math.sin(omega) + y_n * math.cos(omega)) + P_y
 
 References:
 [3] https://en.wikipedia.org/wiki/Tangent_half-angle_substitution#The_substitution
-[4] https://en.wikipedia.org/wiki/Ellipse#Parametric_representation
 [5] https://en.wikipedia.org/wiki/Quartic_equation
+[6] https://en.wikipedia.org/wiki/Hyperbola#Parametric_equations

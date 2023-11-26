@@ -423,7 +423,7 @@ class Game():
         body_orb_data = {"a": self.a, "ecc": self.ecc, "pe_arg": self.pea, "ma": self.ma, "ref": self.ref, "dir": self.dr}
         vessel_data = {"name": self.v_names}
         vessel_orb_data = {"a": self.v_a, "ecc": self.v_ecc, "pe_arg": self.v_pea, "ma": self.v_ma, "ref": self.v_ref, "dir": self.v_dr}
-        game_data = {"name": self.sim_name, "date": date, "time": self.sim_time, "vessel": self.active_vessel}
+        game_data = {"name": name, "date": date, "time": self.sim_time, "vessel": self.active_vessel}
         fileops.save_file(path, game_data, self.sim_conf,
                           body_data, body_orb_data,
                           vessel_data, vessel_orb_data)
@@ -1077,9 +1077,14 @@ class Game():
 
         # background stars:
         if self.bg_stars_enable:
-            offset_diff = self.offset_old - np.array([self.offset_x, self.offset_y])   # movement vector in one iterration
+            if self.active_vessel is not None:
+                parent_pos = self.pos[self.v_ref[self.active_vessel]]
+            else:
+                parent_pos = np.zeros(2)
+            # movement vector in one iterration relative to vessel parent
+            offset_diff = self.offset_old - (np.array([self.offset_x, self.offset_y]) + parent_pos)
             offset_diff = offset_diff * min(self.zoom, 3)   # add zoom to speed calculation and limit zoom
-            self.offset_old = np.array([self.offset_x, self.offset_y])
+            self.offset_old = np.array([self.offset_x, self.offset_y]) + parent_pos
             speed = math.sqrt(offset_diff.dot(offset_diff))/3   # speed as movement vector magnitude
             while speed > 300:   # limits speed when view is jumping (focus home, distant body...)
                 speed = math.sqrt(speed)
@@ -1199,8 +1204,8 @@ class Game():
                 point_light_2 = int(self.v_curv_light[vessel, 1])
                 extra_light = [self.screen_coords(self.v_curv_light[vessel, 2:4])]
                 if point_light_1 <= point_light_2+2:   # point_1 to point_2
-                    # leave orbit has 2 types (2 and 3), first is (0, pi) and second (pi, 2pi) range
-                    if int(self.v_curv_light[vessel, 4]) in (1, 2):   # (0, pi)
+                    # leave orbit has 2 types (3 and 4), first is (0, pi) and second (pi, 2pi) range
+                    if int(self.v_curv_light[vessel, 4]) in (1, 3, 4, 6):   # (0, pi)
                         if dr < 0 and int(self.v_curv_light[vessel, 4]) == 1:   # special case
                             curve_light = np.concatenate((extra_light, curve[point_light_1 : point_light_2], point_vessel))
                         else:
@@ -1208,7 +1213,7 @@ class Game():
                     else:   # (pi, 2pi)
                         curve_light = np.concatenate((extra_light, curve[point_light_1 : point_light_2], point_vessel))
                 else:   # point_1 to end U start to point_2
-                    if int(self.v_curv_light[vessel, 4]) in (1, 2):
+                    if int(self.v_curv_light[vessel, 4]) in (1, 3, 4, 6):
                         if dr < 0 and int(self.v_curv_light[vessel, 4]) == 1:
                             curve_light = np.concatenate((point_vessel, curve[point_light_1 :], curve[: point_light_2], extra_light))
                         else:
@@ -1220,7 +1225,7 @@ class Game():
                 point_dark_2 = int(self.v_curv_dark[vessel, 1])
                 extra_dark = [self.screen_coords(self.v_curv_dark[vessel, 2:4])]
                 if point_dark_1 <= point_dark_2+2:   # point_1 to point_2
-                    if int(self.v_curv_light[vessel, 4]) in (1, 3):
+                    if int(self.v_curv_light[vessel, 4]) in (1, 2, 6, 7):
                         if dr < 0 and int(self.v_curv_light[vessel, 4]) == 1:
                             curve_dark = np.concatenate((point_vessel, curve[point_dark_1 : point_dark_2], extra_dark))
                         else:
@@ -1228,7 +1233,7 @@ class Game():
                     else:
                         curve_dark = np.concatenate((point_vessel, curve[point_dark_1 : point_dark_2], extra_dark))
                 else:   # point_1 to end U start to point_2
-                    if int(self.v_curv_light[vessel, 4]) in (1, 3):
+                    if int(self.v_curv_light[vessel, 4]) in (1, 2, 6, 7):
                         if dr < 0 and int(self.v_curv_light[vessel, 4]) == 1:
                             curve_dark = np.concatenate((extra_dark, curve[point_dark_1 :], curve[: point_dark_2], point_vessel))
                         else:
@@ -1243,14 +1248,14 @@ class Game():
             # vessels
             diff = np.amax(curve, 0) - np.amin(curve, 0)
             if diff[0]+diff[1] > 32:   # skip vessels with too small orbits
-                vessel_pos = self.v_pos[vessel]
+                vessel_pos = self.screen_coords(self.v_pos[vessel])
 
-                # selected vessel
+                # active vessel
                 if self.active_vessel is not None and self.active_vessel == vessel:
                     graphics.draw_lines(screen, rgb.cyan, curve_light, 2)
                     if dark:
-                        graphics.draw_lines(screen, rgb.cyan_1, curve_dark, 2)
-                    graphics.draw_img(screen, self.vessel_img, self.screen_coords(vessel_pos), center=True)
+                       graphics.draw_lines(screen, rgb.cyan_1, curve_dark, 2)
+                    graphics.draw_img(screen, self.vessel_img, vessel_pos, center=True)
 
                     ref = self.v_ref[vessel]
                     ta, pe, pe_t, ap, ap_t, distance, speed_orb, speed_hor, speed_vert = physics_vessel.selected(vessel)
@@ -1294,21 +1299,23 @@ class Game():
                             # characteristic points
                             if not np.any(np.isnan(self.v_curv_light[vessel, :1])):
                                 intersect = extra_light[0]
-                                if int(self.v_curv_light[vessel, 4]) == 1:   # impact
+                                if int(self.v_curv_light[vessel, 4]) in (1, 2, 3):   # impact
                                     if self.size[ref] * self.zoom >= 5:
                                         graphics.draw_img(screen, self.impact_img, intersect, center=True)
-                                elif int(self.v_curv_light[vessel, 4]) in [2, 3]:   # leave COI
+                                elif int(self.v_curv_light[vessel, 4]) in (4, 5, 6, 7):   # leave COI
                                     if self.coi[ref] * self.zoom >= 10:
                                         graphics.draw_img(screen, self.orb_leave_img, intersect, center=True)
-                                elif int(self.v_curv_light[vessel, 4]) == 4:
+                                elif int(self.v_curv_light[vessel, 4]) in (8, 9, 10):
                                     if self.coi[ref] * self.zoom >= 10:
                                         graphics.draw_img(screen, self.orb_enter_img, intersect, center=True)
 
                 # target vessel
                 elif self.target is not None and self.target_type == 1 and self.target == vessel:
-                    graphics.draw_lines(screen, rgb.gray, curve, 2)
-                    graphics.draw_img(screen, self.vessel_img, self.screen_coords(vessel_pos), center=True)
-                    graphics.draw_img(screen, self.target_img, self.screen_coords(vessel_pos), center=True)
+                    graphics.draw_lines(screen, rgb.gray, curve_light, 2)
+                    if dark:
+                        graphics.draw_lines(screen, rgb.gray1, curve_dark, 2)
+                    graphics.draw_img(screen, self.vessel_img, vessel_pos, center=True)
+                    graphics.draw_img(screen, self.target_img, vessel_pos, center=True)
                     ta, pe, pe_t, ap, ap_t, distance, speed_orb, speed_hor, speed_vert = physics_vessel.selected(vessel)
                     if self.right_menu == 2:
                         self.orbit_data_menu = [self.v_pe_d[vessel],
@@ -1329,7 +1336,7 @@ class Game():
                     graphics.draw_lines(screen, rgb.gray1, curve_light, 2)
                     if dark:
                         graphics.draw_lines(screen, rgb.gray2, curve_dark, 2)
-                    graphics.draw_img(screen, self.vessel_img, self.screen_coords(self.v_pos[vessel]), center=True)
+                    graphics.draw_img(screen, self.vessel_img, vessel_pos, center=True)
 
 
 
@@ -1385,7 +1392,7 @@ class Game():
             bg_rect = [sum(i) for i in zip(border_rect, [-10, -10, 20, 20])]
             pygame.draw.rect(screen, rgb.black, bg_rect)
             pygame.draw.rect(screen, rgb.white, border_rect, 1)
-            graphics.text(screen, rgb.white, self.fontbt, "New Game", (self.screen_x/2,  self.ask_y-20-self.btn_h), True)
+            graphics.text(screen, rgb.white, self.fontbt, "New Save", (self.screen_x/2,  self.ask_y-20-self.btn_h), True)
             textinput.graphics(screen, clock, self.fontbt, (self.ask_x, self.ask_y-self.btn_h), (self.btn_w_h*2+self.space, self.btn_h))
             graphics.buttons_horizontal(screen, buttons_new_game, (self.ask_x, self.ask_y+self.space), safe=True)
 

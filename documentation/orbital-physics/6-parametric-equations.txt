@@ -2,27 +2,26 @@
 - pi < t < pi   # parameter
 
 # circle   # e = 0
-x = radius * cos(t) 
-y = radius * sin(t) 
+x = radius * cos(t)
+y = radius * sin(t)
 
 # ellipse   # 0 < e < 1
-x = semi_major * cos(t) 
-y = semi_minor * sin(t) 
+x = a * cos(t)
+y = b * sin(t)
 
 # parabola   # e = 1
 x = at^2 - a   # -a is added to align parabola Pe with relative (0, 0) coordinates
 y = 2at
 
 # hyperbola   # e > 1
-x = +- semi_major * cosh(t) 
-y =    semi_minor * sinh(t)
-# x can be +- since hyperbola has 2 sides. In simulation, negative side is used
+x = +- a * cosh(t)
+y =    b * sinh(t)
+# x can be +- since hyperbola has 2 sides. Here - is used
 
 # rotation matrix
 rot = [[cos(omega), -sin(omega)],
        [sin(omega),  cos(omega)]]   # rotation matrix
 
 [x_r, y_r] = rot dot [x, y]   # rotation
-x_t = x_r + P1_x + focus_x + P1_x   # translate it to body position + focus 
+x_t = x_r + P1_x + focus_x + P1_x   # translate it to body position + focus
 y_t = y_r + P1_y + focus_y + P1_y
-

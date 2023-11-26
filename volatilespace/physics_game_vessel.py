@@ -16,7 +16,7 @@ from volatilespace import defaults
 def newton_root(function, derivative, root_guess, variables={}):
     """Newton root solver"""
     root = root_guess   # take guessed root input
-    for _ in range(50):
+    for _ in range(100):
         delta_x = function(root, variables) / derivative(root, variables)   # guess correction
         root -= delta_x   # better guess
         if abs(delta_x) < 1e-10:   # if correction is small enough:
@@ -32,6 +32,16 @@ def keplers_eq(ea, variables):
 def keplers_eq_derivative(ea, variables):
     """Derivative of keplers equation"""
     return 1.0 - variables['e'] * np.cos(ea)
+
+
+def keplers_eq_hyp(ea, variables):
+    """Keplers equation for hyperbola"""
+    return ea - variables['e'] * np.sinh(ea) - variables['Ma']
+
+
+def keplers_eq_hyp_derivative(ea, variables):
+    """Derivative of keplers equation for hyperbola"""
+    return 1.0 - variables['e'] * np.cosh(ea)
 
 
 def get_angle(a, b, c):
@@ -63,17 +73,17 @@ def cross_2d(v1, v2):
 
 
 def loc2glob(a, b, f, ecc, pea, pos, ea):
-    if ecc < 1:
-        if ea:
-            x_n = a * math.cos(ea) - f
-            y_n = b * math.sin(ea)
-            x = (x_n * math.cos(pea - np.pi) - y_n * math.sin(pea - np.pi)) + pos[0]
-            y = (x_n * math.sin(pea - np.pi) + y_n * math.cos(pea - np.pi)) + pos[1]
-            return [x, y]
+    if ea:
+        if ecc < 1:
+            x_n = a * np.cos(ea) - f
+            y_n = b * np.sin(ea)
         else:
-            return [None, None]
+            x_n = a * np.cosh(ea) - f
+            y_n = b * np.sinh(ea)
+        x = (x_n * np.cos(pea - np.pi) - y_n * np.sin(pea - np.pi)) + pos[0]
+        y = (x_n * np.sin(pea - np.pi) + y_n * np.cos(pea - np.pi)) + pos[1]
+        return [x, y]
     else:
-        # ### TODO ###
         return [None, None]
 
 
@@ -87,32 +97,36 @@ def orbit_intersect(a, b, ecc, c_x, c_y, r):
         a_2 = -2*a**2 + 4*b**2 + 2*c_x**2 + 2*c_y**2 - 2*r**2
         a_3 = -4*b*c_y
         a_4 = a**2 + 2*a*c_x + c_x**2 + c_y**2 - r**2
-    else:    # hyperbola
-        a_0 = -a**2 + b**2
-        a_1 = 4*a*c_x - 4*b*c_y
-        a_2 = 2 * (-a + 2*c_x**2 - b + 2*c_y**2 - 2*r**2)
-        a_3 = 4*c_y - 4*c_x
-        a_4 = 2
+        # quartic equation roots
+        roots = np.polynomial.polynomial.polyroots([a_0, a_1, a_2, a_3, a_4])
+        # take only non-complex roots
+        real_roots = np.real(roots[np.isreal(roots)])
 
-    # quartic equation roots
-    roots = np.polynomial.polynomial.polyroots([a_0, a_1, a_2, a_3, a_4])
-    # take only non-complex roots
-    real_roots = np.real(roots[np.isreal(roots)])
-
-    if any(real_roots):
-        # eccentric anomaly
-        if ecc < 1:   # ellipse
+        if any(real_roots):
             ea = np.arctan2(2*real_roots, 1.0 - real_roots**2)
             if a_4 <= 0:
                 ea += np.pi
-
-        else:   # hyperbola
-            ea = np.arctan2(2*real_roots, 1.0 - real_roots**2)   # TODO
-            if a_4 <= 0:
-                ea += np.pi
-        return ea % (2*np.pi)
-    else:
-        return np.array([np.NaN])
+            return ea % (2*np.pi)
+        else:
+            return np.array([np.NaN])
+    else:   # hyperbola
+        a_0 = -a**2 * (c_y**2 + b**2) + b**2 * (c_x + r)**2
+        a_1 = -4 * a**2 * r * c_y
+        a_2 = -2 * (a**2 * (c_y**2 + b**2 + 2*r**2) + b**2 * (r**2 - c_x**2))
+        a_3 = -4 * a**2 * r * c_y
+        a_4 = -a**2 * (c_y**2 + b**2) + b**2 * (c_x - r)**2
+        roots = np.polynomial.polynomial.polyroots([a_0, a_1, a_2, a_3, a_4])
+        real_roots = np.real(roots[np.isreal(roots)])
+        if any(real_roots):
+            x = c_x + r * (1-real_roots**2) / (1 + real_roots**2)   # point coordinates
+            y = c_y + r * 2 * real_roots / (1 + real_roots**2)
+            ta = np.arctan2(y, x - (a * ecc))   # ta from coordinates
+            ea = np.arccosh((ecc + np.cos(ta))/(1 + (ecc * np.cos(ta))))   # ea from ta
+            # ea is in (-pi, pi) range because curve calculations got messed up if it is not
+            ea = np.where(real_roots < 0, -ea, ea)
+            return ea
+        else:
+            return np.array([np.NaN])
 
 
 def next_point(ea_vessel, ea_points, direction):
@@ -140,6 +154,7 @@ def calc_orb_one(vessel, ref, body_mass, gc, a, ecc):
         if ecc < 1:   # if orbit is ellipse
             period = 2 * np.pi * math.sqrt(a**3 / u)
             ap_d = a * (1 + ecc)
+            n = 2*np.pi / period
         else:
             if ecc > 1:   # hyperbola
                 pe_d = a * (1 - ecc)
@@ -148,12 +163,13 @@ def calc_orb_one(vessel, ref, body_mass, gc, a, ecc):
             period = 0   # period is undefined
             # there is no apoapsis
             ap_d = 0
+            n = math.sqrt(u / abs(a)**3)
     else:   # circle
         period = (2 * np.pi * math.sqrt(a**3 / u)) / 10
         pe_d = a * (1 - ecc)
         # there is no apoapsis
         ap_d = 0
-    n = 2*np.pi / period
+        n = 2*np.pi / period
 
     return b, f, pe_d, ap_d, period, n, u
 
@@ -346,7 +362,7 @@ class Physics():
         if ecc < 1:   # ellipse
             curves = np.array([self.a[vessel] * np.cos(self.ell_t), self.b[vessel] * np.sin(self.ell_t)])   # raw ellipses
         else:
-            curves = np.array([-self.a[vessel] * np.cosh(self.ell_t), self.a[vessel] * np.sinh(self.ell_t)])   # raw hyperbolas
+            curves = np.array([-self.a[vessel] * np.cosh(self.ell_t), self.b[vessel] * np.sinh(self.ell_t)])   # raw hyperbolas
             # parametric equation for circle is same as for ellipse, just semi_major = semi_minor, thus it is not required
         # rotation matrix
         rot = np.array([[np.cos(pea), - np.sin(pea)], [np.sin(pea), np.cos(pea)]])
@@ -368,7 +384,7 @@ class Physics():
         coi_leave_all = orbit_intersect(self.a[vessel], self.b[vessel], ecc, xc, yc, self.body_coi[ref])
         self.coi_leave[vessel] = next_point(self.a[vessel], coi_leave_all, dr)
 
-        # ### TODO ###
+        # TODO: leave_coi
         # pea = self.pea[vessel]
         # body_x = self.body_pos[ref, 0]
         # body_y = self.body_pos[ref, 1]
@@ -385,11 +401,15 @@ class Physics():
     def move(self, warp, body_pos):
         """Move vessel with mean motion."""
         self.body_pos = body_pos
-        self.ma += self.dr * self.n * warp
-        self.ma = np.where(self.ma > 2*np.pi, self.ma - 2*np.pi, self.ma)
-        self.ma = np.where(self.ma < 0, self.ma + 2*np.pi, self.ma)
+        hyp = np.where(self.ecc > 1, -1, 1)
+        self.ma += self.dr * self.n * warp * hyp
+        self.ma = np.where(np.logical_and(self.ecc < 1, self.ma > 2*np.pi), self.ma - 2*np.pi, self.ma)
+        self.ma = np.where(np.logical_and(self.ecc < 1, self.ma < 0), self.ma + 2*np.pi, self.ma)
         for vessel, _ in enumerate(self.names):
-            ea = newton_root(keplers_eq, keplers_eq_derivative, self.ea[vessel], {'Ma': self.ma[vessel], 'e': self.ecc[vessel]})
+            if self.ecc[vessel] < 1:
+                ea = newton_root(keplers_eq, keplers_eq_derivative, self.ea[vessel], {'Ma': self.ma[vessel], 'e': self.ecc[vessel]})
+            else:
+                ea = newton_root(keplers_eq_hyp, keplers_eq_hyp_derivative, self.ea[vessel], {'Ma': self.ma[vessel], 'e': self.ecc[vessel]})
             self.pos[vessel] = self.ea2coord(vessel, ea)
             self.ea[vessel] = ea
 
@@ -411,51 +431,89 @@ class Physics():
         This should be done every tick after curve_move()."""
         for vessel, _ in enumerate(self.names):
             ea = self.ea[vessel]
-            # types: 1-impact, 2-leave_coi(0,pi) 3-leave_coi(pi,2pi), 4-enter_coi
+            ecc = self.ecc[vessel]
+            # types: 1-impact, 2-leave_coi(0,pi) 3-leave_coi(pi,2pi), 4-leave_coi_hyp, 5-enter_coi
             if not np.isnan(self.body_impact[vessel, 0]):
-                ea_vessel = round(ea * self.curve_points / (2*np.pi))
                 ea_next = self.body_impact[vessel, 0]
                 ea_prev = self.body_impact[vessel, 1]
-                ea_point_next = round(ea_next * self.curve_points / (2*np.pi))
-                ea_point_prev = round(ea_prev * self.curve_points / (2*np.pi))
-                pea = self.pea[vessel]
-                ecc = self.ecc[vessel]
                 coord_next = self.ea2coord(vessel, ea_next)
                 coord_prev = self.ea2coord(vessel, ea_prev)
-                if self.dr[vessel] > 0:   # CW
-                    self.curve_data_light[vessel] = np.array([ea_vessel+1, ea_point_next, coord_next[0], coord_next[1], 1])
-                    self.curve_data_dark[vessel] = np.array([ea_point_prev, ea_vessel-1, coord_prev[0], coord_prev[1]])
-                else:   # CCWZ
-                    self.curve_data_light[vessel] = np.array([ea_point_next, ea_vessel-1, coord_next[0], coord_next[1], 1])
-                    self.curve_data_dark[vessel] = np.array([ea_vessel+1, ea_point_prev, coord_prev[0], coord_prev[1]])
-            elif not np.isnan(self.coi_leave[vessel, 0]):
-                ea_vessel = round(ea * self.curve_points / (2*np.pi))
-                ea_next = self.coi_leave[vessel, 0]
-                ea_prev = self.coi_leave[vessel, 1]
-                ea_point_next = round(ea_next * self.curve_points / (2*np.pi))
-                ea_point_prev = round(ea_prev * self.curve_points / (2*np.pi))
-                coord_next = self.ea2coord(vessel, ea_next)
-                coord_prev = self.ea2coord(vessel, ea_prev)
-                if ea < np.pi:
-                    type = 2
-                else:
-                    type = 3
+                if ecc < 1:   # for ellipse
+                    ea_vessel = round(ea * self.curve_points / (2*np.pi))
+                    ea_point_next = round(ea_next * self.curve_points / (2*np.pi))
+                    ea_point_prev = round(ea_prev * self.curve_points / (2*np.pi))
+                    if self.dr[vessel] > 0:   # CCW
+                        self.curve_data_light[vessel] = np.array([ea_vessel+1, ea_point_next, coord_next[0], coord_next[1], 1])
+                        self.curve_data_dark[vessel] = np.array([ea_point_prev, ea_vessel-1, coord_prev[0], coord_prev[1]])
+                    else:   # CW
+                        self.curve_data_light[vessel] = np.array([ea_point_next, ea_vessel-1, coord_next[0], coord_next[1], 1])
+                        self.curve_data_dark[vessel] = np.array([ea_vessel+1, ea_point_prev, coord_prev[0], coord_prev[1]])
+                else:   # for hyperbola
+                    ea_vessel = 100 - round((ea+np.pi) * self.curve_points / (2*np.pi))
+                    ea_point_next = 100 - round((ea_next+np.pi) * self.curve_points / (2*np.pi))
+                    ea_point_prev = 100 - round((ea_prev+np.pi) * self.curve_points / (2*np.pi))
+                    if ea < 0:
+                        type = 2
+                    else:
+                        type = 3
+                    if self.dr[vessel] < 0:   # CW
+                        self.curve_data_light[vessel] = np.array([ea_vessel+1, ea_point_next, coord_next[0], coord_next[1], type])
+                        self.curve_data_dark[vessel] = np.array([ea_point_prev, ea_vessel-1, coord_prev[0], coord_prev[1]])
+                    else:   # CCW
+                        self.curve_data_light[vessel] = np.array([ea_point_next, ea_vessel-1, coord_next[0], coord_next[1], type])
+                        self.curve_data_dark[vessel] = np.array([ea_vessel+1, ea_point_prev, coord_prev[0], coord_prev[1]])
 
-                if self.dr[vessel] > 0:
-                    self.curve_data_light[vessel] = np.array([ea_vessel+1, ea_point_next, coord_next[0], coord_next[1], type])
-                    self.curve_data_dark[vessel] = np.array([ea_point_prev, max(ea_vessel-1, 0), coord_prev[0], coord_prev[1]])
-                else:
-                    self.curve_data_light[vessel] = np.array([ea_point_next, max(ea_vessel-1, 0), coord_next[0], coord_next[1], type])
-                    self.curve_data_dark[vessel] = np.array([ea_vessel+1, ea_point_prev, coord_prev[0], coord_prev[1]])
+            elif not np.isnan(self.coi_leave[vessel, 0]):
+                if ecc < 1:   # for ellipse
+                    ea_next = self.coi_leave[vessel, 0]
+                    ea_prev = self.coi_leave[vessel, 1]
+                    coord_next = self.ea2coord(vessel, ea_next)
+                    coord_prev = self.ea2coord(vessel, ea_prev)
+                    ea_vessel = round(ea * self.curve_points / (2*np.pi))
+                    ea_point_next = round(ea_next * self.curve_points / (2*np.pi))
+                    ea_point_prev = round(ea_prev * self.curve_points / (2*np.pi))
+                    if ea < np.pi:
+                        type = 4
+                    else:
+                        type = 5
+                    if self.dr[vessel] > 0:
+                        self.curve_data_light[vessel] = np.array([ea_vessel-1, ea_point_next, coord_next[0], coord_next[1], type])
+                        self.curve_data_dark[vessel] = np.array([ea_point_prev, max(ea_vessel-1, 0), coord_prev[0], coord_prev[1]])
+                    else:
+                        self.curve_data_light[vessel] = np.array([ea_point_next, max(ea_vessel-1, 0), coord_next[0], coord_next[1], type])
+                        self.curve_data_dark[vessel] = np.array([ea_vessel+1, ea_point_prev, coord_prev[0], coord_prev[1]])
+                else:   # for hyperbola
+                    ea_next = self.coi_leave[vessel, 1]
+                    ea_prev = self.coi_leave[vessel, 0]
+                    coord_next = self.ea2coord(vessel, ea_next)
+                    coord_prev = self.ea2coord(vessel, ea_prev)
+                    ea_vessel = 100 - round((ea+np.pi) * self.curve_points / (2*np.pi))
+                    ea_point_next = 100 - round((ea_next+np.pi) * self.curve_points / (2*np.pi))
+                    ea_point_prev = 100 - round((ea_prev+np.pi) * self.curve_points / (2*np.pi))
+                    if self.dr[vessel] < 0:   # CW
+                        self.curve_data_light[vessel] = np.array([ea_vessel+1, ea_point_next, coord_next[0], coord_next[1], 6])
+                        self.curve_data_dark[vessel] = np.array([ea_point_prev, max(ea_vessel-1, 0), coord_prev[0], coord_prev[1]])
+                    else:   # CCW
+                        self.curve_data_light[vessel] = np.array([ea_point_next, max(ea_vessel-1, 0), coord_next[0], coord_next[1], 5])
+                        self.curve_data_dark[vessel] = np.array([ea_vessel+1, ea_point_prev, coord_prev[0], coord_prev[1]])
+
             elif not np.isnan(self.coi_enter[vessel, 0]):
                 ea_vessel = round(ea * self.curve_points / (2*np.pi))
                 ea_next = self.coi_enter[vessel, 0]
                 ea_point_next = round(ea_next * self.curve_points / (2*np.pi))
                 coord_next = self.ea2coord(vessel, ea_next)
-                if self.dr[vessel] > 0:
-                    self.curve_data_light[vessel] = np.array([ea_vessel+1, ea_point_next, coord_next[0], coord_next[1], 4])
-                else:
-                    self.curve_data_light[vessel] = np.array([ea_point_next, ea_vessel-1, coord_next[0], coord_next[1], 1])
+                if ecc < 1:   # for ellipse
+                    if self.dr[vessel] > 0:
+                        self.curve_data_light[vessel] = np.array([ea_vessel+1, ea_point_next, coord_next[0], coord_next[1], 8])
+                    else:
+                        self.curve_data_light[vessel] = np.array([ea_point_next, ea_vessel-1, coord_next[0], coord_next[1], 8])
+                else:   # for hyperbola
+                    ea_vessel = 100 - round((ea+np.pi) * self.curve_points / (2*np.pi))
+                    ea_point_next = 100 - round((ea_next+np.pi) * self.curve_points / (2*np.pi))
+                    if self.dr[vessel] < 0:   # CW
+                        self.curve_data_light[vessel] = np.array([ea_vessel+1, ea_point_next, coord_next[0], coord_next[1], 9])
+                    else:   # CCW
+                        self.curve_data_light[vessel] = np.array([ea_point_next, ea_vessel-1, coord_next[0], coord_next[1], 10])
         return self.curve_data_light, self.curve_data_dark
 
 
@@ -477,7 +535,10 @@ class Physics():
         rel_pos = self.pos[vessel] - pos_ref
         distance = mag(rel_pos)   # distance to parent
         speed_orb = math.sqrt((2 * a * u - distance * u) / (a * distance))   # velocity vector magnitude from semi-major axis equation
-        ta = math.acos((math.cos(ea) - ecc)/(1 - ecc * math. cos(ea)))  # true anomaly from eccentric anomaly
+        if ecc < 1:
+            ta = math.acos((math.cos(ea) - ecc)/(1 - ecc * math.cos(ea)))   # true anomaly from eccentric anomaly
+        else:
+            ta = math.acos((math.cosh(ea) - ecc)/(1 - ecc * math.cosh(ea)))   # for hyperbola
         if ma > np.pi:
             ta = 2*np.pi - ta
         angle = (ta - math.atan(-b * (math.cos(ea)) / (math.sin(ea) * a))) % np.pi
