@@ -530,7 +530,7 @@ class Physics():
              (a**2 * p_y * math.cos(omega)**2 + b**2 * p_y * math.sin(omega)**2 +
               b**2 * p_x * math.sin(omega) * math.cos(omega) - a**2 * p_x * math.sin(omega) * math.cos(omega)))
 
-        # calcualte angle of velocity vector
+        # calcualte angle of velocity
         # calculate domain of function and substract some small value (10**-6) so y can be calculated
         x_max = math.sqrt(a**2 * math.cos(2*omega) + a**2 - b**2 * math.cos(2*omega) + b**2)/math.sqrt(2) - 10**-6
         y_max = rot_ellipse_by_y(x_max, a, b, omega)
@@ -548,7 +548,7 @@ class Physics():
         vr_y = vrm * math.sin(vr_angle)
         vr = np.array([vr_x, vr_y])
         self.move_parent(body, self.pos[parent] + pr)   # move this body and all bodies orbiting it
-        self.rel_vel[body] = vr   # update relative velocity vector
+        self.rel_vel[body] = vr   # update relative velocity
         # this is copied from simplified_orbit_coi end, to allow changes to take effect smoothly, in this iteration, even if paused
         bodies_sorted = np.argsort(self.mass)[-1::-1]
         for body in bodies_sorted:
@@ -598,7 +598,7 @@ class Physics():
             mass_r = self.mass[body_del] + self.mass[body_add]   # resulting mass
             mom1 = self.vel[body_add] * self.mass[body_add]   # first body moment vector
             mom2 = self.vel[body_del] * self.mass[body_del]   # second body moment vector
-            velr = (mom1 + mom2) / mass_r   # resulting velocity vector
+            velr = (mom1 + mom2) / mass_r   # resulting velocity
             self.rel_vel[body_add] = velr - self.rel_vel[self.parents[body_add]]   # set resulting velocity to larger body
             self.set_body_mass(body_add, mass_r)   # add mass to larger collided body
             self.del_body(body_del)   # delete smaller collided body
@@ -623,7 +623,7 @@ class Physics():
         # atmosphere
         self.surf_grav = self.gc * self.mass / self.rad**2
         for body, _ in enumerate(self.mass):
-            if self.atm_pres0[body]:
+            if all(x != 0 for x in [self.atm_pres0[body], self.atm_scale_h[body], self.atm_den0[body]]):
                 self.atm_h[body] = - self.atm_scale_h[body] * math.log(0.001 / self.atm_den0[body]) * self.rad_mult
             else:
                 self.atm_h[body] = 0
@@ -683,7 +683,7 @@ class Physics():
         if all(x != 0 for x in [atm_pres0, atm_scale_h, atm_den0]):
             atm_h = - atm_scale_h * math.log(0.001 / atm_den0 / atm_pres0) * self.rad_mult
         else:
-            atm_h = 0
+            atm_h = 0.0
 
         # thermal
         core_temp = (self.gc * mp * mass) / ((3/2) * k * radius * self.rad_mult)   # core temperature

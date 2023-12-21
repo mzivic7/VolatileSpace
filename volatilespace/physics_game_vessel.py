@@ -3,7 +3,7 @@ import math
 from itertools import repeat
 import numpy as np
 try:   # to allow building without numba
-    from numba import njit, float64
+    from numba import njit, int32, float64
     numba_avail = True
 except ImportError:
     numba_avail = False
@@ -82,9 +82,9 @@ def loc2glob(a, b, f, ecc, pea, pos, ea):
             y_n = b * np.sinh(ea)
         x = (x_n * np.cos(pea - np.pi) - y_n * np.sin(pea - np.pi)) + pos[0]
         y = (x_n * np.sin(pea - np.pi) + y_n * np.cos(pea - np.pi)) + pos[1]
-        return [x, y]
+        return np.array(([x, y]))
     else:
-        return [None, None]
+        return np.array(([None, None]))
 
 
 def orbit_intersect(a, b, ecc, c_x, c_y, r):
@@ -126,7 +126,7 @@ def orbit_intersect(a, b, ecc, c_x, c_y, r):
             ea = np.where(real_roots < 0, -ea, ea)
             return ea
         else:
-            return np.array([np.NaN])
+            return np.array([np.nan])
 
 
 def next_point(ea_vessel, ea_points, direction):
@@ -141,6 +141,44 @@ def next_point(ea_vessel, ea_points, direction):
         return np.array([ea_points_sorted[0], ea_points_sorted[-1]])
     else:
         return None
+
+
+def sort_intersect_indices(ea_vessel, ea_points, direction):
+    if not np.all(np.isnan(ea_points)):
+        angle = np.where(np.isnan(ea_points), np.nan, np.absolute(ea_vessel - ea_points))
+        # where ea_vessel is larger: invert
+        angle = np.where(ea_vessel > ea_points, 2*np.pi - angle, angle)
+        if direction < 0:   # if direction is clockwise: invert
+            angle = np.pi*2 - angle
+        ea_points_sorted = np.argsort(angle)
+        return ea_points_sorted
+    else:
+        return np.array([np.nan])
+
+
+def concat_wrap(array, point_start, range_start, range_end, point_end):
+    """Concatenates [point_start, array[range_start, range_end], point_end] such that if range_start > range_end,
+    range goes from range_end to array_end + array_start to range_start, and point_1 and point_2 swaps places."""
+    # not using np.concatenate because it cannot be easily NJIT-ed with numba, and this is faster
+    out = np.empty((array.shape[0], 2))
+    out[:] = np.nan
+    if range_start <= range_end:
+        out[0, :] = point_start
+        out[1 : 1+range_end-range_start, :] = array[range_start : range_end, :]
+        out[1+range_end-range_start, :] = point_end
+    else:
+        out[0, :] = point_end
+        range_first = array[range_start :, :]
+        range_second = array[: range_end, :]
+        out[1 : 1+range_first.shape[0], :] = range_first
+        out[1+range_first.shape[0] : 1+range_first.shape[0]+range_second.shape[0], :] = range_second
+        out[range_first.shape[0]+range_second.shape[0], :] = point_start
+    # if there are nans in input array they need to be cleaned from output:
+    if np.any(np.isnan(array)):
+        out_clean = out[~np.isnan(out[:,0]), :]
+        out[:] = np.nan
+        out[: out_clean.shape[0], :] = out_clean
+    return out
 
 
 def calc_orb_one(vessel, ref, body_mass, gc, a, ecc):
@@ -182,7 +220,8 @@ if numba_avail and use_numba:
     dot_2d = njit(float64(float64[:], float64[:]), **jitkw)(dot_2d)
     mag = njit(float64(float64[:]), **jitkw)(mag)
     cross_2d = njit(float64[:](float64[:], float64[:]), **jitkw)(cross_2d)
-    # ellipse_circle = njit(float64[:](float64, float64, float64, float64, float64))(ellipse_circle)   # scipy is required
+    concat_wrap = njit((float64[:, :], float64[:], int32, int32, float64[:]), **jitkw)(concat_wrap)
+    # ellipse_circle = njit(float64[:](float64, float64, float64, float64, float64), **jitkw)(ellipse_circle)   # scipy is required
 
 
 
@@ -220,9 +259,12 @@ class Physics():
     def reload_settings(self):
         """Reload all settings, should be run every time game is entered"""
         self.curve_points = int(fileops.load_settings("graphics", "curve_points"))   # number of points from which curve is drawn
+        self.curves = np.zeros((len(self.names), self.curve_points, 2))
         # parameters
         self.ell_t = np.linspace(-np.pi, np.pi, self.curve_points)   # ellipse parameter
         self.par_t = np.linspace(- np.pi - 1, np.pi + 1, self.curve_points)   # parabola parameter
+        for vessel, _ in enumerate(self.names):
+            self.curve(vessel)
 
 
     def load_conf(self, conf):
@@ -249,13 +291,12 @@ class Physics():
         self.dr = vessel_orb_data["dir"]
         self.pos = np.zeros([len(self.names), 2])   # position will be updated later
         self.ea = np.zeros(len(self.names))
-        self.curves = np.zeros((len(self.names), 2, self.curve_points))   # shape: (vessel, axis, points)
+        self.curves = np.zeros((len(self.names), self.curve_points, 2))   # shape: (vessel, points, axes)
+        self.curves_mov = np.zeros((len(self.names), self.curve_points, 2))
         # orbit points
         self.body_impact = np.zeros((len(self.names), 2)) * np.nan
         self.coi_leave = np.zeros((len(self.names), 2)) * np.nan
         self.coi_enter = np.zeros((len(self.names), 2)) * np.nan
-        self.curve_data_light = np.zeros((len(self.names), 5)) * np.nan
-        self.curve_data_dark = np.zeros((len(self.names), 4)) * np.nan
 
         # those need to be cleared, in case game with less vessels is loaded
         self.n = np.array([])
@@ -295,14 +336,12 @@ class Physics():
         self.move(warp, body_pos)
         for vessel, _ in enumerate(self.names):
             self.curve(vessel)
-        curves = self.curve_move()
-        self.curve_points_move()
+        self.curve_move()
 
         # POINTS #
         for vessel, _ in enumerate(self.names):
             self.points(vessel)
-
-        return vessel_data, vessel_orb, self.pos, self.ma, curves, self.curve_data_light, self.curve_data_dark
+        return vessel_data, vessel_orb, self.pos, self.ma, self.curves_mov
 
 
     def change_vessel(self, vessel):
@@ -366,7 +405,7 @@ class Physics():
             # parametric equation for circle is same as for ellipse, just semi_major = semi_minor, thus it is not required
         # rotation matrix
         rot = np.array([[np.cos(pea), - np.sin(pea)], [np.sin(pea), np.cos(pea)]])
-        self.curves[vessel] = np.dot(rot, curves)
+        self.curves[vessel] = np.swapaxes(np.dot(rot, curves), 0, 1)
 
 
     def points(self, vessel):
@@ -379,7 +418,7 @@ class Physics():
         yc = 0
 
         body_impact_all = orbit_intersect(self.a[vessel], self.b[vessel], ecc, xc, yc, self.body_size[ref])
-        self.body_impact[vessel, :] = next_point(self.ea[vessel], body_impact_all, dr)
+        self.body_impact[vessel] = next_point(self.ea[vessel], body_impact_all, dr)
 
         coi_leave_all = orbit_intersect(self.a[vessel], self.b[vessel], ecc, xc, yc, self.body_coi[ref])
         self.coi_leave[vessel] = next_point(self.a[vessel], coi_leave_all, dr)
@@ -422,49 +461,106 @@ class Physics():
         focus_x = self.f * np.cos(self.pea)
         focus_y = self.f * np.sin(self.pea)
         focus = np.column_stack((focus_x, focus_y))
-        curves = self.curves + focus[:, :, np.newaxis] + self.body_pos[self.ref, :, np.newaxis]
-        return curves
+        self.curves_mov = self.curves + focus[:, np.newaxis, :] + self.body_pos[self.ref, np.newaxis, :]
+        return self.curves_mov
 
 
-    def curve_points_move(self):
-        """Move all relevant curve points and calculates curves ranges.
+    def curve_segments(self):
+        """Calculates two segments for each curve on screen.
+        Returns arrays of all x and y points for each segment for all curves on screen.
+        Dimensions: (curve, points, axis).
         This should be done every tick after curve_move()."""
+        curves_light = np.empty((len(self.names), self.curve_points, 2))   # shape: (vessel, points, axes)
+        curves_dark = np.empty((len(self.names), self.curve_points, 2))
+        intersect_type = np.zeros(len(self.names))
+        first_intersect = np.empty((len(self.names), 2)) * np.nan
         for vessel, _ in enumerate(self.names):
             ea = self.ea[vessel]
             ecc = self.ecc[vessel]
-            # types: 1-impact, 2-leave_coi(0,pi) 3-leave_coi(pi,2pi), 4-leave_coi_hyp, 5-enter_coi
+            if ecc < 1:
+                ell = True   # is True for ellipse (ecc<1) and False for hyperbola (ecc>1)
+            else:
+                ell = False
+            dr = self.dr[vessel]
+            point_vessel = self.pos[vessel]
+            curve_light = np.copy(self.curves_mov[vessel])
+            curve_dark = np.copy(self.curves_mov[vessel])
+
+            # check where and what is next intesection
+            all_intersect = np.array((np.nan, np.nan, np.nan))
+            num_intersect = 0
             if not np.isnan(self.body_impact[vessel, 0]):
+                all_intersect[0] = self.body_impact[vessel, int(not ell)]
+                num_intersect += 1
+            if not np.isnan(self.coi_enter[vessel, 0]):
+                all_intersect[1] = self.coi_enter[vessel, int(not ell)]
+                num_intersect += 1
+            if not np.isnan(self.coi_leave[vessel, 0]):
+                all_intersect[2] = self.coi_leave[vessel, int(not ell)]
+                num_intersect += 1
+            next_intersect = sort_intersect_indices(self.ea[vessel], all_intersect, dr)
+            if num_intersect != 0:
+                next_intersect = next_intersect[:num_intersect]
+            else:
+                next_intersect = np.array([np.nan])
+
+            # do all possible scenarios
+            if next_intersect[0] == 0:   # IMPACT
+                curves_dark[vessel] = curve_dark
                 ea_next = self.body_impact[vessel, 0]
-                ea_prev = self.body_impact[vessel, 1]
                 coord_next = self.ea2coord(vessel, ea_next)
-                coord_prev = self.ea2coord(vessel, ea_prev)
-                if ecc < 1:   # for ellipse
+                if ell:   # for ellipse
                     ea_vessel = round(ea * self.curve_points / (2*np.pi))
                     ea_point_next = round(ea_next * self.curve_points / (2*np.pi))
-                    ea_point_prev = round(ea_prev * self.curve_points / (2*np.pi))
-                    if self.dr[vessel] > 0:   # CCW
-                        self.curve_data_light[vessel] = np.array([ea_vessel+1, ea_point_next, coord_next[0], coord_next[1], 1])
-                        self.curve_data_dark[vessel] = np.array([ea_point_prev, ea_vessel-1, coord_prev[0], coord_prev[1]])
+                    if dr > 0:   # CCW
+                        curves_light[vessel] = concat_wrap(curve_light, point_vessel, ea_vessel+1, ea_point_next, coord_next)
                     else:   # CW
-                        self.curve_data_light[vessel] = np.array([ea_point_next, ea_vessel-1, coord_next[0], coord_next[1], 1])
-                        self.curve_data_dark[vessel] = np.array([ea_vessel+1, ea_point_prev, coord_prev[0], coord_prev[1]])
+                        curves_light[vessel] = concat_wrap(curve_light, coord_next, ea_point_next, ea_vessel-1, point_vessel)
                 else:   # for hyperbola
-                    ea_vessel = 100 - round((ea+np.pi) * self.curve_points / (2*np.pi))
-                    ea_point_next = 100 - round((ea_next+np.pi) * self.curve_points / (2*np.pi))
-                    ea_point_prev = 100 - round((ea_prev+np.pi) * self.curve_points / (2*np.pi))
-                    if ea < 0:
-                        type = 2
-                    else:
-                        type = 3
-                    if self.dr[vessel] < 0:   # CW
-                        self.curve_data_light[vessel] = np.array([ea_vessel+1, ea_point_next, coord_next[0], coord_next[1], type])
-                        self.curve_data_dark[vessel] = np.array([ea_point_prev, ea_vessel-1, coord_prev[0], coord_prev[1]])
-                    else:   # CCW
-                        self.curve_data_light[vessel] = np.array([ea_point_next, ea_vessel-1, coord_next[0], coord_next[1], type])
-                        self.curve_data_dark[vessel] = np.array([ea_vessel+1, ea_point_prev, coord_prev[0], coord_prev[1]])
+                    ea_vessel = self.curve_points - round((ea+np.pi) * self.curve_points / (2*np.pi))
+                    ea_point_next = self.curve_points - round((ea_next+np.pi) * self.curve_points / (2*np.pi))
+                    if dr > 0:   # CCW
+                        if ea < 0:
+                            curves_light[vessel] = concat_wrap(curve_light, coord_next, ea_point_next, ea_vessel-1, point_vessel)
+                        else:
+                            curves_light[vessel] = concat_wrap(curve_light, point_vessel, ea_point_next, ea_vessel-1, coord_next)
+                    else:   # CW
+                        if ea < 0:
+                            curves_light[vessel] = concat_wrap(curve_light, coord_next, ea_vessel+1, ea_point_next, point_vessel)
+                        else:
+                            curves_light[vessel] = concat_wrap(curve_light, point_vessel, ea_vessel+1, ea_point_next, coord_next)
+                first_intersect[vessel] = coord_next
+                intersect_type[vessel] = 1
 
-            elif not np.isnan(self.coi_leave[vessel, 0]):
-                if ecc < 1:   # for ellipse
+            if next_intersect[0] == 1:   # COI ENTER
+                curves_dark[vessel] = curve_dark
+                ea_next = self.coi_enter[vessel, 0]
+                coord_next = self.ea2coord(vessel, ea_next)
+                if ell:   # for ellipse
+                    ea_vessel = round(ea * self.curve_points / (2*np.pi))
+                    ea_point_next = round(ea_next * self.curve_points / (2*np.pi))
+                    if dr > 0:   # CCW
+                        curves_light[vessel] = concat_wrap(curve_light, point_vessel, ea_vessel+1, ea_point_next, coord_next)
+                    else:   # CW
+                        curves_light[vessel] = concat_wrap(curve_light, coord_next, ea_point_next, ea_vessel-1, point_vessel)
+                else:   # for hyperbola
+                    ea_vessel = self.curve_points - round((ea+np.pi) * self.curve_points / (2*np.pi))
+                    ea_point_next = self.curve_points - round((ea_next+np.pi) * self.curve_points / (2*np.pi))
+                    if dr > 0:   # CCW
+                        if ea < 0:
+                            curves_light[vessel] = concat_wrap(curve_light, coord_next, ea_point_next, ea_vessel-1, point_vessel)
+                        else:
+                            curves_light[vessel] = concat_wrap(curve_light, point_vessel, ea_point_next, ea_vessel-1, coord_next)
+                    else:   # CW
+                        if ea < 0:
+                            curves_light[vessel] = concat_wrap(curve_light, coord_next, ea_vessel+1, ea_point_next, point_vessel)
+                        else:
+                            curves_light[vessel] = concat_wrap(curve_light, point_vessel, ea_vessel+1, ea_point_next, coord_next)
+                first_intersect[vessel] = coord_next
+                intersect_type[vessel] = 3
+
+            if next_intersect[0] == 2:   # JUST COI LEAVE
+                if ell:   # for ellipse
                     ea_next = self.coi_leave[vessel, 0]
                     ea_prev = self.coi_leave[vessel, 1]
                     coord_next = self.ea2coord(vessel, ea_next)
@@ -472,49 +568,64 @@ class Physics():
                     ea_vessel = round(ea * self.curve_points / (2*np.pi))
                     ea_point_next = round(ea_next * self.curve_points / (2*np.pi))
                     ea_point_prev = round(ea_prev * self.curve_points / (2*np.pi))
-                    if ea < np.pi:
-                        type = 4
-                    else:
-                        type = 5
-                    if self.dr[vessel] > 0:
-                        self.curve_data_light[vessel] = np.array([ea_vessel-1, ea_point_next, coord_next[0], coord_next[1], type])
-                        self.curve_data_dark[vessel] = np.array([ea_point_prev, max(ea_vessel-1, 0), coord_prev[0], coord_prev[1]])
-                    else:
-                        self.curve_data_light[vessel] = np.array([ea_point_next, max(ea_vessel-1, 0), coord_next[0], coord_next[1], type])
-                        self.curve_data_dark[vessel] = np.array([ea_vessel+1, ea_point_prev, coord_prev[0], coord_prev[1]])
+                    if dr < 0:   # CW
+                        if ea < np.pi:
+                            curves_light[vessel] = concat_wrap(curve_light, point_vessel, ea_point_next, max(ea_vessel, 0), coord_next)
+                        else:
+                            curves_light[vessel] = concat_wrap(curve_light, coord_next, ea_point_next, max(ea_vessel, 0), point_vessel)
+                        curves_dark[vessel] = concat_wrap(curve_dark, coord_prev, ea_point_next, ea_point_prev, coord_next)
+                    else:   # CCW
+                        if ea < np.pi:
+                            curves_light[vessel] = concat_wrap(curve_light, point_vessel, ea_vessel, ea_point_next, coord_next)
+                        else:
+                            curves_light[vessel] = concat_wrap(curve_light, coord_next, ea_vessel, ea_point_next, point_vessel)
+                        curves_dark[vessel] = concat_wrap(curve_dark, coord_next, ea_point_prev, ea_point_next, coord_prev)
                 else:   # for hyperbola
                     ea_next = self.coi_leave[vessel, 1]
                     ea_prev = self.coi_leave[vessel, 0]
                     coord_next = self.ea2coord(vessel, ea_next)
                     coord_prev = self.ea2coord(vessel, ea_prev)
-                    ea_vessel = 100 - round((ea+np.pi) * self.curve_points / (2*np.pi))
-                    ea_point_next = 100 - round((ea_next+np.pi) * self.curve_points / (2*np.pi))
-                    ea_point_prev = 100 - round((ea_prev+np.pi) * self.curve_points / (2*np.pi))
-                    if self.dr[vessel] < 0:   # CW
-                        self.curve_data_light[vessel] = np.array([ea_vessel+1, ea_point_next, coord_next[0], coord_next[1], 6])
-                        self.curve_data_dark[vessel] = np.array([ea_point_prev, max(ea_vessel-1, 0), coord_prev[0], coord_prev[1]])
+                    ea_vessel = self.curve_points - round((ea+np.pi) * self.curve_points / (2*np.pi))
+                    ea_point_next = self.curve_points - round((ea_next+np.pi) * self.curve_points / (2*np.pi))
+                    ea_point_prev = self.curve_points - round((ea_prev+np.pi) * self.curve_points / (2*np.pi))
+                    if dr < 0:   # CW
+                        curves_light[vessel] = concat_wrap(curve_light, point_vessel, ea_vessel+1, ea_point_next, coord_next)
+                        curves_dark[vessel] = concat_wrap(curve_dark, coord_prev, ea_point_prev, ea_point_next, coord_next)
                     else:   # CCW
-                        self.curve_data_light[vessel] = np.array([ea_point_next, max(ea_vessel-1, 0), coord_next[0], coord_next[1], 5])
-                        self.curve_data_dark[vessel] = np.array([ea_vessel+1, ea_point_prev, coord_prev[0], coord_prev[1]])
+                        curves_light[vessel] = concat_wrap(curve_light, coord_next, ea_point_next, max(ea_vessel-1, 0), point_vessel)
+                        curves_dark[vessel] = concat_wrap(curve_dark, coord_next, ea_point_next, ea_point_prev, coord_prev)
+                first_intersect[vessel] = coord_next
+                intersect_type[vessel] = 2
 
-            elif not np.isnan(self.coi_enter[vessel, 0]):
-                ea_vessel = round(ea * self.curve_points / (2*np.pi))
-                ea_next = self.coi_enter[vessel, 0]
-                ea_point_next = round(ea_next * self.curve_points / (2*np.pi))
-                coord_next = self.ea2coord(vessel, ea_next)
-                if ecc < 1:   # for ellipse
-                    if self.dr[vessel] > 0:
-                        self.curve_data_light[vessel] = np.array([ea_vessel+1, ea_point_next, coord_next[0], coord_next[1], 8])
-                    else:
-                        self.curve_data_light[vessel] = np.array([ea_point_next, ea_vessel-1, coord_next[0], coord_next[1], 8])
-                else:   # for hyperbola
-                    ea_vessel = 100 - round((ea+np.pi) * self.curve_points / (2*np.pi))
-                    ea_point_next = 100 - round((ea_next+np.pi) * self.curve_points / (2*np.pi))
-                    if self.dr[vessel] < 0:   # CW
-                        self.curve_data_light[vessel] = np.array([ea_vessel+1, ea_point_next, coord_next[0], coord_next[1], 9])
+            elif any(next_intersect == 2):   # COI LEAVE FOR 2 INTERSECTIONS
+                if ell:   # for ellipse
+                    ea_next = self.coi_leave[vessel, 0]
+                    ea_prev = self.coi_leave[vessel, 1]
+                    coord_next = self.ea2coord(vessel, ea_next)
+                    coord_prev = self.ea2coord(vessel, ea_prev)
+                    ea_point_next = round(ea_next * self.curve_points / (2*np.pi))
+                    ea_point_prev = round(ea_prev * self.curve_points / (2*np.pi))
+                    if dr < 0:   # CW
+                        curves_dark[vessel] = concat_wrap(curve_dark, coord_next, ea_point_next, ea_point_prev, coord_prev)
                     else:   # CCW
-                        self.curve_data_light[vessel] = np.array([ea_point_next, ea_vessel-1, coord_next[0], coord_next[1], 10])
-        return self.curve_data_light, self.curve_data_dark
+                        curves_dark[vessel] = concat_wrap(curve_dark, coord_next, ea_point_prev, ea_point_next, coord_prev)
+                else:   # for hyperbola
+                    ea_next = self.coi_leave[vessel, 1]
+                    ea_prev = self.coi_leave[vessel, 0]
+                    coord_next = self.ea2coord(vessel, ea_next)
+                    coord_prev = self.ea2coord(vessel, ea_prev)
+                    ea_vessel = self.curve_points - round((ea+np.pi) * self.curve_points / (2*np.pi))
+                    ea_point_next = self.curve_points - round((ea_next+np.pi) * self.curve_points / (2*np.pi))
+                    ea_point_prev = self.curve_points - round((ea_prev+np.pi) * self.curve_points / (2*np.pi))
+                    if dr < 0:   # CW
+                        curves_dark[vessel] = concat_wrap(curve_dark, coord_prev, ea_point_prev, ea_point_next, coord_next)
+                    else:   # CCW
+                        curves_dark[vessel] = concat_wrap(curve_dark, coord_next, ea_point_next, ea_point_prev, coord_prev)
+
+            if np.isnan(next_intersect[0]):
+                curves_light[vessel] = curve_light
+                first_intersect[vessel] = np.array([np.nan, np.nan])
+        return curves_light, curves_dark, first_intersect, intersect_type
 
 
     def selected(self, vessel):

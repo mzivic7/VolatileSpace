@@ -1,5 +1,10 @@
 ### TIMELINE ###
 
+WIP:
+Culling for orbit lines ???
+Separate vessel and body list in right UI
+Warp switching
+
 editor: prograde/retrograde, radial/antiradial with W/A/S/D
 editor: relative inserting position and velocity
 global: tab when typing value switch to next

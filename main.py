@@ -73,7 +73,6 @@ def main():
             elif state == 3:   # game
                 state = game.main(screen, clock)
             elif state >= 10:   # settings from game/editor
-                state_crrent = int(str(state)[0])
                 _ = menu.main(screen, clock, True)
                 state = int(str(state)[1])
                 if state == 2:

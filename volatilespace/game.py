@@ -320,7 +320,7 @@ class Game():
         self.unpack_body(body_data, body_orb_data)
 
         physics_vessel.load(self.sim_conf, body_data, body_orb_data, vessel_data, vessel_orb_data)
-        vessel_data, vessel_orb_data, self.v_pos, self.v_ma, self.v_curves, self.v_curv_light, self.v_curv_dark = physics_vessel.initial(self.warp, self.pos)
+        vessel_data, vessel_orb_data, self.v_pos, self.v_ma, self.v_curves = physics_vessel.initial(self.warp, self.pos)
         self.unpack_vessel(vessel_data, vessel_orb_data)
 
         self.active_vessel = game_data["vessel"]
@@ -346,12 +346,26 @@ class Game():
         self.follow_offset_x = self.screen_x / 2
         self.follow_offset_y = self.screen_y / 2
 
+
     def screen_coords(self, coords_in_sim):
         """Converts from sim coords to screen coords. Adds zoom, view move, and moves origin from up-left to bottom-left"""
-        x_on_screen = (coords_in_sim[0] + self.offset_x - self.zoom_x) * self.zoom   # correction for zoom, screen movement offset
+        # correction for zoom, screen movement offset
+        x_on_screen = (coords_in_sim[0] + self.offset_x - self.zoom_x) * self.zoom
         y_on_screen = (coords_in_sim[1] + self.offset_y - self.zoom_y) * self.zoom
-        y_on_screen = self.screen_y - y_on_screen   # move origin from up-left to bottom-left
+        # move origin from up-left to bottom-left
+        y_on_screen = self.screen_y - y_on_screen
         return np.array([x_on_screen, y_on_screen])
+
+
+    def screen_coords_array(self, coords_in_sim):
+        """Converts from sim coords to screen coords, for array with shape: [points, axes]. Adds zoom, view move, and moves origin from up-left to bottom-left"""
+        # correction for zoom, screen movement offset
+        x_on_screen = (coords_in_sim[:, 0] + self.offset_x - self.zoom_x) * self.zoom
+        y_on_screen = (coords_in_sim[:, 1] + self.offset_y - self.zoom_y) * self.zoom
+        # move origin from up-left to bottom-left
+        y_on_screen = self.screen_y - y_on_screen
+        return np.column_stack([x_on_screen, y_on_screen])
+
 
     def sim_coords(self, coords_on_screen):
         """Converts from screen coords to sim coords. Adds zoom, view move, and moves origin from bottom-left to up-left"""
@@ -672,7 +686,7 @@ class Game():
                         if mouse_move < self.select_sens:
                             # first check for vessels
                             for vessel, vessel_pos in enumerate(self.v_pos):
-                                curve = np.column_stack(self.screen_coords(self.v_curves[vessel]))   # line coords on screen
+                                curve = self.screen_coords_array(self.v_curves[vessel])   # line coords on screen
                                 diff = np.amax(curve, 0) - np.amin(curve, 0)
                                 if diff[0]+diff[1] > 32:   # skip hidden vessels with too small orbits
                                     scr_radius = 11
@@ -681,6 +695,7 @@ class Game():
                                         self.vessel_potential_target = vessel   # if clicked only once, timer must change target
                                         if self.first_click:
                                             self.active_vessel = vessel
+                                            self.follow = 1
                                             self.vessel_potential_target = None
                                             self.target = self.v_ref[self.active_vessel]   # set new active vessel's parent to be target
                                             self.target_type = 0
@@ -1019,7 +1034,7 @@ class Game():
                     physics_vessel.points(self.active_vessel)
                     physics_vessel.curve(self.active_vessel)   # TODO also run if there is any point
                 self.v_curves = physics_vessel.curve_move()
-                self.v_curv_light, self.v_curv_dark = physics_vessel.curve_points_move()
+                self.curve_light, self.curve_dark, self.intersect, self.intersect_type = physics_vessel.curve_segments()
 
                 self.physics_debug_time = time.time() - debug_time   # ### DEBUG ###
 
@@ -1105,8 +1120,9 @@ class Game():
                 origin = self.screen_coords([0, 0])
             graphics.draw_grid(screen, self.grid_mode, origin, self.zoom)
 
+        # DRAWING ORDER: body stuff, vessel orbit, body, vessel, vessel stuff
 
-        # bodies drawing
+        # bodies stuff drawing, WITHOUT bodies - bodies are drawn aftter vessel orbit lines
         for body, _ in enumerate(self.names):
             curve = np.column_stack(self.screen_coords(self.curves[:, body]))   # line coords on screen
             diff = np.amax(curve, 0) - np.amin(curve, 0)
@@ -1117,20 +1133,13 @@ class Game():
                     line_color = np.where(self.color[body] > 255, 255, self.color[body])
                     graphics.draw_lines(screen, tuple(line_color), curve, 2)
 
-                # draw bodies
+                # draw body atmosphere
                 scr_body_size = self.size[body] * self.zoom
-                body_color = tuple(self.color[body])
                 if scr_body_size >= 5:
                     if self.atm_h[body]:
                         atm_color = tuple(np.append(self.color[body], 30))   # add alpha
                         scr_atm_size = (self.size[body] + self.atm_h[body]) * self.zoom
                         graphics.draw_circle_fill(screen, atm_color, self.screen_coords(self.pos[body]), scr_atm_size)
-                    graphics.draw_circle_fill(screen, body_color, self.screen_coords(self.pos[body]), scr_body_size)
-                    graphics.draw_circle_fill(screen, body_color, self.screen_coords(self.pos[body]), scr_body_size)
-                else:   # if body is too small, draw marker with fixed size
-                    graphics.draw_circle_fill(screen, rgb.gray1, self.screen_coords(self.pos[body]), 6)
-                    graphics.draw_circle_fill(screen, rgb.gray2, self.screen_coords(self.pos[body]), 5)
-                    graphics.draw_circle_fill(screen, body_color, self.screen_coords(self.pos[body]), 4)
 
                 # target body
                 if self.target is not None and self.target_type == 0 and self.target == body:
@@ -1191,59 +1200,55 @@ class Game():
                                                   (ap_scr[0], ap_scr[1] + 17), True)
 
 
-        # vessels drawing
+        # vessel orbit lines drawing
         for vessel, _ in enumerate(self.v_names):
+            # get curve intersections and ranges
+            curve_light = self.screen_coords_array(self.curve_light[vessel])
+            curve_dark = self.screen_coords_array(self.curve_dark[vessel])
+            intersect_type = self.intersect_type[vessel]
 
-            # orbit curves logic for limiting curve points in all possible scenarios
-            dr = self.v_dr[vessel]
-            curve = np.column_stack(self.screen_coords(self.v_curves[vessel]))
-            if not np.any(np.isnan(self.v_curv_light[vessel, :1])):
-                point_vessel = [self.screen_coords(self.v_pos[vessel])]
-                # light
-                point_light_1 = int(self.v_curv_light[vessel, 0])
-                point_light_2 = int(self.v_curv_light[vessel, 1])
-                extra_light = [self.screen_coords(self.v_curv_light[vessel, 2:4])]
-                if point_light_1 <= point_light_2+2:   # point_1 to point_2
-                    # leave orbit has 2 types (3 and 4), first is (0, pi) and second (pi, 2pi) range
-                    if int(self.v_curv_light[vessel, 4]) in (1, 3, 4, 6):   # (0, pi)
-                        if dr < 0 and int(self.v_curv_light[vessel, 4]) == 1:   # special case
-                            curve_light = np.concatenate((extra_light, curve[point_light_1 : point_light_2], point_vessel))
-                        else:
-                            curve_light = np.concatenate((point_vessel, curve[point_light_1 : point_light_2], extra_light))
-                    else:   # (pi, 2pi)
-                        curve_light = np.concatenate((extra_light, curve[point_light_1 : point_light_2], point_vessel))
-                else:   # point_1 to end U start to point_2
-                    if int(self.v_curv_light[vessel, 4]) in (1, 3, 4, 6):
-                        if dr < 0 and int(self.v_curv_light[vessel, 4]) == 1:
-                            curve_light = np.concatenate((point_vessel, curve[point_light_1 :], curve[: point_light_2], extra_light))
-                        else:
-                            curve_light = np.concatenate((extra_light, curve[point_light_1 :], curve[: point_light_2], point_vessel))
-                    else:
-                        curve_light = np.concatenate((point_vessel, curve[point_light_1 :], curve[: point_light_2], extra_light))
-                # dark
-                point_dark_1 = int(self.v_curv_dark[vessel, 0])
-                point_dark_2 = int(self.v_curv_dark[vessel, 1])
-                extra_dark = [self.screen_coords(self.v_curv_dark[vessel, 2:4])]
-                if point_dark_1 <= point_dark_2+2:   # point_1 to point_2
-                    if int(self.v_curv_light[vessel, 4]) in (1, 2, 6, 7):
-                        if dr < 0 and int(self.v_curv_light[vessel, 4]) == 1:
-                            curve_dark = np.concatenate((point_vessel, curve[point_dark_1 : point_dark_2], extra_dark))
-                        else:
-                            curve_dark = np.concatenate((extra_dark, curve[point_dark_1 : point_dark_2], point_vessel))
-                    else:
-                        curve_dark = np.concatenate((point_vessel, curve[point_dark_1 : point_dark_2], extra_dark))
-                else:   # point_1 to end U start to point_2
-                    if int(self.v_curv_light[vessel, 4]) in (1, 2, 6, 7):
-                        if dr < 0 and int(self.v_curv_light[vessel, 4]) == 1:
-                            curve_dark = np.concatenate((extra_dark, curve[point_dark_1 :], curve[: point_dark_2], point_vessel))
-                        else:
-                            curve_dark = np.concatenate((point_vessel, curve[point_dark_1 :], curve[: point_dark_2], extra_dark))
-                    else:
-                        curve_dark = np.concatenate((extra_dark, curve[point_dark_1 :], curve[: point_dark_2], point_vessel))
-                dark = True
-            else:
-                curve_light = curve
-                dark = False
+            # vessels
+            diff = np.amax(curve, 0) - np.amin(curve, 0)
+            if diff[0]+diff[1] > 32:   # skip vessels with too small orbits
+                vessel_pos = self.screen_coords(self.v_pos[vessel])
+                # active vessel
+                if self.active_vessel is not None and self.active_vessel == vessel:
+                    if intersect_type:
+                        graphics.draw_lines(screen, rgb.cyan_1, curve_dark, 2)
+                    graphics.draw_lines(screen, rgb.cyan, curve_light, 2)
+                    graphics.draw_img(screen, self.vessel_img, vessel_pos, center=True)
+                # target vessel
+                elif self.target is not None and self.target_type == 1 and self.target == vessel:
+                    if intersect_type:
+                        graphics.draw_lines(screen, rgb.gray1, curve_dark, 2)
+                    graphics.draw_lines(screen, rgb.gray, curve_light, 2)
+                else:
+                    if intersect_type:
+                        graphics.draw_lines(screen, rgb.gray2, curve_dark, 2)
+                    graphics.draw_lines(screen, rgb.gray1, curve_light, 2)
+
+        # bodies drawing
+        for body, _ in enumerate(self.names):
+            curve = np.column_stack(self.screen_coords(self.curves[:, body]))   # line coords on screen
+            diff = np.amax(curve, 0) - np.amin(curve, 0)
+            if body == 0 or diff[0]+diff[1] > 32:   # skip bodies with too small orbits
+                scr_body_size = self.size[body] * self.zoom
+                body_color = tuple(self.color[body])
+                if scr_body_size >= 5:
+                    graphics.draw_circle_fill(screen, body_color, self.screen_coords(self.pos[body]), scr_body_size)
+                else:   # if body is too small, draw marker with fixed size
+                    graphics.draw_circle_fill(screen, rgb.gray1, self.screen_coords(self.pos[body]), 6)
+                    graphics.draw_circle_fill(screen, rgb.gray2, self.screen_coords(self.pos[body]), 5)
+                    graphics.draw_circle_fill(screen, body_color, self.screen_coords(self.pos[body]), 4)
+
+
+        # vessel stuff drawing WITH vessels
+        for vessel, _ in enumerate(self.v_names):
+            # get curve intersections and ranges
+            curve_light = self.screen_coords_array(self.curve_light[vessel])
+            curve_dark = self.screen_coords_array(self.curve_dark[vessel])
+            intersect = self.screen_coords(self.intersect[vessel])
+            intersect_type = self.intersect_type[vessel]
 
             # vessels
             diff = np.amax(curve, 0) - np.amin(curve, 0)
@@ -1252,11 +1257,6 @@ class Game():
 
                 # active vessel
                 if self.active_vessel is not None and self.active_vessel == vessel:
-                    graphics.draw_lines(screen, rgb.cyan, curve_light, 2)
-                    if dark:
-                       graphics.draw_lines(screen, rgb.cyan_1, curve_dark, 2)
-                    graphics.draw_img(screen, self.vessel_img, vessel_pos, center=True)
-
                     ref = self.v_ref[vessel]
                     ta, pe, pe_t, ap, ap_t, distance, speed_orb, speed_hor, speed_vert = physics_vessel.selected(vessel)
 
@@ -1297,23 +1297,18 @@ class Game():
                                                   (ap_scr[0], ap_scr[1] + 17), True)
 
                             # characteristic points
-                            if not np.any(np.isnan(self.v_curv_light[vessel, :1])):
-                                intersect = extra_light[0]
-                                if int(self.v_curv_light[vessel, 4]) in (1, 2, 3):   # impact
-                                    if self.size[ref] * self.zoom >= 5:
-                                        graphics.draw_img(screen, self.impact_img, intersect, center=True)
-                                elif int(self.v_curv_light[vessel, 4]) in (4, 5, 6, 7):   # leave COI
-                                    if self.coi[ref] * self.zoom >= 10:
-                                        graphics.draw_img(screen, self.orb_leave_img, intersect, center=True)
-                                elif int(self.v_curv_light[vessel, 4]) in (8, 9, 10):
-                                    if self.coi[ref] * self.zoom >= 10:
-                                        graphics.draw_img(screen, self.orb_enter_img, intersect, center=True)
+                            if intersect_type == 1:   # impact
+                                if self.size[ref] * self.zoom >= 5:
+                                    graphics.draw_img(screen, self.impact_img, intersect, center=True)
+                            elif intersect_type == 2:   # leave COI
+                                if self.coi[ref] * self.zoom >= 10:
+                                    graphics.draw_img(screen, self.orb_leave_img, intersect, center=True)
+                            elif intersect_type == 3:
+                                if self.coi[ref] * self.zoom >= 10:
+                                    graphics.draw_img(screen, self.orb_enter_img, intersect, center=True)
 
                 # target vessel
                 elif self.target is not None and self.target_type == 1 and self.target == vessel:
-                    graphics.draw_lines(screen, rgb.gray, curve_light, 2)
-                    if dark:
-                        graphics.draw_lines(screen, rgb.gray1, curve_dark, 2)
                     graphics.draw_img(screen, self.vessel_img, vessel_pos, center=True)
                     graphics.draw_img(screen, self.target_img, vessel_pos, center=True)
                     ta, pe, pe_t, ap, ap_t, distance, speed_orb, speed_hor, speed_vert = physics_vessel.selected(vessel)
@@ -1333,9 +1328,6 @@ class Game():
 
                 # all other vessels
                 else:
-                    graphics.draw_lines(screen, rgb.gray1, curve_light, 2)
-                    if dark:
-                        graphics.draw_lines(screen, rgb.gray2, curve_dark, 2)
                     graphics.draw_img(screen, self.vessel_img, vessel_pos, center=True)
 
 

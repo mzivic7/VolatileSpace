@@ -152,9 +152,7 @@ class Graphics():
     def timed_text(self, screen, clock):
         """Print timed text on screen with fade out effect"""
         if self.timed_text_enable is True:
-
             alpha = 255
-
             if self.timer > self.time - self.fade:
                 alpha = ((self.time) - self.timer) * 255 / (self.fade)
             self.text(screen, self.color, self.font, self.text_str, self.pos, self.center, alpha=alpha)
