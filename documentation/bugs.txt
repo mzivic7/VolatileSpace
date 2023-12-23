@@ -1,2 +1,4 @@
-editor.py      mouse.set_pos doesn't work on linux wih wayland
-graphics.py    gfxdraw will be removed
+editor.py - mouse.set_pos doesn't work on linux wih wayland
+graphics.py - gfxdraw will be removed
+physics_game_vessel.py - numba does not support axis arguments
+physics_game_body.py - numba does not support axis arguments

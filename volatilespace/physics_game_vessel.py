@@ -3,7 +3,7 @@ import math
 from itertools import repeat
 import numpy as np
 try:   # to allow building without numba
-    from numba import njit, int32, float64
+    from numba import njit, int32, float64, bool_
     numba_avail = True
 except ImportError:
     numba_avail = False
@@ -181,6 +181,34 @@ def concat_wrap(array, point_start, range_start, range_end, point_end):
     return out
 
 
+def culling(curve, sim_screen, ref_coi, curve_points, cull):
+    sim_screen_size = np.absolute(sim_screen[1] - sim_screen[0])
+    x_max = np.amax(curve[:, 0])   # numba does not support axis argument, yet
+    y_max = np.amax(curve[:, 1])   # https://github.com/numba/numba/issues/1269
+    x_min = np.amin(curve[:, 0])
+    y_min = np.amin(curve[:, 1])
+    diff = np.array([x_max - x_min, y_max - y_min])
+    screen_diff = sim_screen_size / diff
+    if ref_coi != 0:
+        if diff[0] + diff[1] > ref_coi * 3:
+            screen_diff = sim_screen_size / np.array([ref_coi * 1.5, ref_coi * 1.5])
+    if screen_diff[0] + screen_diff[1] < 130:
+        if cull:
+            factor = int(curve_points / 25)
+            curve = curve[0::factor]
+            frame = max(sim_screen_size) / 4
+            sc_x_max = np.max(sim_screen[:, 0]) + frame
+            sc_y_max = np.max(sim_screen[:, 1]) + frame
+            sc_x_min = np.min(sim_screen[:, 0]) - frame
+            sc_y_min = np.min(sim_screen[:, 1]) - frame
+            a = (curve >= np.array([sc_x_min, sc_y_min])) & (curve <= np.array([sc_x_max, sc_y_max]))
+            if np.any(np.logical_and(a[:, 0], a[:, 1])):
+                return True
+        else:
+            return True
+    return False
+
+
 def calc_orb_one(vessel, ref, body_mass, gc, a, ecc):
     """Additional vessel orbital parameters."""
     u = gc * body_mass[ref]   # standard gravitational parameter
@@ -221,6 +249,7 @@ if numba_avail and use_numba:
     mag = njit(float64(float64[:]), **jitkw)(mag)
     cross_2d = njit(float64[:](float64[:], float64[:]), **jitkw)(cross_2d)
     concat_wrap = njit((float64[:, :], float64[:], int32, int32, float64[:]), **jitkw)(concat_wrap)
+    culling = njit(bool_(float64[:, :], float64[:, :], float64, int32, bool_), **jitkw)(culling)
     # ellipse_circle = njit(float64[:](float64, float64, float64, float64, float64), **jitkw)(ellipse_circle)   # scipy is required
 
 
@@ -229,6 +258,7 @@ class Physics():
     def __init__(self):
         # vessel internal
         self.names = np.array([])
+        self.visible_vessels = []
         # vessel orbit main
         self.a = np.array([])
         self.ecc = np.array([])
@@ -257,9 +287,10 @@ class Physics():
 
 
     def reload_settings(self):
-        """Reload all settings, should be run every time game is entered"""
+        """Reload all settings, should be run every time game is entered, or settings have changed."""
         self.curve_points = int(fileops.load_settings("graphics", "curve_points"))   # number of points from which curve is drawn
         self.curves = np.zeros((len(self.names), self.curve_points, 2))
+        self.cull = leval(fileops.load_settings("graphics", "culling"))
         # parameters
         self.ell_t = np.linspace(-np.pi, np.pi, self.curve_points)   # ellipse parameter
         self.par_t = np.linspace(- np.pi - 1, np.pi + 1, self.curve_points)   # parabola parameter
@@ -314,6 +345,14 @@ class Physics():
         return loc2glob(a, b, f, ecc, pea, ref, ea)
 
 
+    def culling(self, sim_screen):
+        """Returns list of vessels orbits that are visible on screen and are large enough.
+        Checking for orbits that are on screen can be toggle in settings"""
+        values = list(map(culling, self.curves_mov, repeat(sim_screen), self.body_coi[self.ref], repeat(self.curve_points), repeat(self.cull)))
+        self.visible_vessels = np.arange(len(self.names))[values]
+        return self.visible_vessels
+
+
     def initial(self, warp, body_pos):
         # VESSEL DATA #
         vessel_data = {"name": self.names
@@ -346,8 +385,7 @@ class Physics():
 
     def change_vessel(self, vessel):
         """Do all vessel related physics to one vessel. This should be done only if something changed on vessel or it's orbit."""
-
-        # this is packed in list because reading from dict is slow
+        # otput is list because reading from dict is slow
 
         # VESSEL DATA #
         vessel_data = [self.names]
@@ -457,7 +495,7 @@ class Physics():
 
     def curve_move(self):
         """Move all orbit curves to parent position.
-        This should be done every tick after vessel_move()."""
+        This should be done every tick after move()."""
         focus_x = self.f * np.cos(self.pea)
         focus_y = self.f * np.sin(self.pea)
         focus = np.column_stack((focus_x, focus_y))
@@ -474,7 +512,7 @@ class Physics():
         curves_dark = np.empty((len(self.names), self.curve_points, 2))
         intersect_type = np.zeros(len(self.names))
         first_intersect = np.empty((len(self.names), 2)) * np.nan
-        for vessel, _ in enumerate(self.names):
+        for vessel in self.visible_vessels:
             ea = self.ea[vessel]
             ecc = self.ecc[vessel]
             if ecc < 1:

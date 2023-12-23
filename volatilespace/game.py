@@ -148,6 +148,8 @@ class Game():
         self.v_pos = np.array([])
         self.v_ma = np.array([])
         self.v_curves = np.array([])
+        self.visible_bodies = []
+        self.visible_vessels = []
 
         # ### DEBUG ###
         self.physics_debug_time = 1
@@ -704,7 +706,7 @@ class Game():
                                         self.first_click = True
                             if not self.first_click:   # if vessel is selected: don't check for bodies
                                 for body, body_pos in enumerate(self.pos):
-                                    curve = np.column_stack(self.screen_coords(self.curves[:, body]))   # line coords on screen
+                                    curve = self.screen_coords_array(self.curves[body])   # line coords on screen
                                     diff = np.amax(curve, 0) - np.amin(curve, 0)
                                     if body == 0 or diff[0]+diff[1] > 32:   # skip hidden bodies with too small orbits
                                         scr_radius = self.size[body]*self.zoom
@@ -1034,6 +1036,9 @@ class Game():
                     physics_vessel.points(self.active_vessel)
                     physics_vessel.curve(self.active_vessel)   # TODO also run if there is any point
                 self.v_curves = physics_vessel.curve_move()
+                sim_screen = np.array((self.sim_coords((0, 0)), self.sim_coords((self.screen_x, self.screen_y))))
+                self.visible_bodies = physics_body.culling(sim_screen)
+                self.visible_vessels = physics_vessel.culling(sim_screen)
                 self.curve_light, self.curve_dark, self.intersect, self.intersect_type = physics_vessel.curve_segments()
 
                 self.physics_debug_time = time.time() - debug_time   # ### DEBUG ###
@@ -1092,10 +1097,11 @@ class Game():
 
         # background stars:
         if self.bg_stars_enable:
-            if self.active_vessel is not None:
+            if self.follow and self.active_vessel is not None:
                 parent_pos = self.pos[self.v_ref[self.active_vessel]]
             else:
                 parent_pos = np.zeros(2)
+                self.offset_old = np.array([self.offset_x, self.offset_y])
             # movement vector in one iterration relative to vessel parent
             offset_diff = self.offset_old - (np.array([self.offset_x, self.offset_y]) + parent_pos)
             offset_diff = offset_diff * min(self.zoom, 3)   # add zoom to speed calculation and limit zoom
@@ -1123,152 +1129,55 @@ class Game():
         # DRAWING ORDER: body stuff, vessel orbit, body, vessel, vessel stuff
 
         # bodies stuff drawing, WITHOUT bodies - bodies are drawn aftter vessel orbit lines
-        for body, _ in enumerate(self.names):
-            curve = np.column_stack(self.screen_coords(self.curves[:, body]))   # line coords on screen
-            diff = np.amax(curve, 0) - np.amin(curve, 0)
-            if body == 0 or diff[0]+diff[1] > 32:   # skip bodies with too small orbits
+        for body in self.visible_bodies:
+            curve = self.screen_coords_array(self.curves[body])   # line coords on screen
 
-                # draw orbit curve lines
-                if body != 0:   # skip root
-                    line_color = np.where(self.color[body] > 255, 255, self.color[body])
-                    graphics.draw_lines(screen, tuple(line_color), curve, 2)
+            # draw orbit curve lines
+            if body != 0:   # skip root
+                line_color = np.where(self.color[body] > 255, 255, self.color[body])
+                graphics.draw_lines(screen, tuple(line_color), curve, 2)
 
-                # draw body atmosphere
-                scr_body_size = self.size[body] * self.zoom
-                if scr_body_size >= 5:
-                    if self.atm_h[body]:
-                        atm_color = tuple(np.append(self.color[body], 30))   # add alpha
-                        scr_atm_size = (self.size[body] + self.atm_h[body]) * self.zoom
-                        graphics.draw_circle_fill(screen, atm_color, self.screen_coords(self.pos[body]), scr_atm_size)
+            # draw body atmosphere
+            scr_body_size = self.size[body] * self.zoom
+            if scr_body_size >= 5:
+                if self.atm_h[body]:
+                    atm_color = tuple(np.append(self.color[body], 30))   # add alpha
+                    scr_atm_size = (self.size[body] + self.atm_h[body]) * self.zoom
+                    graphics.draw_circle_fill(screen, atm_color, self.screen_coords(self.pos[body]), scr_atm_size)
 
-                # target body
-                if self.target is not None and self.target_type == 0 and self.target == body:
-                    parent = self.ref[body]
-                    body_pos = self.pos[body, :]
-                    ta, pe, pe_t, ap, ap_t, distance, speed_orb, speed_hor, speed_vert = physics_body.selected(body)
-                    if self.right_menu == 2:
-                        self.orbit_data_menu = [self.pe_d[body],
-                                                self.ap_d[body],
-                                                self.ecc[body],
-                                                self.pea[body] * 180 / np.pi,
-                                                self.ma[body] * 180 / np.pi,
-                                                ta * 180 / np.pi,
-                                                self.dr[body],
-                                                distance,
-                                                self.period[body],
-                                                speed_orb,
-                                                speed_hor,
-                                                speed_vert]
+            # target body
+            if self.target is not None and self.target_type == 0 and self.target == body:
+                parent = self.ref[body]
+                body_pos = self.pos[body, :]
+                ta, pe, pe_t, ap, ap_t, distance, speed_orb, speed_hor, speed_vert = physics_body.selected(body)
+                if self.right_menu == 2:
+                    self.orbit_data_menu = [self.pe_d[body],
+                                            self.ap_d[body],
+                                            self.ecc[body],
+                                            self.pea[body] * 180 / np.pi,
+                                            self.ma[body] * 180 / np.pi,
+                                            ta * 180 / np.pi,
+                                            self.dr[body],
+                                            distance,
+                                            self.period[body],
+                                            speed_orb,
+                                            speed_hor,
+                                            speed_vert]
 
-                    # circles
-                    if not self.disable_labels:
-                        if scr_body_size >= 5:
-                            graphics.draw_circle(screen, rgb.cyan, self.screen_coords(body_pos), self.size[body] * self.zoom + 4, 2)   # selection circle
-                        else:
-                            graphics.draw_img(screen, self.target_img, self.screen_coords(body_pos), center=True)   # target img for marker
-                        if self.size[body] < self.coi[body]:
-                            if self.coi[body] * self.zoom >= 8:
-                                graphics.draw_circle(screen, rgb.gray2, self.screen_coords(body_pos), self.coi[body] * self.zoom, 1)   # circle of influence
-                        if body != 0:
-                            parent_scr = self.screen_coords(self.pos[parent])
-
-                            # ap and pe
-                            if self.ap_d[body] > 0:
-                                ap_scr = self.screen_coords(ap)
-                            else:   # in case of hyperbola/parabola (ap_d is negative)
-                                ap_scr = self.screen_coords(pe)
-                            scr_dist = abs(parent_scr - ap_scr)
-                            if scr_dist[0] > 8 or scr_dist[1] > 8:   # don't draw Ap and Pe if Ap is too close to parent
-
-                                pe_scr = self.screen_coords(pe)
-                                pe_scr_dist = abs(parent_scr - pe_scr)
-                                if pe_scr_dist[0] > 8 or pe_scr_dist[1] > 8:   # don't draw Pe if it is too close to parent
-                                    # periapsis location marker, text: distance and time to it
-                                    pe_scr = self.screen_coords(pe)
-                                    graphics.draw_circle_fill(screen, rgb.lime1, pe_scr, 3)   # periapsis marker
-                                    graphics.text(screen, rgb.lime1, self.fontsm, "Periapsis: " + str(round(self.pe_d[body], 1)), (pe_scr[0], pe_scr[1] + 7), True)
-                                    graphics.text(screen, rgb.lime1, self.fontsm,
-                                                  "T - " + format_time.to_date(int(pe_t/self.ptps)),
-                                                  (pe_scr[0], pe_scr[1] + 17), True)
-
-                                if self.ecc[body] < 1:   # if orbit is ellipse
-                                    # apoapsis location marker, text: distance and time to it
-                                    graphics.draw_circle_fill(screen, rgb.lime1, ap_scr, 3)   # apoapsis marker
-                                    graphics.text(screen, rgb.lime1, self.fontsm, "Apoapsis: " + str(round(self.ap_d[body], 1)), (ap_scr[0], ap_scr[1] + 7), True)
-                                    graphics.text(screen, rgb.lime1, self.fontsm,
-                                                  "T - " + format_time.to_date(int(ap_t/self.ptps)),
-                                                  (ap_scr[0], ap_scr[1] + 17), True)
-
-
-        # vessel orbit lines drawing
-        for vessel, _ in enumerate(self.v_names):
-            # get curve intersections and ranges
-            curve_light = self.screen_coords_array(self.curve_light[vessel])
-            curve_dark = self.screen_coords_array(self.curve_dark[vessel])
-            intersect_type = self.intersect_type[vessel]
-
-            # vessels
-            diff = np.amax(curve, 0) - np.amin(curve, 0)
-            if diff[0]+diff[1] > 32:   # skip vessels with too small orbits
-                vessel_pos = self.screen_coords(self.v_pos[vessel])
-                # active vessel
-                if self.active_vessel is not None and self.active_vessel == vessel:
-                    if intersect_type:
-                        graphics.draw_lines(screen, rgb.cyan_1, curve_dark, 2)
-                    graphics.draw_lines(screen, rgb.cyan, curve_light, 2)
-                    graphics.draw_img(screen, self.vessel_img, vessel_pos, center=True)
-                # target vessel
-                elif self.target is not None and self.target_type == 1 and self.target == vessel:
-                    if intersect_type:
-                        graphics.draw_lines(screen, rgb.gray1, curve_dark, 2)
-                    graphics.draw_lines(screen, rgb.gray, curve_light, 2)
-                else:
-                    if intersect_type:
-                        graphics.draw_lines(screen, rgb.gray2, curve_dark, 2)
-                    graphics.draw_lines(screen, rgb.gray1, curve_light, 2)
-
-        # bodies drawing
-        for body, _ in enumerate(self.names):
-            curve = np.column_stack(self.screen_coords(self.curves[:, body]))   # line coords on screen
-            diff = np.amax(curve, 0) - np.amin(curve, 0)
-            if body == 0 or diff[0]+diff[1] > 32:   # skip bodies with too small orbits
-                scr_body_size = self.size[body] * self.zoom
-                body_color = tuple(self.color[body])
-                if scr_body_size >= 5:
-                    graphics.draw_circle_fill(screen, body_color, self.screen_coords(self.pos[body]), scr_body_size)
-                else:   # if body is too small, draw marker with fixed size
-                    graphics.draw_circle_fill(screen, rgb.gray1, self.screen_coords(self.pos[body]), 6)
-                    graphics.draw_circle_fill(screen, rgb.gray2, self.screen_coords(self.pos[body]), 5)
-                    graphics.draw_circle_fill(screen, body_color, self.screen_coords(self.pos[body]), 4)
-
-
-        # vessel stuff drawing WITH vessels
-        for vessel, _ in enumerate(self.v_names):
-            # get curve intersections and ranges
-            curve_light = self.screen_coords_array(self.curve_light[vessel])
-            curve_dark = self.screen_coords_array(self.curve_dark[vessel])
-            intersect = self.screen_coords(self.intersect[vessel])
-            intersect_type = self.intersect_type[vessel]
-
-            # vessels
-            diff = np.amax(curve, 0) - np.amin(curve, 0)
-            if diff[0]+diff[1] > 32:   # skip vessels with too small orbits
-                vessel_pos = self.screen_coords(self.v_pos[vessel])
-
-                # active vessel
-                if self.active_vessel is not None and self.active_vessel == vessel:
-                    ref = self.v_ref[vessel]
-                    ta, pe, pe_t, ap, ap_t, distance, speed_orb, speed_hor, speed_vert = physics_vessel.selected(vessel)
-
-                    # parent circle of influence
-                    if not self.disable_labels:
-                        parent_scr = self.screen_coords(self.pos[ref])
-                        if ref != 0:
-                            if self.coi[ref] * self.zoom >= 8:
-                                graphics.draw_circle(screen, rgb.gray2, parent_scr, self.coi[ref] * self.zoom, 1)
+                # circles
+                if not self.disable_labels:
+                    if scr_body_size >= 5:
+                        graphics.draw_circle(screen, rgb.cyan, self.screen_coords(body_pos), self.size[body] * self.zoom + 4, 2)   # selection circle
+                    else:
+                        graphics.draw_img(screen, self.target_img, self.screen_coords(body_pos), center=True)   # target img for marker
+                    if self.size[body] < self.coi[body]:
+                        if self.coi[body] * self.zoom >= 8:
+                            graphics.draw_circle(screen, rgb.gray2, self.screen_coords(body_pos), self.coi[body] * self.zoom, 1)   # circle of influence
+                    if body != 0:
+                        parent_scr = self.screen_coords(self.pos[parent])
 
                         # ap and pe
-                        if self.v_ap_d[vessel] > 0:
+                        if self.ap_d[body] > 0:
                             ap_scr = self.screen_coords(ap)
                         else:   # in case of hyperbola/parabola (ap_d is negative)
                             ap_scr = self.screen_coords(pe)
@@ -1276,59 +1185,142 @@ class Game():
                         if scr_dist[0] > 8 or scr_dist[1] > 8:   # don't draw Ap and Pe if Ap is too close to parent
 
                             pe_scr = self.screen_coords(pe)
-                            parent_rad = [self.size[ref] * self.zoom] * 2
-                            pe_scr_dist = abs(parent_scr - pe_scr) - parent_rad
+                            pe_scr_dist = abs(parent_scr - pe_scr)
                             if pe_scr_dist[0] > 8 or pe_scr_dist[1] > 8:   # don't draw Pe if it is too close to parent
                                 # periapsis location marker, text: distance and time to it
                                 pe_scr = self.screen_coords(pe)
                                 graphics.draw_circle_fill(screen, rgb.lime1, pe_scr, 3)   # periapsis marker
-                                graphics.text(screen, rgb.lime1, self.fontsm, "Periapsis: " + str(round(self.v_pe_d[vessel], 1)), (pe_scr[0], pe_scr[1] + 7), True)
+                                graphics.text(screen, rgb.lime1, self.fontsm, "Periapsis: " + str(round(self.pe_d[body], 1)), (pe_scr[0], pe_scr[1] + 7), True)
                                 graphics.text(screen, rgb.lime1, self.fontsm,
                                               "T - " + format_time.to_date(int(pe_t/self.ptps)),
                                               (pe_scr[0], pe_scr[1] + 17), True)
 
-                            if self.ecc[vessel] < 1:   # if orbit is ellipse
-                                if self.v_ap_d[vessel] <= self.coi[ref]:
-                                    # apoapsis location marker, text: distance and time to it
-                                    graphics.draw_circle_fill(screen, rgb.lime1, ap_scr, 3)   # apoapsis marker
-                                    graphics.text(screen, rgb.lime1, self.fontsm, "Apoapsis: " + str(round(self.v_ap_d[vessel], 1)), (ap_scr[0], ap_scr[1] + 7), True)
-                                    graphics.text(screen, rgb.lime1, self.fontsm,
-                                                  "T - " + format_time.to_date(int(ap_t/self.ptps)),
-                                                  (ap_scr[0], ap_scr[1] + 17), True)
+                            if self.ecc[body] < 1:   # if orbit is ellipse
+                                # apoapsis location marker, text: distance and time to it
+                                graphics.draw_circle_fill(screen, rgb.lime1, ap_scr, 3)   # apoapsis marker
+                                graphics.text(screen, rgb.lime1, self.fontsm, "Apoapsis: " + str(round(self.ap_d[body], 1)), (ap_scr[0], ap_scr[1] + 7), True)
+                                graphics.text(screen, rgb.lime1, self.fontsm,
+                                              "T - " + format_time.to_date(int(ap_t/self.ptps)),
+                                              (ap_scr[0], ap_scr[1] + 17), True)
 
-                            # characteristic points
-                            if intersect_type == 1:   # impact
-                                if self.size[ref] * self.zoom >= 5:
-                                    graphics.draw_img(screen, self.impact_img, intersect, center=True)
-                            elif intersect_type == 2:   # leave COI
-                                if self.coi[ref] * self.zoom >= 10:
-                                    graphics.draw_img(screen, self.orb_leave_img, intersect, center=True)
-                            elif intersect_type == 3:
-                                if self.coi[ref] * self.zoom >= 10:
-                                    graphics.draw_img(screen, self.orb_enter_img, intersect, center=True)
+        # vessel orbit lines drawing
+        for vessel in self.visible_vessels:
+            # get curve intersections and ranges
+            curve_light = self.screen_coords_array(self.curve_light[vessel])
+            curve_dark = self.screen_coords_array(self.curve_dark[vessel])
+            intersect_type = self.intersect_type[vessel]
+            vessel_pos = self.screen_coords(self.v_pos[vessel])
+            # active vessel
+            if self.active_vessel is not None and self.active_vessel == vessel:
+                if intersect_type:
+                    graphics.draw_lines(screen, rgb.cyan_1, curve_dark, 2)
+                graphics.draw_lines(screen, rgb.cyan, curve_light, 2)
+                graphics.draw_img(screen, self.vessel_img, vessel_pos, center=True)
+            # target vessel
+            elif self.target is not None and self.target_type == 1 and self.target == vessel:
+                if intersect_type:
+                    graphics.draw_lines(screen, rgb.gray1, curve_dark, 2)
+                graphics.draw_lines(screen, rgb.gray, curve_light, 2)
+            else:
+                if intersect_type:
+                    graphics.draw_lines(screen, rgb.gray2, curve_dark, 2)
+                graphics.draw_lines(screen, rgb.gray1, curve_light, 2)
 
-                # target vessel
-                elif self.target is not None and self.target_type == 1 and self.target == vessel:
-                    graphics.draw_img(screen, self.vessel_img, vessel_pos, center=True)
-                    graphics.draw_img(screen, self.target_img, vessel_pos, center=True)
-                    ta, pe, pe_t, ap, ap_t, distance, speed_orb, speed_hor, speed_vert = physics_vessel.selected(vessel)
-                    if self.right_menu == 2:
-                        self.orbit_data_menu = [self.v_pe_d[vessel],
-                                                self.v_ap_d[vessel],
-                                                self.v_ecc[vessel],
-                                                self.v_pea[vessel] * 180 / np.pi,
-                                                self.v_ma[vessel] * 180 / np.pi,
-                                                ta * 180 / np.pi,
-                                                self.v_dr[vessel],
-                                                distance,
-                                                self.v_period[vessel],
-                                                speed_orb,
-                                                speed_hor,
-                                                speed_vert]
+        # bodies drawing
+        for body in self.visible_bodies:
+            scr_body_size = self.size[body] * self.zoom
+            body_color = tuple(self.color[body])
+            if scr_body_size >= 5:
+                graphics.draw_circle_fill(screen, body_color, self.screen_coords(self.pos[body]), scr_body_size)
+            else:   # if body is too small, draw marker with fixed size
+                graphics.draw_circle_fill(screen, rgb.gray1, self.screen_coords(self.pos[body]), 6)
+                graphics.draw_circle_fill(screen, rgb.gray2, self.screen_coords(self.pos[body]), 5)
+                graphics.draw_circle_fill(screen, body_color, self.screen_coords(self.pos[body]), 4)
 
-                # all other vessels
-                else:
-                    graphics.draw_img(screen, self.vessel_img, vessel_pos, center=True)
+
+        # vessel stuff drawing WITH vessels
+        for vessel in self.visible_vessels:
+            # get curve intersections and ranges
+            curve_light = self.screen_coords_array(self.curve_light[vessel])
+            curve_dark = self.screen_coords_array(self.curve_dark[vessel])
+            intersect = self.screen_coords(self.intersect[vessel])
+            intersect_type = self.intersect_type[vessel]
+            vessel_pos = self.screen_coords(self.v_pos[vessel])
+
+            # active vessel
+            if self.active_vessel is not None and self.active_vessel == vessel:
+                ref = self.v_ref[vessel]
+                ta, pe, pe_t, ap, ap_t, distance, speed_orb, speed_hor, speed_vert = physics_vessel.selected(vessel)
+
+                # parent circle of influence
+                if not self.disable_labels:
+                    parent_scr = self.screen_coords(self.pos[ref])
+                    if ref != 0:
+                        if self.coi[ref] * self.zoom >= 8:
+                            graphics.draw_circle(screen, rgb.gray2, parent_scr, self.coi[ref] * self.zoom, 1)
+
+                    # ap and pe
+                    if self.v_ap_d[vessel] > 0:
+                        ap_scr = self.screen_coords(ap)
+                    else:   # in case of hyperbola/parabola (ap_d is negative)
+                        ap_scr = self.screen_coords(pe)
+                    scr_dist = abs(parent_scr - ap_scr)
+                    if scr_dist[0] > 8 or scr_dist[1] > 8:   # don't draw Ap and Pe if Ap is too close to parent
+
+                        pe_scr = self.screen_coords(pe)
+                        parent_rad = [self.size[ref] * self.zoom] * 2
+                        pe_scr_dist = abs(parent_scr - pe_scr) - parent_rad
+                        if pe_scr_dist[0] > 8 or pe_scr_dist[1] > 8:   # don't draw Pe if it is too close to parent
+                            # periapsis location marker, text: distance and time to it
+                            pe_scr = self.screen_coords(pe)
+                            graphics.draw_circle_fill(screen, rgb.lime1, pe_scr, 3)   # periapsis marker
+                            graphics.text(screen, rgb.lime1, self.fontsm, "Periapsis: " + str(round(self.v_pe_d[vessel], 1)), (pe_scr[0], pe_scr[1] + 7), True)
+                            graphics.text(screen, rgb.lime1, self.fontsm,
+                                          "T - " + format_time.to_date(int(pe_t/self.ptps)),
+                                          (pe_scr[0], pe_scr[1] + 17), True)
+
+                        if self.ecc[vessel] < 1:   # if orbit is ellipse
+                            if self.v_ap_d[vessel] <= self.coi[ref]:
+                                # apoapsis location marker, text: distance and time to it
+                                graphics.draw_circle_fill(screen, rgb.lime1, ap_scr, 3)   # apoapsis marker
+                                graphics.text(screen, rgb.lime1, self.fontsm, "Apoapsis: " + str(round(self.v_ap_d[vessel], 1)), (ap_scr[0], ap_scr[1] + 7), True)
+                                graphics.text(screen, rgb.lime1, self.fontsm,
+                                              "T - " + format_time.to_date(int(ap_t/self.ptps)),
+                                              (ap_scr[0], ap_scr[1] + 17), True)
+
+                        # characteristic points
+                        if intersect_type == 1:   # impact
+                            if self.size[ref] * self.zoom >= 5:
+                                graphics.draw_img(screen, self.impact_img, intersect, center=True)
+                        elif intersect_type == 2:   # leave COI
+                            if self.coi[ref] * self.zoom >= 10:
+                                graphics.draw_img(screen, self.orb_leave_img, intersect, center=True)
+                        elif intersect_type == 3:
+                            if self.coi[ref] * self.zoom >= 10:
+                                graphics.draw_img(screen, self.orb_enter_img, intersect, center=True)
+
+            # target vessel
+            elif self.target is not None and self.target_type == 1 and self.target == vessel:
+                graphics.draw_img(screen, self.vessel_img, vessel_pos, center=True)
+                graphics.draw_img(screen, self.target_img, vessel_pos, center=True)
+                ta, pe, pe_t, ap, ap_t, distance, speed_orb, speed_hor, speed_vert = physics_vessel.selected(vessel)
+                if self.right_menu == 2:
+                    self.orbit_data_menu = [self.v_pe_d[vessel],
+                                            self.v_ap_d[vessel],
+                                            self.v_ecc[vessel],
+                                            self.v_pea[vessel] * 180 / np.pi,
+                                            self.v_ma[vessel] * 180 / np.pi,
+                                            ta * 180 / np.pi,
+                                            self.v_dr[vessel],
+                                            distance,
+                                            self.v_period[vessel],
+                                            speed_orb,
+                                            speed_hor,
+                                            speed_vert]
+
+            # all other vessels
+            else:
+                graphics.draw_img(screen, self.vessel_img, vessel_pos, center=True)
 
 
 

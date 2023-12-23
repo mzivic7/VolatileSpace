@@ -3,7 +3,7 @@ import math
 from itertools import repeat
 import numpy as np
 try:   # to allow building without numba
-    from numba import njit, types, int32, int64, float64
+    from numba import njit, types, int32, int64, float64, bool_
     numba_avail = True
 except ImportError:
     numba_avail = False
@@ -80,6 +80,34 @@ def cross_2d(v1, v2):
     return np.array([v1[0]*v2[1] - v1[1]*v2[0]])
 
 
+def culling(curve, sim_screen, ref_coi, curve_points, cull):
+    sim_screen_size = np.absolute(sim_screen[1] - sim_screen[0])
+    x_max = np.amax(curve[:, 0])
+    y_max = np.amax(curve[:, 1])
+    x_min = np.amin(curve[:, 0])
+    y_min = np.amin(curve[:, 1])
+    diff = np.array([x_max - x_min, y_max - y_min])
+    screen_diff = sim_screen_size / diff
+    if ref_coi != 0.0:
+        if diff[0] + diff[1] > ref_coi * 3:
+            screen_diff = sim_screen_size / np.array([ref_coi * 1.5, ref_coi * 1.5])
+    if screen_diff[0] + screen_diff[1] < 130:
+        if cull:
+            factor = int(curve_points / 25)
+            curve = curve[0::factor]
+            frame = max(sim_screen_size) / 4
+            sc_x_max = np.max(sim_screen[:, 0]) + frame
+            sc_y_max = np.max(sim_screen[:, 1]) + frame
+            sc_x_min = np.min(sim_screen[:, 0]) - frame
+            sc_y_min = np.min(sim_screen[:, 1]) - frame
+            a = (curve >= np.array([sc_x_min, sc_y_min])) & (curve <= np.array([sc_x_max, sc_y_max]))
+            if np.any(np.logical_and(a[:, 0], a[:, 1])):
+                return True
+        else:
+            return True
+    return False
+
+
 def calc_orb_one(body, ref, mass, gc, coi_coef, a, ecc):
     """Additional body orbital parameters."""
     if body:   # skip root
@@ -144,6 +172,7 @@ if numba_avail and use_numba:
     dot_2d = njit(float64(float64[:], float64[:]), **jitkw)(dot_2d)
     mag = njit(float64(float64[:]), **jitkw)(mag)
     cross_2d = njit(float64[:](float64[:], float64[:]), **jitkw)(cross_2d)
+    culling = njit(bool_(float64[:, :], float64[:, :], float64, int32, bool_), **jitkw)(culling)
 
 
 
@@ -151,6 +180,7 @@ class Physics():
     def __init__(self):
         # body internal
         self.names = np.array([])
+        self.visible_bodies = []
         self.mass = np.array([])
         self.den = np.array([])
         self.base_color = np.empty((0, 3), int)   # original color unaffected by temperature
@@ -173,7 +203,7 @@ class Physics():
         self.period = np.array([])
         self.n = np.array([])
         self.coi = np.array([])
-        self.curves_rot = np.array([])
+        self.curves = np.array([])
         self.pos = np.array([])
         self.ea = np.array([])
         self.u = np.array([])
@@ -186,6 +216,8 @@ class Physics():
     def reload_settings(self):
         """Reload all settings, should be run every time game is entered"""
         self.curve_points = int(fileops.load_settings("graphics", "curve_points"))   # number of points from which curve is drawn
+        self.curves = np.zeros((len(self.mass), self.curve_points, 2))
+        self.cull = leval(fileops.load_settings("graphics", "culling"))
         # parameters
         self.ell_t = np.linspace(-np.pi, np.pi, self.curve_points)   # ellipse parameter
         self.par_t = np.linspace(- np.pi - 1, np.pi + 1, self.curve_points)   # parabola parameter
@@ -216,6 +248,16 @@ class Physics():
         self.dr = body_orb_data["dir"]
         self.pos = np.zeros([len(self.mass), 2])   # position will be updated later
         self.ea = np.zeros(len(self.mass))
+        self.curves = np.zeros((len(self.mass), self.curve_points, 2))   # shape: (vessel, points, axes)
+        self.curves_mov = np.zeros((len(self.mass), self.curve_points, 2))
+
+
+    def culling(self, sim_screen):
+        """Returns list of bodies orbits that are visible on screen and are large enough.
+        Checking for orbits that are on screen can be toggle in settings"""
+        values = list(map(culling, self.curves_mov, repeat(sim_screen), self.coi[self.ref], repeat(self.curve_points), repeat(self.cull)))
+        self.visible_bodies = np.concatenate(([0], np.arange(len(self.mass))[values]))
+        return self.visible_bodies
 
 
     def initial(self, warp):
@@ -275,34 +317,28 @@ class Physics():
 
         # MOVE #
         self.move(warp)
-        self.curve()
-        curves = self.curve_move()
+        for body, _ in enumerate(self.names):
+            self.curve(body)
+        self.curve_move()
 
-        return body_data, body_orb, self.pos, self.ma, curves
+        return body_data, body_orb, self.pos, self.ma, self.curves_mov
 
 
-    def curve(self):
-        """Calculate all RELATIVE conic curves line points coordinates. This should be done only if something changed on body or it's orbit."""
+    def curve(self, body):
+        """Calculate RELATIVE conic curve line points coordinates for one body.
+        This should be done only if something changed on body or it's orbit, and after points()."""
+        ecc = self.ecc[body]
+        pea = self.pea[body]
 
-        # calculate curves points # curve[axis, body, point]
-        curves = np.zeros((2, len(self.mass), self.curve_points))
-        for num in range(len(self.mass)):
-            ecc = self.ecc[num]
-            if ecc < 1:   # ellipse
-                curves[:, num, :] = np.array([self.a[num] * np.cos(self.ell_t), self.b[num] * np.sin(self.ell_t)])   # raw ellipses
-            else:
-                if ecc == 1:   # parabola
-                    curves[:, num, :] = np.array([self.a[num] * self.par_t**2, 2 * self.a[num] * self.par_t])   # raw parabolas
-                    curves[0, num, :] = curves[0, num, :] - self.a[num, np.newaxis]   # translate parabola by semi_major, since its center is not in 0,0
-                elif ecc > 1:   # hyperbola
-                    curves[:, num, :] = np.array([-self.a[num] * np.cosh(self.ell_t), self.b[num] * np.sinh(self.ell_t)])   # raw hyperbolas
-                # parametric equation for circle is same as for ellipse, just semi_major = semi_minor, thus it is not required
-
-        # 2D rotation matrix # rot[rotation, rotation, body]
-        rot = np.array([[np.cos(self.pea), - np.sin(self.pea)], [np.sin(self.pea), np.cos(self.pea)]])
-        self.curves_rot = np.zeros((2, curves.shape[1], curves.shape[2]))
-        for body in range(curves.shape[1]):
-            self.curves_rot[:, body, :] = np.dot(rot[:, :, body], curves[:, body, :])   # apply rotation matrix to all curve points
+        # curves points
+        if ecc < 1:   # ellipse
+            curves = np.array([self.a[body] * np.cos(self.ell_t), self.b[body] * np.sin(self.ell_t)])   # raw ellipses
+        else:
+            curves = np.array([-self.a[body] * np.cosh(self.ell_t), self.b[body] * np.sinh(self.ell_t)])   # raw hyperbolas
+            # parametric equation for circle is same as for ellipse, just semi_major = semi_minor, thus it is not required
+        # rotation matrix
+        rot = np.array([[np.cos(pea), - np.sin(pea)], [np.sin(pea), np.cos(pea)]])
+        self.curves[body] = np.swapaxes(np.dot(rot, curves), 0, 1)
 
 
     def move(self, warp):
@@ -392,10 +428,10 @@ class Physics():
 
 
     def curve_move(self):
-        """Move all orbit curves to parent position. This should be done every tick after body_move()."""
-        focus_x = self.f * np.cos(self.pea)   # focus coords from focus magnitude and angle
+        """Move all orbit curves to parent position.
+        This should be done every tick after move()."""
+        focus_x = self.f * np.cos(self.pea)
         focus_y = self.f * np.sin(self.pea)
-        curves_x = self.curves_rot[0, :, :] + focus_x[:, np.newaxis] + self.pos[self.ref, 0, np.newaxis]   # translate to align focus and parent
-        curves_y = self.curves_rot[1, :, :] + focus_y[:, np.newaxis] + self.pos[self.ref, 1, np.newaxis]
-        curves = np.stack([curves_x, curves_y])
-        return curves
+        focus = np.column_stack((focus_x, focus_y))
+        self.curves_mov = self.curves + focus[:, np.newaxis, :] + self.pos[self.ref, np.newaxis, :]
+        return self.curves_mov
