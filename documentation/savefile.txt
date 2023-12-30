@@ -36,7 +36,7 @@ density = 1.0   # body density
 color = [70, 200, 200]   # body base color
 atm_pres0 = 1.0   # atmosphere pressure at surface
 atm_scale_h = 0.01   # atmosphere scale height
-atm_den = 1.2   # atmosphere pressure to density coefficient
+atm_den0 = 1.2   # atmosphere pressure to density coefficient
 
 # bodies can have 2 formats for saving orbital parameter:
 # Newtonian (position and velocity)

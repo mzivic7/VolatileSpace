@@ -273,10 +273,8 @@ class Physics():
         surf_grav = self.gc * self.mass / size**2
         atm_h = np.zeros(len(self.mass))
         for body, _ in enumerate(self.mass):
-            if self.atm_pres0[body]:
+            if all(x != 0 for x in [self.atm_pres0[body], self.atm_scale_h[body], self.atm_den0[body]]):
                 atm_h[body] = - self.atm_scale_h[body] * math.log(0.001 / self.atm_den0[body]) * self.rad_mult
-            else:
-                atm_h[body] = 0
 
         # CLASSIFICATION #
         self.types = np.zeros(len(self.mass))  # it is moon
@@ -386,7 +384,7 @@ class Physics():
 
             rel_pos = self.pos[body] - pos_ref
             distance = mag(rel_pos)   # distance to parent
-            speed_orb = math.sqrt((2 * a * u - distance * u) / (a * distance))   # velocity vector magnitude from semi-major axis equation
+            speed_orb = math.sqrt(u * ((2 / distance) - (1 / a)))   # velocity vector magnitude from vis-viva eq
             if ecc < 1:
                 ta = math.acos((math.cos(ea) - ecc)/(1 - ecc * math.cos(ea)))   # true anomaly from eccentric anomaly
             else:

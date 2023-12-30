@@ -1,13 +1,13 @@
 ### TIMELINE ###
 
 WIP:
-game: Warp switching
+game: Leave / Enter COI
 editor: prograde/retrograde, radial/antiradial with W/A/S/D
 editor: relative inserting position and velocity
 global: tab when typing value switch to next
 
 v0.5.1 - game-vessel
-parts config
+vessels config
 vessel rotation with A/D
 vessels stop rotating in regular warp
 
@@ -15,7 +15,7 @@ v0.5.2 - game-vessel
 velocity slider
 add velocity in facing direction
 entering/leaving coi
-check pixel collisions
+vessel-vessel pixel collisions (rotation, destruction, release phys-warp)
 
 v0.5.3 - game-vessel
 calculate radius around vessel from vessel size and scale
@@ -23,11 +23,10 @@ switch warp if vessel will be inside that radius
 documentation
 
 v0.5.4 - game-gui
-Vessel list
+Vessel list (mark vessels holding physical warp)
 Orbit
 Surface
 Vessel
-Vessel list
 Maneuver - placeholder
 Thermal - placeholder
 Selected body
@@ -54,6 +53,8 @@ v0.5.8 - editor
 rebuild editor physics
 documentation
 
+v0.5.9 - game-vessel
+vessel-planet collisions
 
 
 
@@ -79,11 +80,10 @@ vessel close view
 engine
 maneuvers
 fuel
-icons, modules, markers
-advanced collisions (rotation, destruction threshold)
+more icons, markers
 SAS
 deltaV
-vessel parts and editor
+vessel parts, editor and config
 docking
 launch / staging
 aerodynamics

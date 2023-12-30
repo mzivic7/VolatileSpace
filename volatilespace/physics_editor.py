@@ -625,8 +625,6 @@ class Physics():
         for body, _ in enumerate(self.mass):
             if all(x != 0 for x in [self.atm_pres0[body], self.atm_scale_h[body], self.atm_den0[body]]):
                 self.atm_h[body] = - self.atm_scale_h[body] * math.log(0.001 / self.atm_den0[body]) * self.rad_mult
-            else:
-                self.atm_h[body] = 0
 
         # thermal
         core_temp = (self.gc * mp * self.mass) / ((3/2) * k * self.rad * self.rad_mult)   # core temperature

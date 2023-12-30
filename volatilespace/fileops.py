@@ -44,13 +44,13 @@ def gen_game_list():
     if not os.path.exists("Saves"):
         os.mkdir("Saves")
     files_list = os.listdir("Saves")
-    
+
     # filter only files with .ini extension
     game_files = []
     for file_name in files_list:
         if file_name[-4:] == ".ini":
             game_files.append(file_name)
-    
+
     # get data
     games = np.empty((0, 3), dtype=object)
     for game_file in game_files:
@@ -66,7 +66,7 @@ def gen_game_list():
     # sort by name then by date
     games = games[games[:, 2].argsort()]
     games = games[games[:, 1].argsort(kind='mergesort')]
-    
+
     # move quicksave and autosave at end
     for savetype in ["quicksave", "autosave"]:
         save_lst = np.where((games[:, 0] == savetype + ".ini"))[0]
@@ -75,7 +75,7 @@ def gen_game_list():
             save_row = games[save_ind]
             games = np.delete(games, save_ind, 0)
             games = np.vstack((games, save_row))
-    
+
     return games
 
 
@@ -84,13 +84,13 @@ def gen_map_list():
     if not os.path.exists("Maps"):
         os.mkdir("Maps")
     files_list = os.listdir("Maps")
-    
+
     # filter only files with .ini extension
     map_files = []
     for file_name in files_list:
         if file_name[-4:] == ".ini":
             map_files.append(file_name)
-    
+
     # get data
     maps = np.empty((0, 3), dtype=object)
     for map_file in map_files:
@@ -106,7 +106,7 @@ def gen_map_list():
     # sort by name then by date
     maps = maps[maps[:, 2].argsort()]
     maps = maps[maps[:, 1].argsort(kind='mergesort')]
-    
+
     # move quicksave and autosave at end
     for savetype in ["quicksave", "autosave"]:
         save_lst = np.where((maps[:, 0] == savetype + ".ini"))[0]
@@ -122,7 +122,7 @@ def load_file(path):
     """Load saved data from map/saved game and returns type of save: newton/kepler"""
     system = ConfigParser()
     system.read(path)
-    
+
     # read data section
     name = system.get("game_data", "name").strip('"')
     date = system.get("game_data", "date").strip('"')
@@ -132,7 +132,7 @@ def load_file(path):
     except Exception:
         vessel = None
     game_data = {"name": name, "date": date, "time": time, "vessel": vessel}
-    
+
     # physics related config
     try:
         config = defaults.sim_config.copy()
@@ -141,7 +141,7 @@ def load_file(path):
             config[key] = value
     except Exception:
         config = defaults.sim_config
-    
+
     kepler = False
     body_name = np.array([])
     mass = np.array([])
@@ -150,30 +150,30 @@ def load_file(path):
     atm_pres0 = np.array([])
     atm_scale_h = np.array([])
     atm_den0 = np.array([])
-    
+
     vessel_name = np.array([])
-    
+
     position = np.empty((0, 2), int)
     velocity = np.empty((0, 2), int)
-    
+
     semi_major = np.array([])
     ecc = np.array([])
     pe_arg = np.array([])
     ma = np.array([])
     parents = np.array([], dtype=int)
     direction = np.array([])
-    
+
     v_semi_major = np.array([])
     v_ecc = np.array([])
     v_pe_arg = np.array([])
     v_ma = np.array([])
     v_parents = np.array([], dtype=int)
     v_direction = np.array([])
-    
+
     # load all body parameters into separate arrays
     for body in system.sections():
         if body not in ["game_data", "config"]:
-            
+
             if not kepler:   # newtonian
                 try:
                     position = np.vstack((position, list(map(float, system.get(body, "position").strip("][").split(", ")))))
@@ -192,7 +192,7 @@ def load_file(path):
                         atm_den0 = np.append(atm_den0, 0.0)
                 except Exception:   # if pos or vel values are missing - then try to read kepler
                     kepler = True
-            
+
             if kepler:
                 if system.get(body, "obj") == "body":
                     body_name = np.append(body_name, body)
@@ -221,7 +221,8 @@ def load_file(path):
                     v_ma = np.append(v_ma, float(system.get(body, "mna")))
                     v_parents = np.append(v_parents, int(system.get(body, "ref")))
                     v_direction = np.append(v_direction, float(system.get(body, "dir")))
-    
+                    v_semi_major = np.where(v_ecc > 1, -abs(v_semi_major), v_semi_major)
+
     body_data = {"name": body_name, "mass": mass, "den": density, "color": color, "atm_pres0": atm_pres0, "atm_scale_h": atm_scale_h, "atm_den0": atm_den0}
     if kepler:
         body_orb_data = {"kepler": kepler, "a": semi_major, "ecc": ecc, "pe_arg": pe_arg, "ma": ma, "ref": parents, "dir": direction}
@@ -229,7 +230,7 @@ def load_file(path):
         body_orb_data = {"kepler": kepler, "pos": position, "vel": velocity}
     vessel_data = {"name": vessel_name}
     vessel_orb_data = {"a": v_semi_major, "ecc": v_ecc, "pe_arg": v_pe_arg, "ma": v_ma, "ref": v_parents, "dir": v_direction}
-    
+
     return game_data, config, body_data, body_orb_data, vessel_data, vessel_orb_data
 
 
@@ -239,14 +240,14 @@ def save_file(path, game_data, conf, body_data, body_orb_data, vessel_data={}, v
     date = game_data["date"]
     time = game_data["time"]
     vessel = game_data["vessel"]
-    
+
     if not os.path.exists("Maps"):
         os.mkdir("Maps")
     if not os.path.exists("Saves"):
         os.mkdir("Saves")
     if name == "":
         name = "Unnamed"
-    
+
     if os.path.exists(path):   # when overwriting
         if name is None:   # keep old name
             map_name = ConfigParser()
@@ -256,21 +257,21 @@ def save_file(path, game_data, conf, body_data, body_orb_data, vessel_data={}, v
             except Exception:
                 name = "New map"
         open(path, "w").close()   # delete file
-    
+
     system = ConfigParser()
     system.read(path)
-    
+
     system.add_section("game_data")
     system.set("game_data", "name", name)
     system.set("game_data", "date", date)
     system.set("game_data", "time", str(time))
     system.set("game_data", "vessel", str(vessel))
-    
+
     system.add_section("config")   # special section for config
     for key in conf.keys():   # physics related config
         value = str(conf[key])
         system.set("config", key, value)
-    
+
     body_names = body_data["name"]
     mass = body_data["mass"]
     density = body_data["den"]
@@ -278,7 +279,7 @@ def save_file(path, game_data, conf, body_data, body_orb_data, vessel_data={}, v
     atm_pres0 = body_data["atm_pres0"]
     atm_scale_h = body_data["atm_scale_h"]
     atm_den0 = body_data["atm_den0"]
-    
+
     kepler = False
     try:
         position = body_orb_data["pos"]
@@ -291,22 +292,22 @@ def save_file(path, game_data, conf, body_data, body_orb_data, vessel_data={}, v
         ma = body_orb_data["ma"]
         parents = body_orb_data["ref"]
         direction = body_orb_data["dir"]
-    
-    
+
+
     for body, body_name in enumerate(body_names):
         body_mass = mass[body]
-        
+
         # handle if this body already exists
         num = 1
         while body_name in system.sections():
             body_name = body_names[body] + " " + str(num)
             num += 1
-        
+
         system.add_section(body_name)
-        
+
         if kepler:
             system.set(body_name, "obj", "body")
-        
+
         system.set(body_name, "mass", str(body_mass))
         system.set(body_name, "density", str(density[body]))
         system.set(body_name, "color", "[" + str(color[body, 0]) + ", " + str(color[body, 1]) + ", " + str(color[body, 2]) + "]")
@@ -314,11 +315,11 @@ def save_file(path, game_data, conf, body_data, body_orb_data, vessel_data={}, v
             system.set(body_name, "atm_pres0", str(atm_pres0[body]))
             system.set(body_name, "atm_scale_h", str(atm_scale_h[body]))
             system.set(body_name, "atm_den0", str(atm_den0[body]))
-        
+
         if not kepler:
             system.set(body_name, "position", "[" + str(position[body, 0]) + ", " + str(position[body, 1]) + "]")
             system.set(body_name, "velocity", "[" + str(velocity[body, 0]) + ", " + str(velocity[body, 1]) + "]")
-            
+
         else:
             system.set(body_name, "sma", str(semi_major[body]))
             system.set(body_name, "ecc", str(ecc[body]))
@@ -326,7 +327,7 @@ def save_file(path, game_data, conf, body_data, body_orb_data, vessel_data={}, v
             system.set(body_name, "mna", str(ma[body]))
             system.set(body_name, "ref", str(int(parents[body])))
             system.set(body_name, "dir", str(int(direction[body])))
-    
+
     if vessel_data:
         vessel_names = vessel_data["name"]
         semi_major = vessel_orb_data["a"]
@@ -335,15 +336,15 @@ def save_file(path, game_data, conf, body_data, body_orb_data, vessel_data={}, v
         ma = vessel_orb_data["ma"]
         parents = vessel_orb_data["ref"]
         direction = vessel_orb_data["dir"]
-        
+
         for vessel, vessel_name in enumerate(vessel_names):
-            
+
             # handle if this vessel already exists
             num = 1
             while vessel_name in system.sections():
                 vessel_name = vessel_name[vessel] + " " + str(num)
                 num += 1
-        
+
             system.add_section(vessel_name)
             system.set(vessel_name, "obj", "vessel")
             system.set(vessel_name, "sma", str(semi_major[vessel]))
@@ -352,7 +353,7 @@ def save_file(path, game_data, conf, body_data, body_orb_data, vessel_data={}, v
             system.set(vessel_name, "mna", str(ma[vessel]))
             system.set(vessel_name, "ref", str(int(parents[vessel])))
             system.set(vessel_name, "dir", str(int(direction[vessel])))
-    
+
     with open(path, 'w') as f:
         system.write(f)
 
@@ -363,7 +364,7 @@ def new_map(name, date):
         os.mkdir("Maps")
     if name == "":
         name = "New Map"
-    
+
     # prevent having same name maps
     map_list = gen_map_list()
     new_name = name
@@ -371,35 +372,35 @@ def new_map(name, date):
     while new_name in map_list[:, 1] or new_name + ".ini" in map_list[:, 0]:
         new_name = name + " " + str(num)
         num += 1
-    
+
     path = "Maps/" + new_name + ".ini"
-    
+
     if os.path.exists(path):   # when overwriting, delete file
         open(path, "w").close()
-    
+
     system = ConfigParser()   # load config class
     system.read(new_name + ".ini")   # load system
-    
+
     system.add_section("game_data")
     system.set("game_data", "name", new_name)
     system.set("game_data", "date", date)
     system.set("game_data", "time", "0")
-    
+
     system.add_section("config")   # special section for config
     for key in defaults.sim_config.keys():   # physics related config
         value = str(defaults.sim_config[key])
         system.set("config", key, value)
-    
+
     system.add_section("root")
     system.set("root", "mass", "10000.0")
     system.set("root", "density", "1.0")
     system.set("root", "position", "[0.0, 0.0]")
     system.set("root", "velocity", "[0.0, 0.0]")
     system.set("root", "color", "[255, 255, 255]")
-    
+
     with open(path, 'w') as f:
         system.write(f)
-    
+
     return path
 
 
@@ -409,7 +410,7 @@ def rename_map(path, name):
     system.read(path)
     if name == "":
         name = "Unnamed"
-    
+
     # prevent having same name maps
     map_list = gen_map_list()
     new_name = name
@@ -417,7 +418,7 @@ def rename_map(path, name):
     while new_name in map_list[:, 1]:
         new_name = name + " " + str(num)
         num += 1
-    
+
     system.set("game_data", "name", new_name)
     with open(path, 'w') as f:
         system.write(f)
@@ -429,7 +430,7 @@ def new_game(name, date):
         os.mkdir("Saves")
     if name == "":   # there must be name
         name = "New Map"
-    
+
     # prevent having same name games
     game_list = gen_game_list()
     new_name = name
@@ -437,24 +438,24 @@ def new_game(name, date):
     while new_name in game_list[:, 1] or new_name + ".ini" in game_list[:, 0]:
         new_name = name + " " + str(num)
         num += 1
-    
+
     path = "Saves/" + new_name + ".ini"
     if os.path.exists(path):   # when overwriting, delete file
         open(path, "w").close()
-    
+
     system = ConfigParser()
     system.read(new_name + ".ini")
-    
+
     system.add_section("game_data")
     system.set("game_data", "name", new_name)
     system.set("game_data", "date", date)
     system.set("game_data", "time", "0")
-    
+
     system.add_section("config")   # special section for config
-    
+
     with open(path, 'w') as f:
         system.write(f)
-    
+
     return path
 
 
@@ -464,7 +465,7 @@ def rename_game(path, name):
     game.read(path)
     if name == "":   # there must be name
         name = "Unnamed"
-    
+
     # prevent having same name games
     game_list = gen_game_list()
     new_name = name
@@ -472,7 +473,7 @@ def rename_game(path, name):
     while new_name in game_list[:, 1]:
         new_name = name + " " + str(num)
         num += 1
-    
+
     game.set("game_data", "name", new_name)
     with open(path, 'w') as f:
         game.write(f)
@@ -525,7 +526,7 @@ def default_keybindings():
     keybindings["keybindings"] = keyb_dict
     with open("keybindings.ini", "w") as f:
         keybindings.write(f)
-    
+
 
 def save_keybindings(keyb_dict):
     """Saves all keybindings to keybindings.ini"""

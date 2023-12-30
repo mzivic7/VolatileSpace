@@ -1,4 +1,4 @@
-### references ### 
+### references ###
 [1]  https://orbital-mechanics.space/time-since-periapsis-and-keplers-equation/elliptical-orbits.html#eccentric-anomaly
 [2]  https://orbital-mechanics.space/time-since-periapsis-and-keplers-equation/elliptical-orbits.html#kepler-s-equation
 [3]  https://orbital-mechanics.space/time-since-periapsis-and-keplers-equation/elliptical-orbits.html#newton-s-method-to-solve-kepler-s-equation
@@ -14,3 +14,4 @@
 [13] https://mathcurve.com/courbes2d.gb/hyperbole/hyperbole.shtml
 [14] https://en.wikipedia.org/wiki/Mean_motion
 [15] https://en.wikipedia.org/wiki/True_anomaly#From_the_eccentric_anomaly
+[16] https://en.wikipedia.org/wiki/Orbital_speed#Instantaneous_orbital_speed

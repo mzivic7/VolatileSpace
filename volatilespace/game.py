@@ -859,7 +859,8 @@ class Game():
                     if self.games_y - self.space <= self.mouse_raw[1]-1 <= self.games_y + self.list_limit:
                         y_pos = self.games_y - self.scroll
                         for num, text in enumerate(self.games[:, 1]):
-                            if y_pos >= self.games_y - self.btn_h - self.space and y_pos <= self.games_y + self.list_limit:    # don't detect outside list area
+                            # don't detect outside list area
+                            if y_pos >= self.games_y - self.btn_h - self.space and y_pos <= self.games_y + self.list_limit:
                                 if self.games_x <= self.mouse_raw[0]-1 <= self.games_x + self.btn_w_l and y_pos <= self.mouse_raw[1]-1 <= y_pos + self.btn_h:
                                     self.selected_item = num
                                     self.selected_path = "Saves/" + self.games[self.selected_item, 0]
@@ -1014,8 +1015,43 @@ class Game():
             if self.pause is False:
                 debug_time = time.time()   # ### DEBUG ###
 
-                # physical warp toggle
-                # ### TODO ###
+                # regular/physical warp toggle
+                situation, alarm_vessel, physical_hold = physics_vessel.check_warp(self.warp)
+                match situation:
+                    case 0:   # space -> impact
+                        if not self.warp_phys_active:
+                            self.warp_phys_active = True
+                            self.warp_phys = 1
+                            self.warp_phys_index = 0
+                            graphics.timed_text_init(rgb.orange, self.fontmd,
+                                                     f"Vessel {self.v_names[alarm_vessel]} is about to impact, switching to physical warp.",
+                                                     (self.screen_x/2, self.screen_y-70), 1.5, True)
+                        self.set_warp_ui(silent=True)
+                    case 1:   # space -> atmosphere
+                        if not self.warp_phys_active:
+                            self.warp_phys_active = True
+                            self.warp_phys = 1
+                            self.warp_phys_index = 0
+                            graphics.timed_text_init(rgb.orange, self.fontmd,
+                                                     f"Vessel {self.v_names[alarm_vessel]} is entering atmosphere, switching to physical warp.",
+                                                     (self.screen_x/2, self.screen_y-70), 1.5, True)
+                        self.set_warp_ui(silent=True)
+                    case 2:   # atmosphere -> space
+                        if self.warp_phys_active:
+                            if physical_hold <= 0:
+                                self.warp_phys_active = False
+                                self.warp_phys = 1
+                                self.warp_phys_index = 0
+                                self.warp = 1
+                                self.warp_index = 0
+                                graphics.timed_text_init(rgb.gray0, self.fontmd,
+                                                         f"Vessel {self.v_names[alarm_vessel]} left atmosphere, switching to regular warp.",
+                                                         (self.screen_x/2, self.screen_y-70), 1.5, True)
+                            else:
+                                graphics.timed_text_init(rgb.gray0, self.fontmd,
+                                                         f"Vessel {self.v_names[alarm_vessel]} left atmosphere, NOT switching to regular warp ({physical_hold} vessel/s are still in physical).",
+                                                         (self.screen_x/2, self.screen_y-70), 1.5, True)
+                        self.set_warp_ui(silent=True)
 
                 if self.warp_phys_active:
                     # physical warp
@@ -1032,9 +1068,9 @@ class Game():
                     self.sim_time += 1 * self.warp   # iterate sim_time
 
                 self.curves = physics_body.curve_move()
-                if self.active_vessel is not None:   # TODO run only if something change
+                if False:   # TODO run only if something change
                     physics_vessel.points(self.active_vessel)
-                    physics_vessel.curve(self.active_vessel)   # TODO also run if there is any point
+                    physics_vessel.curve(self.active_vessel)
                 self.v_curves = physics_vessel.curve_move()
                 sim_screen = np.array((self.sim_coords((0, 0)), self.sim_coords((self.screen_x, self.screen_y))))
                 self.visible_bodies = physics_body.culling(sim_screen)
