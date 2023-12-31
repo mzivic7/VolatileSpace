@@ -1,7 +1,8 @@
 # Body can be moved with mean motion instead with newtonian physics.
 # This simplifies calculations and warp can be easier implemented
 
-n = 2pi / T   # mean motion [14]
+n = sqrt(G*M/|a|^3)  # general mean motion [14]
+n = 2pi / T   # only for ellipse [14]
 
 # Then increment mean anomaly by this value each iteration
 # direction is added for clockwise orbits

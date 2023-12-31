@@ -20,7 +20,9 @@ vv = (vr_x * cos(angle) + vr_y * sin(angle))   # vertical speed
 vh = abs(vr_x * sin(angle) - vr_y * cos(angle))   # horizontal speed
 # Vertical and horizontal speeds are calculated as components of vr, but coordinate system is rotated by pi/2-true_anomaly - to be normal with body position vector relative to orbiting mass.
 
-# If vr vector is unknown but its magnitude (vo) is:
+# If vr vector is unknown:
+vo = sqrt(u((2 / d) - (1 / a)))   # orbital speed from vis-viva equation [16]
+# note: for hyperbola it is a is negative
 # vo direction is tangent on ellipse in this point
 # %pi puts it in right quadrants so sign after sin and cos functions is correct
 angle = (Ta - arctg(-b*ctg(Ea)/a)) % pi   # angle between tangent and true anomaly
@@ -31,3 +33,4 @@ vh = vo * sin(angle)
 References:
 [7]  https://en.wikipedia.org/wiki/Orbital_period#Small_body_orbiting_a_central_body
 [15] https://en.wikipedia.org/wiki/True_anomaly#From_the_eccentric_anomaly
+[16] https://en.wikipedia.org/wiki/Orbital_speed#Instantaneous_orbital_speed

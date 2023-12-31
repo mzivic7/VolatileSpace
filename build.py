@@ -18,3 +18,4 @@ else:
 
 shutil.copytree('img/', 'dist/VolatileSpace/img/', dirs_exist_ok=True)
 shutil.copytree('fonts/', 'dist/VolatileSpace/fonts/', dirs_exist_ok=True)
+shutil.copytree('parts/', 'dist/VolatileSpace/parts/', dirs_exist_ok=True)

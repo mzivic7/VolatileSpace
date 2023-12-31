@@ -24,7 +24,7 @@ tPe = sqrt(2(a/2)^3) * Ma
 Fa = acosh((e + cos(Ta)) / (1 + e * cos(Ta)))   # eccentric anomaly from true anomaly [12]
 Ma = e * sinh(Fa) - Fa   # mean anomaly from eccentric anomaly [12]
 dPe = a * (1 - e)   # Pe height
-tPe = sqrt((-a)^3 / u) * Ma
+tPe = sqrt(|a|^3 / u) * Ma
 
 
 Note:
@@ -32,4 +32,3 @@ Ma in parabola and hyperbola can go over 2pi
 
 References:
 [12] https://www.bogan.ca/orbits/kepler/orbteqtn.html
-

@@ -1,30 +1,67 @@
-System savefile is human readable plain text document, containing information of every body in simulation.
+Savefile is human readable plain text document, containing information of every body and vessel in simulation including simulation config and metadata.
 Savefiles uses ini format.
+
 It is divided in sections by this rule:
-First section called [config] i used for global variables in simulation. This section is followed with: [body1], [body2], [body3]... one section for each body in simulation.
+First section is [game_data], used for storing game related variables
+Second section is called [config], it is used for physics related variables.
+This section is followed with sections with object names, each section for one object.
+Objects can be body and vessel.
+Editor loads and uses only body objects but can edit maps without loosing vessels.
+Editor by default saves in Newtonian parameters.
+But if editor overwrites savefile with Keplerian parameters, it will convert from Newtonian to Keplerian.
+Game mode can't change body objects.
 
 
 
 Section parameters:
 
-[config]
+[game_data]
 name = New map   # map display name
 date = 08.10.2023 19:24   # date and time when map is created
 time = 0   # simulation time displayed on screen (in seconds)
+vessel = 0   # last selected vessel in game
+
+[config]
 gc = 1.0   # gravitational constant
 rad_mult = 100.0   # radius multiplier
 coi_coef = 0.7   # COI coefficient: larger coef - smaller COI
+vessel_scale = 0.1   # makes vessel larger or smaller
 
+
+# for bodies:
 [body_name]
+obj = body   # this sets object type to be body
 mass = 100000   # body mass
 density = 1.0   # body density
+color = [70, 200, 200]   # body base color
+atm_pres0 = 1.0   # atmosphere pressure at surface
+atm_scale_h = 0.01   # atmosphere scale height
+atm_den0 = 1.2   # atmosphere pressure to density coefficient
+
+# bodies can have 2 formats for saving orbital parameter:
+# Newtonian (position and velocity)
 position = [0, 0]   # ABSOLUTE position
 velocity = [0, 0]   # ABSOLUTE velocity
-color = [70, 200, 200]   # body base color
+# Keplerian (keplers orbit)
+sma = 136.3   # semi major axis
+ecc = 0.1   # eccentricity
+lpe = 1.9   # longitude of periapsis (radians)
+mna = 2.8   # mean anomaly (radians)
+ref = 5   # reference body
+dir = 1   # direction
 
 
+# for vessels:
+[vessel_name]
+obj = vessel   # this sets object type to be vessel
+sma = 136.3   # semi major axis
+ecc = 0.1   # eccentricity
+lpe = 1.9   # longitude of periapsis (radians)
+mna = 2.8   # mean anomaly (radians)
+ref = 5   # reference body
+dir = 1   # direction
 
-Notes:
-Changing time won't change orbits.
-Real color is calculated by temperature and base color.
-System must have at least 1 body.
+
+# NOTE:
+# if orbit is hyperbolic, i.e. ecc > 1
+# semi major axis (sma) will and must be negative

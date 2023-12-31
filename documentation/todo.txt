@@ -1,83 +1,93 @@
 ### TIMELINE ###
 
-v0.5.0 - vessel physics
-copy from body physics to separate class file
-load/save vessels from save file
-draw vessel as triangle
-temporarily, vessel size as circle, for collisions
-physical warp (x2, x4) when enter atmosphere (fake atmosphere temporarily)
-physical warp when close to other vessel (define distance)
-break regular warp when entering physical (check next iteration to not move into atmosphere)
-check collisions in physical warp
-add velocity in prograde/retrograde, radial/antiradial
+WIP:
+game: Leave / Enter COI
+editor: prograde/retrograde, radial/antiradial with W/A/S/D
+editor: relative inserting position and velocity
+global: tab when typing value switch to next
+
+v0.5.1 - game-vessel
+vessels config
+vessel rotation with A/D
+vessels stop rotating in regular warp
+
+v0.5.2 - game-vessel
+velocity slider
+add velocity in facing direction
+entering/leaving coi
+vessel-vessel pixel collisions (rotation, destruction, release phys-warp)
+
+v0.5.3 - game-vessel
+calculate radius around vessel from vessel size and scale
+switch warp if vessel will be inside that radius
 documentation
 
-editor: prograde/retrograde, radial/antiradial
+v0.5.4 - game-gui
+Vessel list (mark vessels holding physical warp)
+Orbit
+Surface
+Vessel
+Maneuver - placeholder
+Thermal - placeholder
+Selected body
+Selected body orbit
 
-v0.5.1 - game gui
-display vessel data in right menus
-separate selection for body and vessel
-display selected body data in right menu
-
-v0.5.2 - rotation
-planets rotation
-vessel rotation
-- vessels stop rotating in regular warp
-- add velocity only in facing direction
-documentation
-
-v0.5.3 - advanced body orbit
-leave/enter orbit and landing point
-show/hide mouseover menu for point, ap/pe leve/enter, landing
-lock/unlock click menu for point, ap/pe leve/enter, landing
+v0.5.5 - game-gui
 time-to point
-distance to center
-dont draw some parts of orbit
+for points: ap/pe, leave/enter, impact
+mouseover - show data and warp button
+click - toggle show data
 documentation
 
-v0.5.4 - warp to point
+v0.5.6 - game-vessel
 warp to point
 warp to next orbit
 
-v0.5.5 - second orbit
+v0.5.7 - game-vessel
+enter-orbit-point prediction and drawing
+don't draw ap and pe outside orbit line
 draw second orbit
 documentation
 
-v0.5.6 - rebuild editor physics
+v0.5.8 - editor
 rebuild editor physics
 documentation
 
+v0.5.9 - game-vessel
+vessel-planet collisions
 
 
 
-### STAR PHYSICS ###
+### BODY PHYSICS ###
+planets rotation
 calculate surface temp
 calculate luminosity
 shadows
+pressure
+gas planets
 body classification
-??? star age - composition: H - He
-??? star physics tick warp system
+star H-He ratio
 black holes
 support non-main-sequence stars
 simulation sizes adjustment
-star classification
+classification
 
 
 
 ### GAME ###
 advanced game GUI
-vessel close
+vessel close view
 engine
 maneuvers
 fuel
-icons, modules, markers
+more icons, markers
 SAS
 deltaV
-vessel parts and editor
-advanced rotation
-advanced collisions
+vessel parts, editor and config
 docking
 launch / staging
+aerodynamics
+planet surface
 heat
 communications
 electrical power
@@ -87,10 +97,10 @@ electrical power
 ### BODY TEXTURES ###
 stars
 black hole
-planets 
+planets
 atmosphere
 random life, water, ice
-special bodies (pulasar, neutron star, black hole...)
+special bodies (pulsar, neutron star, black hole...)
 surface rendering in high zoom
 
 

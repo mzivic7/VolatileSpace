@@ -1,0 +1,14 @@
+### Constants ###
+c = 299792458 - Light speed
+G = 6.674 * 10^-11 - Gravitational constant
+pi = 3.14159265 - pi constant
+
+
+
+### Variables ###
+m = mass in Kg
+R = radius in m
+g = surface gravity
+rho = gas density
+vol = volume
+P = position vector

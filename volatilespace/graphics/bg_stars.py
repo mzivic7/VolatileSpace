@@ -56,14 +56,14 @@ def random_cluster_stars(count_minmax, size_mult, speed, radius_prob, opacity):
     return stars
 
 
-def new_pos(pos, res, extra, zoom_off, zoom):
+def new_pos(pos, res, frame, zoom_off, zoom):
     """Cycle stars from extended screen edge to opposite"""
-    np.where(pos[:, 0] >= res[0] + extra, (np.random.randint(-extra, 0) / zoom) + 2*zoom_off[0], pos[:, 0])
-    np.where(pos[:, 0] <= - extra, (np.random.randint(res[0], res[0] + extra) / zoom) - 2*zoom_off[0], pos[:, 0])
-    np.where(pos[:, 1] >= res[0] + extra, (np.random.randint(-extra, 0) / zoom) + 2*zoom_off[1], pos[:, 1])
-    np.where(pos[:, 1] <= - extra, (np.random.randint(res[1], res[1] + extra) / zoom) - 2*zoom_off[1], pos[:, 1])
-    change = False   # position has not changed
-    return pos, change
+    size = len(pos)
+    pos[:, 0] = np.where(pos[:, 0] >= res[0] + frame, (np.random.randint(-frame, 0, size=size) - zoom_off[0]) / zoom, pos[:, 0])
+    pos[:, 0] = np.where(pos[:, 0] <= - frame, (np.random.randint(res[0], res[0] + frame, size=size) - zoom_off[0]) / zoom, pos[:, 0])
+    pos[:, 1] = np.where(pos[:, 1] >= res[1] + frame, (np.random.randint(-frame, 0, size=size) - zoom_off[1]) / zoom, pos[:, 1])
+    pos[:, 1] = np.where(pos[:, 1] <= - frame, (np.random.randint(res[1], res[1] + frame, size=size) - zoom_off[1]) / zoom, pos[:, 1])
+    return pos
 
 
 class Bg_Stars():
@@ -72,15 +72,15 @@ class Bg_Stars():
         self.star_field = np.empty((0, 5), dtype=object)   # [x, y, radius, speed, color]
         self.clusters = np.empty((0, 4), dtype=object)   # [cx, cy, vel, [sx, sy, rad, col]]
         self.res = [0, 0]
-        
-        
+
+
     def reload_settings(self):
-        """Reload all settings, should be run every time settings are applied"""
+        """Reload all settings, should be run every time settings are changed"""
         self.antial = leval(fileops.load_settings("background", "stars_antialiasing"))
         self.num = int(fileops.load_settings("background", "stars_num"))   # how many stars on extended screen
         self.new_color = leval(fileops.load_settings("background", "stars_new_color"))
         # size of frame aded around screen to allow zooming and discreete cluster creation and remember stars that are off screen
-        self.extra = int(fileops.load_settings("background", "extra_frame"))
+        self.frame = int(fileops.load_settings("background", "extra_frame"))
         self.custom_speed = float(fileops.load_settings("background", "stars_speed_mult"))
         self.opacity = float(fileops.load_settings("background", "stars_opacity"))
         self.cluster_enable = leval(fileops.load_settings("background", "cluster_enable"))
@@ -95,67 +95,68 @@ class Bg_Stars():
         self.zoom_max = float(fileops.load_settings("background", "stars_zoom_max"))
         self.zoom_sim_mult = float(fileops.load_settings("background", "zoom_mult"))   # simulation zoom multiplier to get bg_zoom
         graphics.reload_settings()
-        
+
         if self.opacity > 1:
             self.opacity = 1   # limit opacity from 0 to 1
         if self.opacity < 0:
             self.opacity = 0
-    
-    
-    
+
+
+
     ###### --Init after pygame-- ######
     def set_screen(self):
         """Load pygame-related variables, this should be run after pygame has initialised or resolution has changed"""
-        self.res = pygame.display.get_surface().get_size()   # window width, window height
+        self.star_field = np.empty((0, 5), dtype=object)   # [x, y, radius, speed, color]
+        self.clusters = np.empty((0, 4), dtype=object)   # [cx, cy, vel, [sx, sy, rad, col]]
+        self.res = pygame.display.get_surface().get_size()
         graphics.set_screen()
-        
+
         # generate initial star filed
         for _ in range(self.num):
-            star_x = np.random.randint(0, self.res[0]+self.extra*2)-self.extra
-            star_y = np.random.randint(0, self.res[1]+self.extra*2)-self.extra
+            star_x = np.random.randint(0, self.res[0]+self.frame*2)-self.frame
+            star_y = np.random.randint(0, self.res[1]+self.frame*2)-self.frame
             radius = np.random.choice([1, 2, 3], p=self.radius_prob)   # random star radius from prob
             speed = np.random.choice([1, 2, 3], p=self.speed_prob) * radius / 2   # random star speed from prob, but larger ones are faster
             if radius == 3:  # if star is large
                 speed = np.sqrt(speed)  # decrease speed for few fast and large stars
             color = random_star_color(radius, speed, self.opacity)
             self.star_field = np.vstack((self.star_field, np.array([star_x, star_y, radius, speed, color], dtype=object)))
-        
+
         # generate initial clusters
         for _ in range(self.cluster_num):
-            cluster_x = np.random.randint(-self.extra, self.res[0]+self.extra)
-            cluster_y = np.random.randint(-self.extra, self.res[1]+self.extra)
+            cluster_x = np.random.randint(-self.frame, self.res[0]+self.frame)
+            cluster_y = np.random.randint(-self.frame, self.res[1]+self.frame)
             cluster_speed = np.random.choice([1, 2, 3], p=self.speed_prob)   # random speed from prob
             # stars in cluster:
             stars = random_cluster_stars(self.cluster_stars, self.size_mult, cluster_speed, self.radius_prob, self.opacity)
             self.clusters = np.vstack((self.clusters, np.array([cluster_x, cluster_y, cluster_speed, stars], dtype=object)))
-    
-    
-    
+
+
+
     ###### --Draw background stars-- ######
     def draw_bg(self, screen, speed_mult, direction, zoom_in):
         """Draw stars and clusters on screen with movement in direction, and zoom effect"""
         zoom_min_coef = np.log(self.zoom_max/self.zoom_min - 1)   # bellow eq solved for zoom_min_coef, where x=zoom_min and y=0 (log is ln)
         zoom = self.zoom_max / (1 + np.e**(zoom_min_coef - zoom_in * self.zoom_sim_mult))   # limit zoom with logistic function: y=a/1+e^(b-x)
         zoom_off = (self.res[0] / 2 - (zoom * self.res[0] / 2), self.res[1] / 2 - (zoom * self.res[1] / 2))
-        self.star_field, change = new_pos(self.star_field, self.res, self.extra, zoom_off, zoom)   # cycle stars at edge
+        self.star_field = new_pos(self.star_field, self.res, self.frame, zoom_off, zoom)   # cycle stars at edge
         # move stars
         self.star_field[:, 0] = self.star_field[:, 0] - self.star_field[:, 3] * speed_mult * np.cos(direction) * self.custom_speed
         self.star_field[:, 1] = self.star_field[:, 1] + self.star_field[:, 3] * speed_mult * np.sin(direction) * self.custom_speed
         stars_zoom_pos = np.column_stack((self.star_field[:, 0]*zoom + zoom_off[0], self.star_field[:, 1]*zoom + zoom_off[1]))   # star position with zoom
         for num, star in enumerate(self.star_field):
             star_zoom = stars_zoom_pos[num]
-            
-            if self.new_color and change:
+            if self.new_color:
                 star[4] = random_star_color(star[2], star[3])
             if star_zoom[0] >= -1 and star_zoom[1] >= -1 and star_zoom[0] <= self.res[0]+1 and star_zoom[1] <= self.res[1]+1:   # if star is on screen
                 graphics.draw_circle_fill(screen, star[4], star_zoom, star[2], self.antial)   # screen, color, pos, radius
-        
+
         if self.cluster_enable is True:
             self.clusters[:, 0] -= self.clusters[:, 2] * speed_mult * np.cos(direction) * self.custom_speed  # move cluster
             self.clusters[:, 1] += self.clusters[:, 2] * speed_mult * np.sin(direction) * self.custom_speed
-            self.clusters, change = new_pos(self.clusters, self.res, self.extra, zoom_off, zoom)   # cycle stars at edge
+            self.clusters = new_pos(self.clusters, self.res, self.frame, zoom_off, zoom)   # cycle stars at edge
             for cluster in self.clusters:
-                if self.cluster_new and change:
+                if self.cluster_new:
                     cluster[3] = random_cluster_stars(self.cluster_stars, self.size_mult, cluster[2], self.radius_prob, self.opacity)   # generate new stars
                 for star in cluster[3]:
                     star_zoom = ((star[0] + cluster[0]) * zoom + zoom_off[0], (star[1] + cluster[1]) * zoom + zoom_off[1])   # star position with zoom

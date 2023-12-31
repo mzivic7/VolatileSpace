@@ -1,0 +1,53 @@
+# Convert all points to check from global coordinate system to local
+# Local CS is rotated by vessels argument of periapsis and translated to its position
+
+c_x = cos(-omega) * (x - P_x) - sin(-omega) * (y - P_y)
+c_y = sin(-omega) * (x - P_x) + cos(-omega) * (y - P_y)
+
+
+# find at what angle/s (parameter t) hyperbola and circle intersect, if any
+# goal is to transform hyperbola and circle equations into single quartic equation
+
+# parameters
+a_0 = -a^2 * (c_y^2 + b^2) + b^2 * (c_x + r)^2
+a_1 = -4 * a^2 * r * c_y
+a_2 = -2 * (a^2 * (c_y^2 + b^2 + 2*r^2) + b^2 * (r^2 - c_x^2))
+a_3 = -4 * a^2 * r * c_y
+a_4 = -a^2 * (c_y^2 + b^2) + b^2 * (c_x - r)^2
+
+# finally solve roots for quartic equation [5]
+# for simplicity, in this project, numpy is used to compute the roots of a polynomial:
+
+z = np.polynomial.polynomial.polyroots([a_0, a_1, a_2, a_3, a_4])
+
+# there will be max 4 roots
+# get only non-complex roots
+# these roots are parameter for circle but for Weierstrass substitute
+
+# to get eccentric anomaly first calculate intersection x and y coordinates:
+x = c_x + r * (1-z^2) / (1 + z^2)
+y = c_y + r * 2 * z / (1 + z^2)
+
+# calculating ea from position
+# from true anomaly [7]:
+ta = arctan2(y, x - (a * ecc))   # ???
+ea = arccosh((ecc + cos(ta))/(1 + (ecc * cos(ta))))   # NOTE: here is used arccosh
+
+# ea will be in (0, pi) range so correct it:
+if z < 0:
+    ea = 2pi - ea
+
+# from calculated eccentric anomaly, position can be calculated:
+x_n = a * cos(ea_n) - f
+y_n = b * sin(ea_n)
+# or use above calculated x and y coordinates
+
+# but it is in local CS and must be returned to global:
+x = (x_n * math.cos(omega) - y_n * math.sin(omega)) + P_x
+y = (x_n * math.sin(omega) + y_n * math.cos(omega)) + P_y
+
+References:
+[3] https://en.wikipedia.org/wiki/Tangent_half-angle_substitution#The_substitution
+[4] https://en.wikipedia.org/wiki/Ellipse#Parametric_representation
+[5] https://en.wikipedia.org/wiki/Quartic_equation
+[7] https://en.wikipedia.org/wiki/Eccentric_anomaly#From_the_true_anomaly

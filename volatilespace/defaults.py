@@ -6,6 +6,7 @@ settings = {"first_run": "True",
             "fullscreen": "True",
             "vsync": "True",
             "curve_points": 100,
+            "culling": "False",
             "grid_spacing_min": 100,
             "grid_spacing_max": 200,
             "mouse_wrap": "True",
@@ -42,9 +43,8 @@ keybindings = {"forward": pg.K_w,
                "decrease_time_warp": pg.K_COMMA,
                "stop_time_warp": pg.K_SLASH,
                "focus_home": pg.K_h,
-               "follow_selected_body": pg.K_f,
-               "toggle_background_grid": pg.K_g,
-               "cycle_grid_modes": pg.K_v,
+               "cycle_follow_modes": pg.K_f,
+               "cycle_grid_modes": pg.K_g,
                "screenshot": pg.K_F1,
                "toggle_ui_visibility": pg.K_F2,
                "toggle_labels_visibility": pg.K_F3,
@@ -55,7 +55,8 @@ keybindings = {"forward": pg.K_w,
 
 sim_config = {"gc": 1.0,
               "rad_mult": 10.0,
-              "coi_coef": 0.4
+              "coi_coef": 0.4,
+              "vessel_scale": 0.1
               }
 
 
@@ -65,7 +66,10 @@ new_body_moon = {"name": "New moon",
                  "density": 1.0,
                  "position": [0, 0],
                  "velocity": [0, 0],
-                 "color": [255, 255, 255]
+                 "color": [255, 255, 255],
+                 "atm_pres0": 0,
+                 "atm_scale_h": 0,
+                 "atm_den0": 0
                  }
 
 new_body_planet = {"name": "New planet",
@@ -74,7 +78,10 @@ new_body_planet = {"name": "New planet",
                    "density": 1.0,
                    "position": [0, 0],
                    "velocity": [0, 0],
-                   "color": [255, 255, 255]
+                   "color": [255, 255, 255],
+                   "atm_pres0": 0,
+                   "atm_coef": 0,
+                   "atm_den": 0
                    }
 
 new_body_gas = {"name": "New gas planet",
@@ -83,7 +90,10 @@ new_body_gas = {"name": "New gas planet",
                 "density": 0.3,
                 "position": [0, 0],
                 "velocity": [0, 0],
-                "color": [255, 255, 255]
+                "color": [255, 255, 255],
+                "atm_pres0": 0,
+                "atm_coef": 0,
+                "atm_den": 0
                 }
 
 new_body_star = {"name": "New star",
@@ -92,7 +102,10 @@ new_body_star = {"name": "New star",
                  "density": 1.0,
                  "position": [0, 0],
                  "velocity": [0, 0],
-                 "color": [255, 255, 255]
+                 "color": [255, 255, 255],
+                 "atm_pres0": 0,
+                 "atm_coef": 0,
+                 "atm_den": 0
                  }
 
 new_body_bh = {"name": "New black hole",
@@ -101,5 +114,8 @@ new_body_bh = {"name": "New black hole",
                "density": 100.0,
                "position": [0, 0],
                "velocity": [0, 0],
-               "color": [50, 50, 50]
+               "color": [50, 50, 50],
+               "atm_pres0": 0,
+                "atm_coef": 0,
+                "atm_den": 0
                }

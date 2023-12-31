@@ -3,11 +3,11 @@ import math
 from itertools import repeat
 import numpy as np
 try:   # to allow building without numba
-    from numba import njit, types, int32, int64, float64
+    from numba import njit, types, int32, int64, float64, bool_
     numba_avail = True
 except ImportError:
     numba_avail = False
-    
+
 from volatilespace import fileops
 from volatilespace import defaults
 
@@ -18,8 +18,6 @@ k = 1.381 * 10**-23   # boltzman constant
 m_h = 1.674 * 10**-27    # hydrogen atom mass in kg
 m_he = 6.646 * 10**-27   # helium atom mass in kg
 mp = (m_h * 99 + m_he * 1) / 100   # average particle mass   # depends on star age
-mass_sim_mult = 10**24  # mass simulation multiplier, since real values are needed in core temperature equation
-rad_sim_mult = 10**6   # radius sim multiplier
 
 
 ###### --Functions-- ######
@@ -42,6 +40,16 @@ def keplers_eq(ea, variables):
 def keplers_eq_derivative(ea, variables):
     """Derivative of keplers equation"""
     return 1.0 - variables['e'] * np.cos(ea)
+
+
+def keplers_eq_hyp(ea, variables):
+    """Keplers equation for hyperbola"""
+    return ea - variables['e'] * np.sinh(ea) - variables['Ma']
+
+
+def keplers_eq_hyp_derivative(ea, variables):
+    """Derivative of keplers equation for hyperbola"""
+    return 1.0 - variables['e'] * np.cosh(ea)
 
 
 def get_angle(a, b, c):
@@ -72,7 +80,35 @@ def cross_2d(v1, v2):
     return np.array([v1[0]*v2[1] - v1[1]*v2[0]])
 
 
-def calc_body_orb_one(body, ref, mass, gc, coi_coef, a, ecc):
+def culling(curve, sim_screen, ref_coi, curve_points, cull):
+    sim_screen_size = np.absolute(sim_screen[1] - sim_screen[0])
+    x_max = np.amax(curve[:, 0])
+    y_max = np.amax(curve[:, 1])
+    x_min = np.amin(curve[:, 0])
+    y_min = np.amin(curve[:, 1])
+    diff = np.array([x_max - x_min, y_max - y_min])
+    screen_diff = sim_screen_size / diff
+    if ref_coi != 0.0:
+        if diff[0] + diff[1] > ref_coi * 3:
+            screen_diff = sim_screen_size / np.array([ref_coi * 1.5, ref_coi * 1.5])
+    if screen_diff[0] + screen_diff[1] < 130:
+        if cull:
+            factor = int(curve_points / 25)
+            curve = curve[0::factor]
+            frame = max(sim_screen_size) / 4
+            sc_x_max = np.max(sim_screen[:, 0]) + frame
+            sc_y_max = np.max(sim_screen[:, 1]) + frame
+            sc_x_min = np.min(sim_screen[:, 0]) - frame
+            sc_y_min = np.min(sim_screen[:, 1]) - frame
+            a = (curve >= np.array([sc_x_min, sc_y_min])) & (curve <= np.array([sc_x_max, sc_y_max]))
+            if np.any(np.logical_and(a[:, 0], a[:, 1])):
+                return True
+        else:
+            return True
+    return False
+
+
+def calc_orb_one(body, ref, mass, gc, coi_coef, a, ecc):
     """Additional body orbital parameters."""
     if body:   # skip root
         u = gc * mass[ref]   # standard gravitational parameter
@@ -82,12 +118,13 @@ def calc_body_orb_one(body, ref, mass, gc, coi_coef, a, ecc):
             coi = a * (mass[body] / mass[ref])**(coi_coef)
         else:
             coi = 0
-        
+
         if ecc != 0:   # if orbit is not circle
             pe_d = a * (1 - ecc)
             if ecc < 1:   # if orbit is ellipse
                 period = 2 * np.pi * math.sqrt(a**3 / u)
                 ap_d = a * (1 + ecc)
+                n = 2*np.pi / period
             else:
                 if ecc > 1:   # hyperbola
                     pe_d = a * (1 - ecc)
@@ -96,18 +133,19 @@ def calc_body_orb_one(body, ref, mass, gc, coi_coef, a, ecc):
                 period = 0   # period is undefined
                 # there is no apoapsis
                 ap_d = 0
+                n = math.sqrt(u / abs(a)**3)
         else:   # circle
             period = (2 * np.pi * math.sqrt(a**3 / u)) / 10
             pe_d = a * (1 - ecc)
             # there is no apoapsis
             ap_d = 0
-        n = 2*np.pi / period
+            n = 2*np.pi / period
         return b, f, coi, pe_d, ap_d, period, n, u
     else:
         return 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
 
 
-def body_color(temp, base_color):
+def temp_color(temp, base_color):
     """Set color depending on temperature."""
     color = base_color[:]
     # temperature to 1000 - BASE
@@ -134,6 +172,7 @@ if numba_avail and use_numba:
     dot_2d = njit(float64(float64[:], float64[:]), **jitkw)(dot_2d)
     mag = njit(float64(float64[:]), **jitkw)(mag)
     cross_2d = njit(float64[:](float64[:], float64[:]), **jitkw)(cross_2d)
+    culling = njit(bool_(float64[:, :], float64[:, :], float64, int32, bool_), **jitkw)(culling)
 
 
 
@@ -141,10 +180,14 @@ class Physics():
     def __init__(self):
         # body internal
         self.names = np.array([])
+        self.visible_bodies = []
         self.mass = np.array([])
         self.den = np.array([])
         self.base_color = np.empty((0, 3), int)   # original color unaffected by temperature
         self.types = np.array([])
+        self.atm_pres0 = np.array([])
+        self.atm_scale_h = np.array([])
+        self.atm_den0 = np.array([])
         # body orbit main
         self.a = np.array([])
         self.ecc = np.array([])
@@ -160,7 +203,7 @@ class Physics():
         self.period = np.array([])
         self.n = np.array([])
         self.coi = np.array([])
-        self.curves_rot = np.array([])
+        self.curves = np.array([])
         self.pos = np.array([])
         self.ea = np.array([])
         self.u = np.array([])
@@ -168,52 +211,71 @@ class Physics():
         self.rad_mult = defaults.sim_config["rad_mult"]
         self.coi_coef = defaults.sim_config["coi_coef"]
         self.reload_settings()
-    
-    
+
+
     def reload_settings(self):
         """Reload all settings, should be run every time game is entered"""
         self.curve_points = int(fileops.load_settings("graphics", "curve_points"))   # number of points from which curve is drawn
+        self.curves = np.zeros((len(self.mass), self.curve_points, 2))
+        self.cull = leval(fileops.load_settings("graphics", "culling"))
         # parameters
         self.ell_t = np.linspace(-np.pi, np.pi, self.curve_points)   # ellipse parameter
         self.par_t = np.linspace(- np.pi - 1, np.pi + 1, self.curve_points)   # parabola parameter
-    
-    
+
+
     def load_conf(self, conf):
         """Loads physics related config."""
         self.gc = conf["gc"]
         self.rad_mult = conf["rad_mult"]
         self.coi_coef = conf["coi_coef"]
-    
-    
-    def load_system(self, conf, names, mass, density, color, orb_data):
+
+    def load(self, conf, body_data, body_orb_data):
         """Load new system."""
         self.load_conf(conf)
-        self.names = names
-        self.mass = mass
-        self.den = density
-        self.base_color = color
+        self.names = body_data["name"]
+        self.mass = body_data["mass"]
+        self.den = body_data["den"]
+        self.base_color = body_data["color"]
+        self.atm_pres0 = body_data["atm_pres0"]
+        self.atm_scale_h = body_data["atm_scale_h"]
+        self.atm_den0 = body_data["atm_den0"]
         # body orbit
-        self.a = orb_data["a"]
-        self.ecc = orb_data["ecc"]
-        self.pea = orb_data["pe_arg"]
-        self.ma = orb_data["ma"]
-        self.ref = orb_data["ref"]
-        self.dr = orb_data["dir"]
-        self.body()
-        self.pos = np.zeros([len(mass), 2])   # position will be updated later
-        self.ea = np.zeros(len(mass))
-    
-    
-    def body(self):
+        self.a = body_orb_data["a"]
+        self.ecc = body_orb_data["ecc"]
+        self.pea = body_orb_data["pe_arg"]
+        self.ma = body_orb_data["ma"]
+        self.ref = body_orb_data["ref"]
+        self.dr = body_orb_data["dir"]
+        self.pos = np.zeros([len(self.mass), 2])   # position will be updated later
+        self.ea = np.zeros(len(self.mass))
+        self.curves = np.zeros((len(self.mass), self.curve_points, 2))   # shape: (vessel, points, axes)
+        self.curves_mov = np.zeros((len(self.mass), self.curve_points, 2))
+
+
+    def culling(self, sim_screen):
+        """Returns list of bodies orbits that are visible on screen and are large enough.
+        Checking for orbits that are on screen can be toggle in settings"""
+        values = list(map(culling, self.curves_mov, repeat(sim_screen), self.coi[self.ref], repeat(self.curve_points), repeat(self.cull)))
+        self.visible_bodies = np.concatenate(([0], np.arange(len(self.mass))[values]))
+        return self.visible_bodies
+
+
+    def initial(self, warp):
         """Do all body related physics. This should be done only if something changed on body or it's orbit."""
-        
+
         # BODY DATA #
         volume = self.mass / self.den
         size = self.rad_mult * np.cbrt(3 * volume / (4 * np.pi))
-        core_temp = (self.gc * mp * self.mass * mass_sim_mult) / ((3/2) * k * size * rad_sim_mult)
+        core_temp = (self.gc * mp * self.mass) / ((3/2) * k * size * self.rad_mult)
         temp = 0 / core_temp   # surface temperature # ### temporarily ###
-        rad_sc = 2 * self.mass * mass_sim_mult * self.gc / c**2   # Schwarzschild radius
-        color = body_color(temp, self.base_color)
+        rad_sc = 2 * self.mass * self.gc / c**2   # Schwarzschild radius
+        color = temp_color(temp, self.base_color)
+        surf_grav = self.gc * self.mass / size**2
+        atm_h = np.zeros(len(self.mass))
+        for body, _ in enumerate(self.mass):
+            if all(x != 0 for x in [self.atm_pres0[body], self.atm_scale_h[body], self.atm_den0[body]]):
+                atm_h[body] = - self.atm_scale_h[body] * math.log(0.001 / self.atm_den0[body]) * self.rad_mult
+
         # CLASSIFICATION #
         self.types = np.zeros(len(self.mass))  # it is moon
         self.types = np.where(self.mass > 200, 1, self.types)    # if it has high enough mass: it is solid planet
@@ -229,11 +291,15 @@ class Physics():
                      "color_b": self.base_color,
                      "color": color,
                      "size": size,
-                     "rad_sc": rad_sc}
-        
-        
+                     "rad_sc": rad_sc,
+                     "surf_grav": surf_grav,
+                     "atm_pres0": self.atm_pres0,
+                     "atm_scale_h": self.atm_scale_h,
+                     "atm_den0": self.atm_den0,
+                     "atm_h": atm_h}
+
         # ORBIT DATA #
-        values = list(map(calc_body_orb_one, list(range(len(self.mass))), self.ref, repeat(self.mass), repeat(self.gc), repeat(self.coi_coef), self.a, self.ecc))
+        values = list(map(calc_orb_one, list(range(len(self.mass))), self.ref, repeat(self.mass), repeat(self.gc), repeat(self.coi_coef), self.a, self.ecc))
         self.b, self.f, self.coi, self.pe_d, self.ap_d, self.period, self.n, self.u = list(map(np.array, zip(*values)))
         body_orb = {"a": self.a,
                     "b": self.b,
@@ -246,62 +312,61 @@ class Physics():
                     "pea": self.pea,
                     "dir": self.dr,
                     "per": self.period}
-        
-        return body_data, body_orb
-    
-    
-    def body_curve(self):
-        """Calculate all RELATIVE conic curves line points coordinates. This should be done only if something changed on body or it's orbit."""
-        
-        # calculate curves points # curve[axis, body, point]
-        curves = np.zeros((2, len(self.mass), self.curve_points))
-        for num in range(len(self.mass)):
-            ecc = self.ecc[num]
-            if ecc < 1:   # ellipse
-                curves[:, num, :] = np.array([self.a[num] * np.cos(self.ell_t), self.b[num] * np.sin(self.ell_t)])   # raw ellipses
-            else:
-                if ecc == 1:   # parabola
-                    curves[:, num, :] = np.array([self.a[num] * self.par_t**2, 2 * self.a[num] * self.par_t])   # raw parabolas
-                    curves[0, num, :] = curves[0, num, :] - self.a[num, np.newaxis]   # translate parabola by semi_major, since its center is not in 0,0
-                elif ecc > 1:   # hyperbola
-                    curves[:, num, :] = np.array([-self.a[num] * np.cosh(self.ell_t), self.a[num] * np.sinh(self.ell_t)])   # raw hyperbolas
-                # parametric equation for circle is same as for ellipse, just semi_major = semi_minor, thus it is not required
-        
-        # 2D rotation matrix # rot[rotation, rotation, body]
-        rot = np.array([[np.cos(self.pea), - np.sin(self.pea)], [np.sin(self.pea), np.cos(self.pea)]])
-        self.curves_rot = np.zeros((2, curves.shape[1], curves.shape[2]))
-        for body in range(curves.shape[1]):
-            self.curves_rot[:, body, :] = np.dot(rot[:, :, body], curves[:, body, :])   # apply rotation matrix to all curve points
-    
-    
-    def body_move(self, warp):
+
+        # MOVE #
+        self.move(warp)
+        for body, _ in enumerate(self.names):
+            self.curve(body)
+        self.curve_move()
+
+        return body_data, body_orb, self.pos, self.ma, self.curves_mov
+
+
+    def curve(self, body):
+        """Calculate RELATIVE conic curve line points coordinates for one body.
+        This should be done only if something changed on body or it's orbit, and after points()."""
+        ecc = self.ecc[body]
+        pea = self.pea[body]
+
+        # curves points
+        if ecc < 1:   # ellipse
+            curves = np.array([self.a[body] * np.cos(self.ell_t), self.b[body] * np.sin(self.ell_t)])   # raw ellipses
+        else:
+            curves = np.array([-self.a[body] * np.cosh(self.ell_t), self.b[body] * np.sinh(self.ell_t)])   # raw hyperbolas
+            # parametric equation for circle is same as for ellipse, just semi_major = semi_minor, thus it is not required
+        # rotation matrix
+        rot = np.array([[np.cos(pea), - np.sin(pea)], [np.sin(pea), np.cos(pea)]])
+        self.curves[body] = np.swapaxes(np.dot(rot, curves), 0, 1)
+
+
+    def move(self, warp):
         """Move body with mean motion."""
         self.ma += self.dr * self.n * warp
         self.ma = np.where(self.ma > 2*np.pi, self.ma - 2*np.pi, self.ma)
         self.ma = np.where(self.ma < 0, self.ma + 2*np.pi, self.ma)
         bodies_sorted = np.argsort(self.coi)[-1::-1]
         for body in bodies_sorted:
-            ea = newton_root(keplers_eq, keplers_eq_derivative, 0.0, {'Ma': self.ma[body], 'e': self.ecc[body]})
             pea = self.pea[body]
             ecc = self.ecc[body]
             a = self.a[body]
             b = self.b[body]
             if ecc < 1:
+                ea = newton_root(keplers_eq, keplers_eq_derivative, self.ea[body], {'Ma': self.ma[body], 'e': self.ecc[body]})
                 pr_x = a * math.cos(ea) - self.f[body]
                 pr_y = b * math.sin(ea)
-            elif ecc > 1:
-                pass
-            elif ecc == 1:
-                pass
+            else:
+                ea = newton_root(keplers_eq_hyp, keplers_eq_hyp_derivative, self.ea[body], {'Ma': self.ma[body], 'e': self.ecc[body]})
+                pr_x = a * np.cosh(ea) - self.f[body]
+                pr_y = b * np.sinh(ea)
             pr = np.array([pr_x * math.cos(pea - np.pi) - pr_y * math.sin(pea - np.pi),
                            pr_x * math.sin(pea - np.pi) + pr_y * math.cos(pea - np.pi)])
             self.pos[body] = self.pos[self.ref[body]] + pr
             self.ea[body] = ea
-        
+
         return self.pos, self.ma
-    
-    
-    def body_selected(self, body):
+
+
+    def selected(self, body):
         """Do physics for selected body. This should be done every tick after body_move()."""
         if body:
             pos_ref = self.pos[self.ref[body]]
@@ -316,17 +381,20 @@ class Physics():
             ap_d = self.ap_d[body]
             pe_d = self.pe_d[body]
             dr = self.dr[body]
-            
+
             rel_pos = self.pos[body] - pos_ref
             distance = mag(rel_pos)   # distance to parent
-            speed_orb = math.sqrt((2 * a * u - distance * u) / (a * distance))   # velocity vector magnitude from semi-major axis equation
-            ta = math.acos((math.cos(ea) - ecc)/(1 - ecc * math. cos(ea)))  # true anomaly from eccentric anomaly
+            speed_orb = math.sqrt(u * ((2 / distance) - (1 / a)))   # velocity vector magnitude from vis-viva eq
+            if ecc < 1:
+                ta = math.acos((math.cos(ea) - ecc)/(1 - ecc * math.cos(ea)))   # true anomaly from eccentric anomaly
+            else:
+                ta = math.acos((math.cosh(ea) - ecc)/(1 - ecc * math.cosh(ea)))   # for hyperbola
             if ma > np.pi:
                 ta = 2*np.pi - ta
             angle = (ta - math.atan(-b * (math.cos(ea)) / (math.sin(ea) * a))) % np.pi
             speed_vert = speed_orb * math.cos(angle)
             speed_hor = speed_orb * math.sin(angle)
-            
+
             if ecc != 0:   # not circle
                 if ecc < 1:   # ellipse
                     if np.pi < ta < 2*np.pi:
@@ -351,17 +419,17 @@ class Physics():
                 ap = np.array([0, 0])
                 ap_t = 0
             pe = np.array([pe_d * math.cos(periapsis_arg - np.pi), pe_d * math.sin(periapsis_arg - np.pi)]) + pos_ref
-            
+
             return ta, pe, pe_t, ap, ap_t, distance, speed_orb, speed_hor, speed_vert
         else:
             return 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
-    
-    
-    def body_curve_move(self):
-        """Move all orbit curves to parent position. This should be done every tick after body_move()."""
-        focus_x = self.f * np.cos(self.pea)   # focus coords from focus magnitude and angle
+
+
+    def curve_move(self):
+        """Move all orbit curves to parent position.
+        This should be done every tick after move()."""
+        focus_x = self.f * np.cos(self.pea)
         focus_y = self.f * np.sin(self.pea)
-        curves_x = self.curves_rot[0, :, :] + focus_x[:, np.newaxis] + self.pos[self.ref, 0, np.newaxis]   # translate to align focus and parent
-        curves_y = self.curves_rot[1, :, :] + focus_y[:, np.newaxis] + self.pos[self.ref, 1, np.newaxis]
-        curves = np.stack([curves_x, curves_y])
-        return curves
+        focus = np.column_stack((focus_x, focus_y))
+        self.curves_mov = self.curves + focus[:, np.newaxis, :] + self.pos[self.ref, np.newaxis, :]
+        return self.curves_mov
