@@ -74,7 +74,7 @@ prop_insert_body = [1, 5, 1, 1, 0]
 text_insert_start = "Start inserting"
 text_insert_stop = "Stop inserting"
 text_follow_mode = ["Disabled", "Active vessel", "Orbited body"]
-text_grid_mode = ["Disabled", "Global", "Active vessel", "Orbited body"]
+text_grid_mode = ["Disabled", "Global", "Selected body", "Orbited body"]
 
 
 class Editor():
@@ -140,7 +140,7 @@ class Editor():
         self.move = False
         self.selected = None
         self.direction = None   # keyboard buttons wasd
-        self.follow = False
+        self.follow = 0
         self.mouse = [0, 0]   # in simulation
         self.mouse_raw = [0, 0]   # on screen
         self.mouse_raw_old = [0, 0]
@@ -640,7 +640,7 @@ class Editor():
 
                 elif e.key == self.keys["cycle_follow_modes"]:
                     if self.selected is not None:
-                        self.follow += 1   # cycle follow modes (0-disabled, 1-active vessel, 2-orbited body)
+                        self.follow += 1   # cycle follow modes (0-disabled, 1-selected body, 2-orbited body)
                         if self.follow > 2:
                             self.follow = 0
                         self.top_ui_imgs[1] = self.top_ui_img_follow[self.follow]
@@ -761,6 +761,10 @@ class Editor():
                     self.insert_body = True
                     self.new_position = self.sim_coords(self.mouse_raw)   # use variable, since reading from dict takes more time
                     self.new_body_data["position"] = self.new_position
+                    if self.follow == 1:
+                        self.new_position_rel = self.position[self.selected] - self.new_position
+                    elif self.follow == 2:
+                        self.new_position_rel = self.position[self.parents[self.selected]] - self.new_position
                 if e.type == pygame.MOUSEBUTTONUP and e.button == 1 and self.insert_body:
                     self.insert_body = False
                     drag_position = self.sim_coords(self.mouse_raw)
@@ -1597,6 +1601,15 @@ class Editor():
             if not self.insert_body:
                 graphics.draw_circle_fill(screen, self.precalc_data["real_color"], self.mouse_raw, self.precalc_data["radius"] * self.zoom)
             else:
+                if self.follow == 1:
+                    self.new_position = [self.position[self.selected, 0] - self.new_position_rel[0],
+                                         self.position[self.selected, 1] - self.new_position_rel[1]]
+                    self.new_body_data["position"] = self.new_position
+                if self.follow == 2:
+                    ref = self.parents[self.selected]
+                    self.new_position = [self.position[ref, 0] - self.new_position_rel[0],
+                                         self.position[ref, 1] - self.new_position_rel[1]]
+                    self.new_body_data["position"] = self.new_position
                 # draw new body before released
                 graphics.draw_circle_fill(screen, self.precalc_data["real_color"], self.screen_coords(self.new_position), self.precalc_data["radius"] * self.zoom)
                 # draw line connecting body and release point

@@ -1,28 +1,27 @@
 ### TIMELINE ###
 
-WIP:
-game: Leave / Enter COI
-editor: prograde/retrograde, radial/antiradial with W/A/S/D
-editor: relative inserting position and velocity
-global: tab when typing value switch to next
-
-v0.5.1 - game-vessel
+v0.5.1 - game-vessel (Vessel rotation)
 vessels config
 vessel rotation with A/D
 vessels stop rotating in regular warp
 
-v0.5.2 - game-vessel
+v0.5.2 - game-vessel (Enter/leave coi)
+leave coi physics
+detect enter coi point
+enter coi physics
+documentation
+
+v0.5.3 - game-vessel (Vessel velocity)
 velocity slider
 add velocity in facing direction
-entering/leaving coi
 vessel-vessel pixel collisions (rotation, destruction, release phys-warp)
 
-v0.5.3 - game-vessel
+v0.5.4 - game-vessel (Near vessel warp switching)
 calculate radius around vessel from vessel size and scale
 switch warp if vessel will be inside that radius
 documentation
 
-v0.5.4 - game-gui
+v0.5.5 - game-gui (Right UI)
 Vessel list (mark vessels holding physical warp)
 Orbit
 Surface
@@ -32,28 +31,29 @@ Thermal - placeholder
 Selected body
 Selected body orbit
 
-v0.5.5 - game-gui
+v0.5.6 - game-gui (Orbit points UI)
 time-to point
 for points: ap/pe, leave/enter, impact
 mouseover - show data and warp button
 click - toggle show data
 documentation
 
-v0.5.6 - game-vessel
+v0.5.7 - game-vessel (Advanced warp)
 warp to point
 warp to next orbit
 
-v0.5.7 - game-vessel
+v0.5.8 - game-vessel (Second orbit prediction)
 enter-orbit-point prediction and drawing
 don't draw ap and pe outside orbit line
 draw second orbit
 documentation
 
-v0.5.8 - editor
-rebuild editor physics
+v0.5.9 - editor (Rebuilt editor physics)
+rebuilt editor physics
+prograde/retrograde, radial/antiradial with W/A/S/D
 documentation
 
-v0.5.9 - game-vessel
+v0.5.10 - game-vessel (Planet collisions)
 vessel-planet collisions
 
 
