@@ -60,6 +60,10 @@ lpe = 1.9   # longitude of periapsis (radians)
 mna = 2.8   # mean anomaly (radians)
 ref = 5   # reference body
 dir = 1   # direction
+mass = 1   # vessel mass
+rot_angle = 0   # current angle of vessel rotation
+rot_acc = 0.0001   # maximum vessel rotation acceleration in rad/tick^2
+sprite = vessel.svg   # path to vessel sprite in "parts" dir
 
 
 # NOTE:

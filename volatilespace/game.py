@@ -108,6 +108,7 @@ class Game():
         self.input_value = None   # which value is being text-inputed
         self.new_value_raw = ""
         self.edited_orbit = False   # if orbit is edited, on first click call kepler_inverse, but don't on next clicks
+        self.hold_key = None
         self.gen_game_list()
         self.reload_settings()
         graphics.antial = self.antial
@@ -148,6 +149,8 @@ class Game():
         self.v_pos = np.array([])
         self.v_ma = np.array([])
         self.v_curves = np.array([])
+        self.v_rot_angle = np.array([])
+        self.v_rot_dir = 0
         self.visible_bodies = []
         self.visible_vessels = []
 
@@ -193,7 +196,7 @@ class Game():
         body_star = pygame.image.load("img/star.png")
         body_bh = pygame.image.load("img/bh.png")
         self.body_imgs = [body_moon, body_planet_solid, body_planet_gas, body_star, body_bh]
-        self.vessel_img = graphics.fill(pygame.image.load("img/vessel.png"), rgb.gray)
+        self.vessel_img = graphics.fill(pygame.image.load_sized_svg("img/vessel.svg", (24,24)), rgb.gray)
         self.target_img = pygame.image.load("img/target.png")
         self.impact_img = pygame.image.load("img/impact.png")
         self.orb_leave_img = graphics.fill(pygame.image.load("img/orb_leave.png"), rgb.cyan)
@@ -322,7 +325,7 @@ class Game():
         self.unpack_body(body_data, body_orb_data)
 
         physics_vessel.load(self.sim_conf, body_data, body_orb_data, vessel_data, vessel_orb_data)
-        vessel_data, vessel_orb_data, self.v_pos, self.v_ma, self.v_curves = physics_vessel.initial(self.warp, self.pos)
+        vessel_orb_data, self.v_pos, self.v_ma, self.v_curves = physics_vessel.initial(self.warp, self.pos)
         self.unpack_vessel(vessel_data, vessel_orb_data)
 
         self.active_vessel = game_data["vessel"]
@@ -406,6 +409,10 @@ class Game():
     def unpack_vessel(self, vessel_data, vessel_orb):
         # BODY DATA #
         self.v_names = vessel_data["name"]
+        self.v_mass = vessel_data["mass"]
+        self.v_rot_angle = vessel_data["rot_angle"]
+        self.v_rot_acc = vessel_data["rot_acc"]
+        self.v_sprite = vessel_data["sprite"]
         # ORBIT DATA #
         self.v_a = vessel_orb["a"]
         self.v_ref = vessel_orb["ref"]
@@ -437,7 +444,11 @@ class Game():
                      "atm_den0": self.atm_data[2]
                      }
         body_orb_data = {"a": self.a, "ecc": self.ecc, "pe_arg": self.pea, "ma": self.ma, "ref": self.ref, "dir": self.dr}
-        vessel_data = {"name": self.v_names}
+        vessel_data = {"name": self.v_names,
+                       "mass": self.v_mass,
+                       "rot_angle": self.v_rot_angle,
+                       "rot_acc": self.v_rot_acc,
+                       "sprite": self.v_sprite}
         vessel_orb_data = {"a": self.v_a, "ecc": self.v_ecc, "pe_arg": self.v_pea, "ma": self.v_ma, "ref": self.v_ref, "dir": self.v_dr}
         game_data = {"name": name, "date": date, "time": self.sim_time, "vessel": self.active_vessel}
         fileops.save_file(path, game_data, self.sim_conf,
@@ -611,6 +622,11 @@ class Game():
                 elif e.key == self.keys["quicksave"]:
                     self.quicksave()
 
+                elif e.key == self.keys["rotate_cw"]:
+                    self.hold_key = self.keys["rotate_cw"]
+
+                elif e.key == self.keys["rotate_ccw"]:
+                    self.hold_key = self.keys["rotate_ccw"]
 
                 # time warp
                 if not self.pause:
@@ -648,6 +664,15 @@ class Game():
                             if self.warp != 0:
                                 self.set_warp_ui()
 
+        elif e.type == pygame.KEYUP:
+            self.hold_key = None
+
+        # holding keys
+        if self.hold_key:
+            if self.hold_key == self.keys["rotate_cw"]:
+                self.v_rot_dir = -1
+            elif self.hold_key == self.keys["rotate_ccw"]:
+                self.v_rot_dir = 1
 
 
     def input_mouse(self, e):
@@ -1058,15 +1083,18 @@ class Game():
                     for _ in range(self.warp_phys):
                         self.pos, self.ma = physics_body.move(self.warp_phys)
                         self.v_pos, self.v_ma = physics_vessel.move(self.warp_phys, self.pos)
+                        self.v_rot_angle = physics_vessel.rotate(self.warp, self.active_vessel, self.v_rot_dir)
 
                     self.sim_time += 1 * self.warp_phys   # iterate sim_time
                 else:
                     # regular warp
                     self.pos, self.ma = physics_body.move(self.warp)
                     self.v_pos, self.v_ma = physics_vessel.move(self.warp, self.pos)
+                    self.v_rot_angle = physics_vessel.rotate(self.warp, self.active_vessel, self.v_rot_dir)
 
                     self.sim_time += 1 * self.warp   # iterate sim_time
 
+                self.v_rot_dir = 0
                 self.curves = physics_body.curve_move()
                 if False:   # TODO run only if something change
                     physics_vessel.points(self.active_vessel)
@@ -1251,7 +1279,6 @@ class Game():
                 if intersect_type:
                     graphics.draw_lines(screen, rgb.cyan_1, curve_dark, 2)
                 graphics.draw_lines(screen, rgb.cyan, curve_light, 2)
-                graphics.draw_img(screen, self.vessel_img, vessel_pos, center=True)
             # target vessel
             elif self.target is not None and self.target_type == 1 and self.target == vessel:
                 if intersect_type:
@@ -1282,11 +1309,13 @@ class Game():
             intersect = self.screen_coords(self.intersect[vessel])
             intersect_type = self.intersect_type[vessel]
             vessel_pos = self.screen_coords(self.v_pos[vessel])
+            vessel_rot = self.v_rot_angle[vessel]
 
             # active vessel
             if self.active_vessel is not None and self.active_vessel == vessel:
-                ref = self.v_ref[vessel]
+                graphics.draw_img(screen, self.vessel_img, vessel_pos, angle=vessel_rot-np.pi/2, scale=0.75, center=True)
                 ta, pe, pe_t, ap, ap_t, distance, speed_orb, speed_hor, speed_vert = physics_vessel.selected(vessel)
+                ref = self.v_ref[vessel]
 
                 # parent circle of influence
                 if not self.disable_labels:
@@ -1337,7 +1366,7 @@ class Game():
 
             # target vessel
             elif self.target is not None and self.target_type == 1 and self.target == vessel:
-                graphics.draw_img(screen, self.vessel_img, vessel_pos, center=True)
+                graphics.draw_img(screen, self.vessel_img, vessel_pos, angle=vessel_rot-np.pi/2, scale=0.75, center=True)
                 graphics.draw_img(screen, self.target_img, vessel_pos, center=True)
                 ta, pe, pe_t, ap, ap_t, distance, speed_orb, speed_hor, speed_vert = physics_vessel.selected(vessel)
                 if self.right_menu == 2:
@@ -1356,7 +1385,7 @@ class Game():
 
             # all other vessels
             else:
-                graphics.draw_img(screen, self.vessel_img, vessel_pos, center=True)
+                graphics.draw_img(screen, self.vessel_img, vessel_pos, angle=vessel_rot-np.pi/2, scale=0.75, center=True)
 
 
 

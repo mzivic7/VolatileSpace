@@ -151,8 +151,6 @@ def load_file(path):
     atm_scale_h = np.array([])
     atm_den0 = np.array([])
 
-    vessel_name = np.array([])
-
     position = np.empty((0, 2), int)
     velocity = np.empty((0, 2), int)
 
@@ -170,7 +168,13 @@ def load_file(path):
     v_parents = np.array([], dtype=int)
     v_direction = np.array([])
 
-    # load all body parameters into separate arrays
+    v_name = np.array([])
+    v_mass = np.array([])
+    v_rot_angle = np.array([])
+    v_rot_acc = np.array([])
+    v_sprite = np.array([])
+
+    # load all parameters into separate arrays
     for body in system.sections():
         if body not in ["game_data", "config"]:
 
@@ -214,7 +218,6 @@ def load_file(path):
                     parents = np.append(parents, int(system.get(body, "ref")))
                     direction = np.append(direction, float(system.get(body, "dir")))
                 elif system.get(body, "obj") == "vessel":
-                    vessel_name = np.append(vessel_name, body)
                     v_semi_major = np.append(v_semi_major, float(system.get(body, "sma")))
                     v_ecc = np.append(v_ecc, float(system.get(body, "ecc")))
                     v_pe_arg = np.append(v_pe_arg, float(system.get(body, "lpe")))
@@ -222,13 +225,19 @@ def load_file(path):
                     v_parents = np.append(v_parents, int(system.get(body, "ref")))
                     v_direction = np.append(v_direction, float(system.get(body, "dir")))
                     v_semi_major = np.where(v_ecc > 1, -abs(v_semi_major), v_semi_major)
+                    # vessel internal
+                    v_name = np.append(v_name, body)
+                    v_mass = np.append(v_mass, float(system.get(body, "mass")))
+                    v_rot_angle = np.append(v_rot_angle, float(system.get(body, "rot_angle")))
+                    v_rot_acc = np.append(v_rot_acc, float(system.get(body, "rot_acc")))
+                    v_sprite = np.append(v_sprite, system.get(body, "sprite"))
 
     body_data = {"name": body_name, "mass": mass, "den": density, "color": color, "atm_pres0": atm_pres0, "atm_scale_h": atm_scale_h, "atm_den0": atm_den0}
     if kepler:
         body_orb_data = {"kepler": kepler, "a": semi_major, "ecc": ecc, "pe_arg": pe_arg, "ma": ma, "ref": parents, "dir": direction}
     else:
         body_orb_data = {"kepler": kepler, "pos": position, "vel": velocity}
-    vessel_data = {"name": vessel_name}
+    vessel_data = {"name": v_name, "mass": v_mass, "rot_angle": v_rot_angle, "rot_acc": v_rot_acc, "sprite": v_sprite}
     vessel_orb_data = {"a": v_semi_major, "ecc": v_ecc, "pe_arg": v_pe_arg, "ma": v_ma, "ref": v_parents, "dir": v_direction}
 
     return game_data, config, body_data, body_orb_data, vessel_data, vessel_orb_data
@@ -329,7 +338,6 @@ def save_file(path, game_data, conf, body_data, body_orb_data, vessel_data={}, v
             system.set(body_name, "dir", str(int(direction[body])))
 
     if vessel_data:
-        vessel_names = vessel_data["name"]
         semi_major = vessel_orb_data["a"]
         ecc = vessel_orb_data["ecc"]
         pe_arg = vessel_orb_data["pe_arg"]
@@ -337,22 +345,33 @@ def save_file(path, game_data, conf, body_data, body_orb_data, vessel_data={}, v
         parents = vessel_orb_data["ref"]
         direction = vessel_orb_data["dir"]
 
-        for vessel, vessel_name in enumerate(vessel_names):
+        v_names = vessel_data["name"]
+        v_mass = vessel_data["mass"]
+        v_rot_angle = vessel_data["rot_angle"]
+        v_rot_acc = vessel_data["rot_acc"]
+        v_sprite = vessel_data["sprite"]
+
+        for vessel, v_name in enumerate(v_names):
 
             # handle if this vessel already exists
             num = 1
-            while vessel_name in system.sections():
-                vessel_name = vessel_name[vessel] + " " + str(num)
+            while v_name in system.sections():
+                v_name = v_name[vessel] + " " + str(num)
                 num += 1
 
-            system.add_section(vessel_name)
-            system.set(vessel_name, "obj", "vessel")
-            system.set(vessel_name, "sma", str(semi_major[vessel]))
-            system.set(vessel_name, "ecc", str(ecc[vessel]))
-            system.set(vessel_name, "lpe", str(pe_arg[vessel]))
-            system.set(vessel_name, "mna", str(ma[vessel]))
-            system.set(vessel_name, "ref", str(int(parents[vessel])))
-            system.set(vessel_name, "dir", str(int(direction[vessel])))
+            system.add_section(v_name)
+            system.set(v_name, "obj", "vessel")
+            system.set(v_name, "sma", str(semi_major[vessel]))
+            system.set(v_name, "ecc", str(ecc[vessel]))
+            system.set(v_name, "lpe", str(pe_arg[vessel]))
+            system.set(v_name, "mna", str(ma[vessel]))
+            system.set(v_name, "ref", str(int(parents[vessel])))
+            system.set(v_name, "dir", str(int(direction[vessel])))
+
+            system.set(v_name, "mass", str(v_mass[vessel]))
+            system.set(v_name, "rot_angle", str(v_rot_angle[vessel]))
+            system.set(v_name, "rot_acc", str(v_rot_acc[vessel]))
+            system.set(v_name, "sprite", str(v_sprite[vessel]))
 
     with open(path, 'w') as f:
         system.write(f)

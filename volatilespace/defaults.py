@@ -49,7 +49,9 @@ keybindings = {"forward": pg.K_w,
                "toggle_ui_visibility": pg.K_F2,
                "toggle_labels_visibility": pg.K_F3,
                "quicksave": pg.K_F4,
-               "delete_body_in_editor": pg.K_DELETE
+               "delete_body_in_editor": pg.K_DELETE,
+               "rotate_cw": pg.K_d,
+               "rotate_ccw": pg.K_a
                }
 
 

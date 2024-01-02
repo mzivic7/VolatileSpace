@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="60mm"
+   height="100mm"
+   viewBox="0 0 60 100"
+   version="1.1"
+   id="svg1"
+   sodipodi:docname="vessel.svg"
+   inkscape:version="1.3 (0e150ed6c4, 2023-07-21)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview1"
+     pagecolor="#000000"
+     bordercolor="#000000"
+     borderopacity="0.38039216"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="false"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:document-units="mm"
+     showgrid="true"
+     inkscape:zoom="0.87838105"
+     inkscape:cx="14.799955"
+     inkscape:cy="98.476624"
+     inkscape:window-width="1366"
+     inkscape:window-height="699"
+     inkscape:window-x="0"
+     inkscape:window-y="0"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="layer1"
+     labelstyle="default"
+     inkscape:clip-to-page="false">
+    <inkscape:grid
+       id="grid12"
+       units="px"
+       originx="-2.5000177"
+       originy="2.5000053"
+       spacingx="0.26458333"
+       spacingy="0.26458334"
+       empcolor="#0099e5"
+       empopacity="0.30196078"
+       color="#0099e5"
+       opacity="0.14901961"
+       empspacing="5"
+       dotted="false"
+       gridanglex="30"
+       gridanglez="30"
+       visible="true" />
+  </sodipodi:namedview>
+  <defs
+     id="defs1">
+    <inkscape:path-effect
+       effect="mirror_symmetry"
+       start_point="99.218747,37.041668"
+       end_point="99.218747,82.020836"
+       center_point="99.218747,59.531252"
+       id="path-effect12"
+       is_visible="true"
+       lpeversion="1.2"
+       lpesatellites=""
+       mode="free"
+       discard_orig_path="false"
+       fuse_paths="false"
+       oposite_fuse="false"
+       split_items="false"
+       split_open="false"
+       link_styles="false" />
+  </defs>
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1"
+     transform="translate(-0.66146304,0.66145976)">
+    <path
+       id="rect12"
+       style="fill:#ffffff;stroke-width:0.26717"
+       d="m 99.218747,37.041668 -10e-7,31.329128 -19.843748,13.65004 z m 0,0 1e-6,31.329128 19.843752,13.65004 z"
+       sodipodi:nodetypes="cccc"
+       inkscape:path-effect="#path-effect12"
+       inkscape:original-d="m 99.218747,37.041668 -10e-7,31.329128 -19.843748,13.65004 C 85.989581,67.02778 92.604164,52.034724 99.218747,37.041668 Z"
+       transform="matrix(1.5118111,0,0,2.2232514,-119.33854,-83.0144)" />
+  </g>
+</svg>
