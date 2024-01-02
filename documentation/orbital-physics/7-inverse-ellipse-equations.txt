@@ -20,7 +20,7 @@ Because anomalies are positive in orbiting direction.
 Get Ea from Ma using Newtons method for finding equation roots [3]. Plug this in Newton root solver:
 0 = Ea - e * sin(Ea) - Ma   # Keplers equation
 d(f(Ea))/dEa = 1 - e * cos(Ea)   # derivative from Keplers equation
-ea = math.acos((ecc + math.cos(ta))/(1 + (ecc * math.cos(ta))))   # eccentric anomaly from true anomaly [11]
+ea = acos((ecc + cos(ta))/(1 + (ecc * cos(ta))))   # eccentric anomaly from true anomaly [11]
 
 
 

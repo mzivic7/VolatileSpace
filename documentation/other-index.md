@@ -3,4 +3,6 @@
 [2. Atmosphere](other-physics/2-atmosphere.txt)  
 [3. Warp](other-physics/3-warp.txt)  
 [4. Ellipse-circle intersection](other-physics/4-ellipse-circle.txt)  
-[5. References](other-physics/4-references.txt)  
+[5. Hyperbola-circle intersections](other-physics/5-hyperbola-circle.txt)  
+[6. Rotation](other-physics/6-rotation.txt)  
+[7. References](other-physics/7-references.txt)  

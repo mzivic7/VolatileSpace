@@ -258,6 +258,9 @@ class Physics():
     def __init__(self):
         # vessel internal
         self.names = np.array([])
+        self.rot_angle = np.array([])
+        self.rot_speed = np.array([])
+        self.rot_acc = np.array([])
         self.visible_vessels = []
         self.physical_hold = np.array([], dtype=int)
         # vessel orbit main
@@ -315,8 +318,13 @@ class Physics():
         self.body_coi = body_orb["coi"]
         self.body_atm = body_data["atm_h"]
         self.load_conf(conf)
-        self.names = vessel_data["name"]
         self.physical_hold = np.array([], dtype=int)
+        # vessel internal
+        self.names = vessel_data["name"]
+        self.mass = vessel_data["mass"]
+        self.rot_angle = vessel_data["rot_angle"]
+        self.rot_speed = np.zeros(len(self.names))
+        self.rot_acc = vessel_data["rot_acc"]
         # vessel orbit
         self.a = vessel_orb_data["a"]
         self.ecc = vessel_orb_data["ecc"]
@@ -359,10 +367,6 @@ class Physics():
 
 
     def initial(self, warp, body_pos):
-        # VESSEL DATA #
-        vessel_data = {"name": self.names
-                       }
-
         # ORBIT DATA #
         if len(self.names):
             values = list(map(calc_orb_one, list(range(len(self.names))), self.ref, repeat(self.body_mass), repeat(self.gc), self.a, self.ecc))
@@ -385,7 +389,7 @@ class Physics():
         # POINTS #
         for vessel, _ in enumerate(self.names):
             self.points(vessel)
-        return vessel_data, vessel_orb, self.pos, self.ma, self.curves_mov
+        return vessel_orb, self.pos, self.ma, self.curves_mov
 
 
     def change_vessel(self, vessel):
@@ -782,3 +786,17 @@ class Physics():
                 if vessel in self.physical_hold:
                     self.physical_hold = self.physical_hold[self.physical_hold != vessel]
         return situation, alarm_vessel, len(self.physical_hold)
+
+
+    def rotate(self, warp, vessel, direction):
+        """Rotates all vessels, and changes rotation speed of active vessel,
+        according to its maximum rotation acceleration, in specified direction.
+        If warp is not x1, rotation speeds for all vessels are set to zero."""
+        if warp == 1:
+            self.rot_speed[vessel] += self.rot_acc[vessel] * direction
+            self.rot_angle += self.rot_speed
+            self.rot_angle = np.where(self.rot_angle > 2*np.pi, 0, self.rot_angle)
+            self.rot_angle = np.where(self.rot_angle < 0, 2*np.pi, self.rot_angle)
+        else:
+            self.rot_speed *= 0.0
+        return self.rot_angle

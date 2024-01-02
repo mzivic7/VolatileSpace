@@ -1,10 +1,11 @@
 from ast import literal_eval as leval
 import math
 import pygame
-from pygame import gfxdraw   # gfxdraw ### OBSOLETE ###
+from pygame import gfxdraw
 import time
 from volatilespace import fileops
 from volatilespace.graphics import rgb
+import numpy as np
 
 
 class Graphics():
@@ -114,13 +115,25 @@ class Graphics():
         return colored_surface
 
 
-    def draw_img(self, surface, img, pos, scale=1, center=False):
-        """Draw image"""
-        img_rect = img.get_rect(center=pos)
-        img = pygame.transform.smoothscale_by(img, scale)
-        img_rect = img.get_rect(center=pos)
-        if center:
+    def draw_img(self, surface, img, pos, angle=0, scale=1, center=False):
+        """Draw image. If rotated, it is cenered."""
+        if angle:
+            if scale != 1:
+                img = pygame.transform.rotozoom(img, angle*180/np.pi, scale)
+                img_rect = img.get_rect(center=pos)
+                pos = img_rect
+            else:
+                img = pygame.transform.rotate(img, angle*180/np.pi)
+                img_rect = img.get_rect(center=pos)
+                pos = img_rect
+        elif center:
+            img_rect = img.get_rect(center=pos)
+            if scale != 1:
+                img = pygame.transform.smoothscale_by(img, scale)
             pos = img_rect
+        elif scale != 1:
+            img_rect = img.get_rect(center=pos)
+            img = pygame.transform.smoothscale_by(img, scale)
         surface.blit(img, pos)
 
 
