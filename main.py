@@ -27,12 +27,17 @@ def main():
 
 
     ###### --Load classes-- ######
+    from volatilespace.graphics import loading_screen
+    loading_screen.loading(screen, 1)
     from volatilespace import menu
+    loading_screen.loading(screen, 2)
     from volatilespace import game
+    loading_screen.loading(screen, 3)
     from volatilespace import editor
+    loading_screen.loading(screen, 4)
     menu = menu.Menu()
-    editor = editor.Editor()
     game = game.Game()
+    editor = editor.Editor()
 
 
     ###### --Main loop-- ######
