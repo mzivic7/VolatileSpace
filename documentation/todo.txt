@@ -1,39 +1,43 @@
 ### TIMELINE ###
 
 v0.5.2 - game-vessel (Enter/leave coi)
-leave coi physics
 detect enter coi point
 enter coi physics
 documentation
 
-v0.5.3 - game-vessel (vessel close view)
+v0.5.3 - game-vessel (Second orbit prediction)
+don't draw ap and pe outside orbit line
+draw second orbit
+documentation
+
+v0.5.4 - game-vessel (vessel close view)
 load svg sprite and display it
 sprite rotation
 documentatin for sprite creating
 
-v0.5.4 - game-vessel (Near vessel warp switching)
+v0.5.5 - game-vessel (Near vessel warp switching)
 calculate radius around vessel from vessel size and scale
 switch warp if vessel will be inside that radius
 documentation
 
-v0.5.5 - game-vessel (Vessel collisions)
+v0.5.6 - game-vessel (Vessel collisions)
 vessel-vessel pixel collisions
 vessel destruction
 release phys-warp when vessel is destroyed
 documentation
 
-v0.5.6 - game-vessel (Vessel-planet collisions)
+v0.5.7 - game-vessel (Vessel-planet collisions)
 vessel-planet collisions (temporarily planet is just circle)
 documentation
 
-v0.5.7 - game-gui (Orbit points UI)
+v0.5.8 - game-gui (Orbit points UI)
 time to point
 for points: ap/pe, leave/enter, impact
 mouseover - show data and warp button
 click - toggle show data
 documentation
 
-v0.5.8 - game-vessel (Advanced warp)
+v0.5.9 - game-vessel (Advanced warp)
 warp to point on orbit
 warp to next orbit
 top gui warp to next orbit
@@ -60,15 +64,10 @@ Selected body
 Selected body orbit
 
 v0.6.3 - game-vessel (SAS)
+rotate free
 rotate prograde/retrograde/radial/antiradial
 hold rotated position
 bot gui buttons
-documentation
-
-v0.6.3 - game-vessel (Second orbit prediction)
-enter-orbit-point prediction and drawing
-don't draw ap and pe outside orbit line
-draw second orbit
 documentation
 
 v0.6.4 - editor (Rebuilt editor physics)

@@ -10,5 +10,7 @@
 [9. Inelastic collision](orbital-physics/9-Inelastic-collision.txt)  
 [10. Mean motion](orbital-physics/10-mean-motion,txt)  
 [11. Characteristic orbit ponits](orbital-physics/11-orbit-points.txt)  
-[12. References](orbital-physics/11-references.txt)  
+[12. Enter/Leave COI](orbital-physics/12-enter-leave-coi.txt)  
 [13. Notes](orbital-physics/12-notes.txt)  
+[14. References](orbital-physics/11-references.txt)  
+

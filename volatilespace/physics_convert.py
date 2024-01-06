@@ -40,7 +40,13 @@ def keplers_eq_derivative(ea, variables):
 
 def rot_ellipse_by_y(x, a, b, p):
     """Rotatted ellipse by y, but only positive half"""
-    y = (math.sqrt(a**2 * b**2 * (a**2 * math.cos(p)**2 + b**2 * math.sin(p)**2 - x**2 * math.sin(p)**4 - x**2 * math.cos(p)**4 - 2 * x**2 * math.sin(p)**2 * math.cos(p)**2)) + a**2 * x * math.sin(p) * math.cos(p) - b**2 * x * math.sin(p) * math.cos(p)) / (a**2 * math.cos(p)**2 + b**2 * math.sin(p)**2)
+    y = (a*b*math.sqrt(-x**2 * (math.cos(p)**4 + math.sin(p)**4) - 2 * x**2 * math.cos(p)**2 * math.sin(p)**2 + b**2 * math.sin(p)**2 + a**2 * math.cos(p)**2) + a**2 * x * math.sin(p) * math.cos(p) - b**2 * x * math.sin(p) * math.cos(p)) / (a**2 * math.cos(p)**2 + b**2 * math.sin(p)**2)
+    return y
+
+
+def rot_hyperbola_by_y(x, a, b, p):
+    """Rotatted hyperbola by y, but only positive half"""
+    y = -((a*b*math.sqrt(-x**2 * (math.cos(p)**4 + math.sin(p)**4) + 2 * x**2 * math.cos(p)**2 * math.sin(p)**2 + b**2 * math.sin(p)**2 - a**2 * math.cos(p)**2) + a**2 * x * math.sin(p) * math.cos(p) + b**2 * x * math.sin(p) * math.cos(p)) / (-a**2 * math.cos(p)**2 + b**2 * math.sin(p)**2))
     return y
 
 
@@ -73,7 +79,7 @@ def to_kepler(mass, orb_data, gc, coi_coef):
         rel_vel = vel[ref] - vel[body]
         u = gc * mass[ref]   # standard gravitational parameter
         semi_major = -1 * u / (2*(dot_2d(rel_vel, rel_vel) / 2 - u / mag(rel_pos)))   # semi-major axis
-        if semi_major > 0:   # if eccentricity is larger than 1, semi major will be negative
+        if semi_major > 0:
             coi[body] = semi_major * (mass[body] / mass[ref])**coi_coef   # calculate its COI and save to index
         else:
             coi[body] = 0   # if orbit is hyperbola or parabola, body has no COI, otherwise it would be infinite
@@ -87,7 +93,7 @@ def to_kepler(mass, orb_data, gc, coi_coef):
             u = gc * mass[ref]
             semi_major = -1 * u / (2*(dot_2d(rel_vel, rel_vel) / 2 - u / mag(rel_pos)))
             momentum = cross_2d(rel_pos, rel_vel)
-            # since this is 2d and momentum is scalar, cross product is not needed, so just multiply, swap axes and  negate y:
+            # since this is 2d and momentum is scalar, cross product is not needed, so just multiply, swap axes and negate y:
             rel_vel[0], rel_vel[1] = rel_vel[1], -rel_vel[0]
             ecc_v = (rel_vel * momentum / u) - rel_pos / mag(rel_pos)
             ecc = mag(ecc_v)
@@ -153,41 +159,70 @@ def to_newton(mass, orb_data, gc, coi_coef):
 
             if ecc == 0:   # to avoid division by zero
                 ecc = 0.00001
-            if ecc >= 1:   # limit to only ellipses
-                ecc = 0.95
+            if ecc == 1:   # to avoid parabola
+                ecc = 1.00001
 
-            b = a * math.sqrt(1 - ecc**2)
-            f = math.sqrt(a**2 - b**2)
-            f_rot = [f * math.cos(pe_arg), f * math.sin(pe_arg)]   # focus rotated by pe_arg
-            ea = newton_root(keplers_eq, keplers_eq_derivative, 0.0, {'Ma': ma, 'e': ecc})
+            if ecc < 1:   # ellipse
+                b = a * math.sqrt(1 - ecc**2)
+                f = math.sqrt(a**2 - b**2)
+                f_rot = [f * math.cos(pe_arg), f * math.sin(pe_arg)]   # focus rotated by pe_arg
+                ea = newton_root(keplers_eq, keplers_eq_derivative, 0.0, {'Ma': ma, 'e': ecc})
 
-            # calculate position vector
-            pr_x = a * math.cos(ea) - f
-            pr_y = b * math.sin(ea)
-            pr = np.array([pr_x * math.cos(pe_arg - np.pi) - pr_y * math.sin(pe_arg - np.pi),
-                           pr_x * math.sin(pe_arg - np.pi) + pr_y * math.cos(pe_arg - np.pi)])   # rotate point by argument of Pe
+                # calculate position vector
+                pr_x = a * math.cos(ea) - f
+                pr_y = b * math.sin(ea)
+                pr = np.array([pr_x * math.cos(pe_arg - np.pi) - pr_y * math.sin(pe_arg - np.pi),
+                               pr_x * math.sin(pe_arg - np.pi) + pr_y * math.cos(pe_arg - np.pi)])   # rotate point by argument of Pe
 
-            p_x, p_y = pr[0] - f * np.cos(pe_arg), pr[1] - f * np.sin(pe_arg)   # point on ellipse relative to its center
-            # implicit derivative of rotated ellipse
-            vr_angle = np.arctan(
-                -(b**2 * p_x * math.cos(pe_arg)**2 + a**2 * p_x * math.sin(pe_arg)**2 +
-                  b**2 * p_y * math.sin(pe_arg) * math.cos(pe_arg) - a**2 * p_y * math.sin(pe_arg) * math.cos(pe_arg)) /
-                 (a**2 * p_y * math.cos(pe_arg)**2 + b**2 * p_y * math.sin(pe_arg)**2 +
-                  b**2 * p_x * math.sin(pe_arg) * math.cos(pe_arg) - a**2 * p_x * math.sin(pe_arg) * math.cos(pe_arg)))
+                p_x, p_y = pr[0] - f * np.cos(pe_arg), pr[1] - f * np.sin(pe_arg)   # point on ellipse relative to its center
+                # implicit derivative of rotated ellipse
+                vr_angle = np.arctan(
+                    -(b**2 * p_x * math.cos(pe_arg)**2 + a**2 * p_x * math.sin(pe_arg)**2 +
+                      b**2 * p_y * math.sin(pe_arg) * math.cos(pe_arg) - a**2 * p_y * math.sin(pe_arg) * math.cos(pe_arg)) /
+                     (a**2 * p_y * math.cos(pe_arg)**2 + b**2 * p_y * math.sin(pe_arg)**2 +
+                      b**2 * p_x * math.sin(pe_arg) * math.cos(pe_arg) - a**2 * p_x * math.sin(pe_arg) * math.cos(pe_arg)))
 
-            # calcualte angle of velocity vector
-            # calculate domain of function and subtract some small value (10**-6) so y can be calculated
-            x_max = math.sqrt(a**2 * math.cos(2*pe_arg) + a**2 - b**2 * math.cos(2*pe_arg) + b**2)/math.sqrt(2) - 10**-6
-            y_max = rot_ellipse_by_y(x_max, a, b, pe_arg)
-            x_max1, y_max1 = x_max + f_rot[0], y_max + f_rot[1]   # add rotated focus since it is origin
-            x_max2, y_max2 = -x_max + f_rot[0], -y_max + f_rot[1]   # function domain is symmetrical, so there are 2 points
-            # same angle is calculated on positive and negative part of ellipse curve, so:
-            if ((x_max2 - x_max1) * (pr[1] - y_max1)) - ((y_max2 - y_max1) * (pr[0] - x_max1)) < 0:   # when in positive part of curve:
-                vr_angle += np.pi   # add pi to angle, put it in range (-1/2pi, 3/2pi) range
-            vr_angle = vr_angle % (2*np.pi)   # put it in (0, 2pi) range
+                # calcualte angle of velocity vector
+                # calculate domain of function and subtract some small value (10**-6) so y can be calculated
+                x_max = math.sqrt(a**2 * math.cos(2*pe_arg) + a**2 - b**2 * math.cos(2*pe_arg) + b**2)/math.sqrt(2) - 10**-6
+                y_max = rot_ellipse_by_y(x_max, a, b, pe_arg)
+                x_max1, y_max1 = x_max + f_rot[0], y_max + f_rot[1]   # add rotated focus since it is origin
+                x_max2, y_max2 = -x_max + f_rot[0], -y_max + f_rot[1]   # function domain is symmetrical, so there are 2 points
+                # same angle is calculated on positive and negative part of ellipse curve, so:
+                if ((x_max2 - x_max1) * (pr[1] - y_max1)) - ((y_max2 - y_max1) * (pr[0] - x_max1)) < 0:   # when in positive part of curve:
+                    vr_angle += np.pi   # add pi to angle, put it in range (-1/2pi, 3/2pi) range
+                vr_angle = vr_angle % (2*np.pi)   # put it in (0, 2pi) range
+
+            else:   # hyperbola
+                # note: a is negative
+                f = a * ecc
+                f_rot = [f * math.cos(pe_arg), f * math.sin(pe_arg)]
+                b = math.sqrt(f**2 - a**2)
+                ea = newton_root(keplers_eq, keplers_eq_derivative, 0.0, {'Ma': ma, 'e': ecc})
+                pr_x = a * math.cosh(ea) - f
+                pr_y = b * math.sinh(ea)
+                pr = np.array([pr_x * math.cos(pe_arg - np.pi) - pr_y * math.sin(pe_arg - np.pi),
+                               pr_x * math.sin(pe_arg - np.pi) + pr_y * math.cos(pe_arg - np.pi)])
+                p_x, p_y = pr[0] - f * np.cos(pe_arg), pr[1] - f * np.sin(pe_arg)
+                vr_angle = np.arctan(
+                    -(b**2 * p_x * math.cos(pe_arg)**2 - a**2 * p_x * math.sin(pe_arg)**2 +
+                      b**2 * p_y * math.sin(pe_arg) * math.cos(pe_arg) + a**2 * p_y * math.sin(pe_arg) * math.cos(pe_arg)) /
+                     (- a**2 * p_y * math.cos(pe_arg)**2 + b**2 * p_y * math.sin(pe_arg)**2 +
+                      b**2 * p_x * math.sin(pe_arg) * math.cos(pe_arg) + a**2 * p_x * math.sin(pe_arg) * math.cos(pe_arg)))
+                try:
+                    x_max = math.sqrt(a**2 * math.cos(2*pe_arg) + a**2 + b**2 * math.cos(2*pe_arg) - b**2)/math.sqrt(2) - 10**-6
+                    y_max = rot_hyperbola_by_y(x_max, a, b, pe_arg)
+                    x_max1, y_max1 = x_max + f_rot[0], y_max + f_rot[1]
+                    x_max2, y_max2 = -x_max + f_rot[0], -y_max + f_rot[1]
+                    if ((x_max2 - x_max1) * (rel_pos[1] - y_max1)) - ((y_max2 - y_max1) * (rel_pos[0] - x_max1)) < 0:
+                        vr_angle += np.pi
+                except ValueError:
+                    if np.pi <= pe_arg < 2*np.pi:
+                        vr_angle += np.pi
+                vr_angle = vr_angle % (2*np.pi)
 
             prm = mag(pr)
-            vrm = dr * math.sqrt((2 * a * u - prm * u) / (a * prm))   # velocity vector magnitude from semi-major axis equation
+            vrm = math.sqrt(u * ((2 / prm) - (1 / a)))   # velocity magnitude from vis-viva eq
 
             vr_x = vrm * math.cos(vr_angle)
             vr_y = vrm * math.sin(vr_angle)

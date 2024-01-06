@@ -151,6 +151,8 @@ def sort_intersect_indices(ea_vessel, ea_points, direction):
         if direction < 0:   # if direction is clockwise: invert
             angle = np.pi*2 - angle
         ea_points_sorted = np.argsort(angle)
+        # returning -1 instead np.nan because np.nan is special float
+        ea_points_sorted = np.where(np.isnan(ea_points[ea_points_sorted]), -1, ea_points_sorted)
         return ea_points_sorted
     else:
         return np.array([np.nan])
@@ -187,7 +189,7 @@ def culling(curve, sim_screen, ref_coi, curve_points, cull):
     y_max = np.amax(curve[:, 1])   # https://github.com/numba/numba/issues/1269
     x_min = np.amin(curve[:, 0])
     y_min = np.amin(curve[:, 1])
-    diff = np.array([x_max - x_min, y_max - y_min])
+    diff = np.array([max(x_max - x_min, 1), max(y_max - y_min, 1)])
     screen_diff = sim_screen_size / diff
     if ref_coi != 0:
         if diff[0] + diff[1] > ref_coi * 3:
@@ -238,6 +240,88 @@ def calc_orb_one(vessel, ref, body_mass, gc, a, ecc):
         n = 2*np.pi / period
 
     return b, f, pe_d, ap_d, period, n, u
+
+
+def rot_ellipse_by_y(x, a, b, p):
+    """Rotatted ellipse by y, but only positive half"""
+    y = (a*b*math.sqrt(-x**2 * (math.cos(p)**4 + math.sin(p)**4) - 2 * x**2 * math.cos(p)**2 * math.sin(p)**2 + b**2 * math.sin(p)**2 + a**2 * math.cos(p)**2) + a**2 * x * math.sin(p) * math.cos(p) - b**2 * x * math.sin(p) * math.cos(p)) / (a**2 * math.cos(p)**2 + b**2 * math.sin(p)**2)
+    return y
+
+
+def rot_hyperbola_by_y(x, a, b, p):
+    """Rotatted hyperbola by y, but only positive half"""
+    y = -((a*b*math.sqrt(-x**2 * (math.cos(p)**4 + math.sin(p)**4) + 2 * x**2 * math.cos(p)**2 * math.sin(p)**2 + b**2 * math.sin(p)**2 - a**2 * math.cos(p)**2) + a**2 * x * math.sin(p) * math.cos(p) + b**2 * x * math.sin(p) * math.cos(p)) / (-a**2 * math.cos(p)**2 + b**2 * math.sin(p)**2))
+    return y
+
+
+def kepler_to_velocity(rel_pos, a, ecc, pe_arg, u, dr):
+    """Converts from kepler parameters to relative velocity vector, given that relative position vectoris known."""
+    # same as in physics_convert.py
+    if ecc < 1:
+        b = a * math.sqrt(1 - ecc**2)
+        f = math.sqrt(a**2 - b**2)
+        f_rot = [f * math.cos(pe_arg), f * math.sin(pe_arg)]
+        p_x, p_y = rel_pos[0] - f * np.cos(pe_arg), rel_pos[1] - f * np.sin(pe_arg)
+        rel_vel_angle = np.arctan(
+            -(b**2 * p_x * math.cos(pe_arg)**2 + a**2 * p_x * math.sin(pe_arg)**2 +
+              b**2 * p_y * math.sin(pe_arg) * math.cos(pe_arg) - a**2 * p_y * math.sin(pe_arg) * math.cos(pe_arg)) /
+             (a**2 * p_y * math.cos(pe_arg)**2 + b**2 * p_y * math.sin(pe_arg)**2 +
+              b**2 * p_x * math.sin(pe_arg) * math.cos(pe_arg) - a**2 * p_x * math.sin(pe_arg) * math.cos(pe_arg)))
+        x_max = math.sqrt(a**2 * math.cos(2*pe_arg) + a**2 - b**2 * math.cos(2*pe_arg) + b**2)/math.sqrt(2) - 10**-6
+        y_max = rot_ellipse_by_y(x_max, a, b, pe_arg)
+        x_max1, y_max1 = x_max + f_rot[0], y_max + f_rot[1]
+        x_max2, y_max2 = -x_max + f_rot[0], -y_max + f_rot[1]
+        if ((x_max2 - x_max1) * (rel_pos[1] - y_max1)) - ((y_max2 - y_max1) * (rel_pos[0] - x_max1)) < 0:
+            rel_vel_angle += np.pi
+    else:
+        # note: a is negative
+        f = a * ecc
+        f_rot = [f * math.cos(pe_arg), f * math.sin(pe_arg)]
+        b = math.sqrt(f**2 - a**2)
+        p_x, p_y = rel_pos[0] - f * np.cos(pe_arg), rel_pos[1] - f * np.sin(pe_arg)
+        rel_vel_angle = np.arctan(
+            -(b**2 * p_x * math.cos(pe_arg)**2 - a**2 * p_x * math.sin(pe_arg)**2 +
+              b**2 * p_y * math.sin(pe_arg) * math.cos(pe_arg) + a**2 * p_y * math.sin(pe_arg) * math.cos(pe_arg)) /
+             (- a**2 * p_y * math.cos(pe_arg)**2 + b**2 * p_y * math.sin(pe_arg)**2 +
+              b**2 * p_x * math.sin(pe_arg) * math.cos(pe_arg) + a**2 * p_x * math.sin(pe_arg) * math.cos(pe_arg)))
+        try:
+            x_max = math.sqrt(a**2 * math.cos(2*pe_arg) + a**2 + b**2 * math.cos(2*pe_arg) - b**2)/math.sqrt(2) - 10**-6
+            y_max = rot_hyperbola_by_y(x_max, a, b, pe_arg)
+            x_max1, y_max1 = x_max + f_rot[0], y_max + f_rot[1]
+            x_max2, y_max2 = -x_max + f_rot[0], -y_max + f_rot[1]
+            if ((x_max2 - x_max1) * (rel_pos[1] - y_max1)) - ((y_max2 - y_max1) * (rel_pos[0] - x_max1)) < 0:
+                rel_vel_angle += np.pi
+        except ValueError:
+            if np.pi <= pe_arg < 2*np.pi:
+                rel_vel_angle += np.pi
+    rel_vel_angle = rel_vel_angle % (2*np.pi)
+    distance = mag(rel_pos)
+    rel_speed = dr * math.sqrt(u * ((2 / distance) - (1 / a)))
+    rel_vel_x = rel_speed * math.cos(rel_vel_angle)
+    rel_vel_y = rel_speed * math.sin(rel_vel_angle)
+    return np.array([rel_vel_x, rel_vel_y])
+
+
+def velocity_to_kepler(rel_pos, rel_vel, u):
+    a = -1 * u / (2*(dot_2d(rel_vel, rel_vel) / 2 - u / mag(rel_pos)))   # mag(x)^2 = x dot x
+    momentum = cross_2d(rel_pos, rel_vel)    # orbital momentum, since this is 2d, momentum is scalar
+    rel_vel[0], rel_vel[1] = rel_vel[1], -rel_vel[0]
+    ecc_v = (rel_vel * momentum / u) - rel_pos / mag(rel_pos)
+    ecc = mag(ecc_v)
+    pe_arg = ((3 * np.pi / 2) + math.atan2(-ecc_v[0], ecc_v[1])) % (2*np.pi)
+    dr = int(math.copysign(1, momentum[0]))   # if moment is negative, rotation is clockwise (-1)
+    ta = (pe_arg - (math.atan2(rel_pos[1], rel_pos[0]) - np.pi)) % (2*np.pi)
+    if dr > 0:
+        ta = 2*np.pi - ta   # invert Ta to be calculated in opposite direction !? WHY ?!
+    if ecc < 1:
+        ea = math.acos((ecc + math.cos(ta))/(1 + (ecc * math.cos(ta))))
+        if np.pi < ta < 2*np.pi:   # quadrant problems
+            ea = 2*np.pi - ea
+        ma = (ea - ecc * math.sin(ea)) % (2*np.pi)
+    else:
+        ea = math.acosh((ecc + math.cos(ta))/(1 + (ecc * math.cos(ta))))
+        ma = ecc * math.sinh(ea) - ea
+    return a, ecc, pe_arg, ma, dr
 
 
 # if numba is enabled, compile functions ahead of time
@@ -315,6 +399,11 @@ class Physics():
         """Load vessels and bodies."""
         self.body_mass = body_data["mass"]
         self.body_size = body_data["size"]
+        self.body_ref = body_orb["ref"]
+        self.body_a = body_orb["a"]
+        self.body_ecc = body_orb["ecc"]
+        self.body_pea = body_orb["pea"]
+        self.body_dr = body_orb["dir"]
         self.body_coi = body_orb["coi"]
         self.body_atm = body_data["atm_h"]
         self.load_conf(conf)
@@ -394,13 +483,13 @@ class Physics():
 
     def change_vessel(self, vessel):
         """Do all vessel related physics to one vessel. This should be done only if something changed on vessel or it's orbit."""
-        # otput is list because reading from dict is slow
+        # output is list because reading from dict is slow
 
         # VESSEL DATA #
-        vessel_data = [self.names]
+        vessel_data = [self.names[vessel]]
 
         # ORBIT DATA #
-        a = self.a[self]
+        a = self.a[vessel]
         ecc = self.ecc[vessel]
         self.u[vessel] = u = self.gc * self.body_mass[self.ref[vessel]]   # standard gravitational parameter
         self.f[vessel] = f = a * ecc
@@ -411,6 +500,7 @@ class Physics():
             if ecc < 1:   # if orbit is ellipse
                 self.period[vessel] = 2 * np.pi * math.sqrt(a**3 / u)
                 self.ap_d[vessel] = a * (1 + ecc)
+                self.n[vessel] = 2*np.pi / self.period[vessel]
             else:
                 if ecc > 1:   # hyperbola
                     self.pe_d[vessel] = a * (1 - ecc)
@@ -419,12 +509,13 @@ class Physics():
                 self.period[vessel] = 0   # period is undefined
                 # there is no apoapsis
                 self.ap_d[vessel] = 0
+                self.n[vessel] = math.sqrt(self.u[vessel] / abs(self.a[vessel])**3)
         else:   # circle
             self.period[vessel] = (2 * np.pi * math.sqrt(a**3 / u)) / 10
             self.pe_d[vessel] = a * (1 - ecc)
             # there is no apoapsis
             self.ap_d[vessel] = 0
-        self.n[vessel] = 2*np.pi / self.period[vessel]
+            self.n[vessel] = 2*np.pi / self.period[vessel]
 
         vessel_orb = [a,
                       self.ref[vessel],
@@ -435,6 +526,14 @@ class Physics():
                       self.dr[vessel],
                       self.period[vessel]]
 
+        # recalculate ea
+        if self.ecc[vessel] < 1:
+            self.ea[vessel] = newton_root(keplers_eq, keplers_eq_derivative, self.ea[vessel], {'Ma': self.ma[vessel], 'e': self.ecc[vessel]})
+        else:
+            self.ea[vessel] = newton_root(keplers_eq_hyp, keplers_eq_hyp_derivative, self.ea[vessel], {'Ma': self.ma[vessel], 'e': self.ecc[vessel]})
+        # recalculate points and curves
+        self.points(vessel)
+        self.curve(vessel)
         return vessel_data, vessel_orb
 
 
@@ -610,10 +709,14 @@ class Physics():
                         if ea < np.pi:
                             curves_light[vessel] = concat_wrap(curve_light, point_vessel, ea_point_next, max(ea_vessel, 0), coord_next)
                         else:
+                            if ea_vessel == ea_point_next:
+                                ea_vessel += 1
                             curves_light[vessel] = concat_wrap(curve_light, coord_next, ea_point_next, max(ea_vessel-1, 0), point_vessel)
                         curves_dark[vessel] = concat_wrap(curve_dark, coord_prev, ea_point_next, ea_point_prev, coord_next)
                     else:   # CCW
                         if ea < np.pi:
+                            if ea_vessel == ea_point_next:
+                                ea_vessel -= 1
                             curves_light[vessel] = concat_wrap(curve_light, point_vessel, ea_vessel+1, ea_point_next, coord_next)
                         else:
                             curves_light[vessel] = concat_wrap(curve_light, coord_next, ea_vessel, ea_point_next, point_vessel)
@@ -627,9 +730,13 @@ class Physics():
                     ea_point_next = self.curve_points - round((ea_next+np.pi) * self.curve_points / (2*np.pi))
                     ea_point_prev = self.curve_points - round((ea_prev+np.pi) * self.curve_points / (2*np.pi))
                     if dr < 0:   # CW
+                        if ea_vessel == ea_point_next:
+                            ea_vessel -= 1
                         curves_light[vessel] = concat_wrap(curve_light, point_vessel, ea_vessel+1, ea_point_next, coord_next)
                         curves_dark[vessel] = concat_wrap(curve_dark, coord_prev, ea_point_prev, ea_point_next, coord_next)
                     else:   # CCW
+                        if ea_vessel == ea_point_next:
+                            ea_vessel += 1
                         curves_light[vessel] = concat_wrap(curve_light, coord_next, ea_point_next, max(ea_vessel-1, 0), point_vessel)
                         curves_dark[vessel] = concat_wrap(curve_dark, coord_next, ea_point_next, ea_point_prev, coord_prev)
                 first_intersect[vessel] = coord_next
@@ -683,7 +790,7 @@ class Physics():
 
         rel_pos = self.pos[vessel] - pos_ref
         distance = mag(rel_pos)   # distance to parent
-        speed_orb = math.sqrt(u * ((2 / distance) - (1 / a)))   # velocity vector magnitude from vis-viva eq
+        speed_orb = math.sqrt(u * ((2 / distance) - (1 / a)))   # velocity magnitude from vis-viva eq
         if ecc < 1:
             ta = math.acos((math.cos(ea) - ecc)/(1 - ecc * math.cos(ea)))   # true anomaly from eccentric anomaly
         else:
@@ -749,13 +856,10 @@ class Physics():
 
                 # calculate vessel ea for next iteration
                 if ecc < 1:
-                    hyp = 1
-                else:
-                    hyp = -1
-                next_ma = self.ma[vessel] + self.n[vessel] * warp * dr * hyp
-                if self.ecc[vessel] < 1:
+                    next_ma = self.ma[vessel] + self.n[vessel] * warp * dr
                     ea_vessel_2 = newton_root(keplers_eq, keplers_eq_derivative, ea_vessel_1, {'Ma': next_ma, 'e': ecc})
                 else:
+                    next_ma = self.ma[vessel] + self.n[vessel] * warp * dr * -1
                     ea_vessel_2 = newton_root(keplers_eq_hyp, keplers_eq_hyp_derivative, ea_vessel_1, {'Ma': next_ma, 'e': ecc})
 
                 # checking if vessel will pass point in next iteration
@@ -766,8 +870,6 @@ class Physics():
                 if ea_vessel_1 > ea_vessel_2:
                     angle_2 = 2*np.pi - angle_2
                 if dr < 0:   # if clockwsise
-                    angle_1, angle_2 = angle_2, angle_1
-                if ecc > 1:   # if hyperbola
                     angle_1, angle_2 = angle_2, angle_1
                 if angle_1 < angle_2:
 
@@ -787,6 +889,56 @@ class Physics():
                     self.physical_hold = self.physical_hold[self.physical_hold != vessel]
         return situation, alarm_vessel, len(self.physical_hold)
 
+
+    def cross_coi(self, warp):
+        """Changes vessel orbit reference and orbital parametes when it is leaving or entering COI"""
+        for vessel, _ in enumerate(self.names):
+            ecc = self.ecc[vessel]
+            dr = self.dr[vessel]
+            ea_vessel_1 = self.ea[vessel]
+
+            # LEAVE COI #
+
+            leave_coi = self.coi_leave[vessel, int(ecc > 1)]
+            if not np.isnan(leave_coi):
+
+                # calculate vessel ea for next iteration
+                if ecc < 1:
+                    next_ma = self.ma[vessel] + self.n[vessel] * warp * dr
+                    ea_vessel_2 = newton_root(keplers_eq, keplers_eq_derivative, ea_vessel_1, {'Ma': next_ma, 'e': ecc})
+                else:
+                    next_ma = self.ma[vessel] + self.n[vessel] * warp * dr * -1
+                    ea_vessel_2 = newton_root(keplers_eq_hyp, keplers_eq_hyp_derivative, ea_vessel_1, {'Ma': next_ma, 'e': ecc})
+
+                # checking if vessel will pass point in next iteration
+                angle_1 = abs(ea_vessel_1 - leave_coi)
+                angle_2 = abs(ea_vessel_1 - ea_vessel_2)
+                if ea_vessel_1 > leave_coi:
+                    angle_1 = 2*np.pi - angle_1
+                if ea_vessel_1 > ea_vessel_2:
+                    angle_2 = 2*np.pi - angle_2
+                if dr < 0:   # if clockwsise
+                    angle_1, angle_2 = angle_2, angle_1
+                if angle_1 < angle_2:
+                    ref = self.ref[vessel]
+                    new_u = self.gc * self.body_mass[self.body_ref[ref]]
+                    # calculate vessel and reference relative positions (to their references)
+                    ves_abs_pos = self.ea2coord(vessel, leave_coi)
+                    ref_abs_pos = self.body_pos[ref]
+                    ves_rel_pos = ves_abs_pos - ref_abs_pos
+                    ref_rel_pos = ref_abs_pos - self.body_pos[self.body_ref[ref]]
+                    # calculate vessel and reference relative velocities (to their references)
+                    ves_rel_vel = kepler_to_velocity(ves_rel_pos, self.a[vessel], ecc, self.pea[vessel], self.u[vessel], dr)
+                    ref_rel_vel = kepler_to_velocity(ref_rel_pos, self.body_a[ref], self.body_ecc[ref], self.body_pea[ref], new_u, self.body_dr[ref])
+                    # add vessels and its references relative: positions and velocities
+                    new_ref_pos = ves_rel_pos + ref_rel_pos
+                    new_ref_vel = ves_rel_vel + ref_rel_vel
+                    # convert this position and absolute velocity to orbital parameters
+                    self.a[vessel], self.ecc[vessel], self.pea[vessel], self.ma[vessel], self.dr[vessel] = velocity_to_kepler(new_ref_pos, new_ref_vel, new_u)
+                    # set new reference
+                    self.ref[vessel] = self.body_ref[ref]
+                    return vessel
+        return None
 
     def rotate(self, warp, vessel, direction):
         """Rotates all vessels, and changes rotation speed of active vessel,

@@ -1,0 +1,51 @@
+### LEAVE COI ###
+
+# DETECTING #
+
+# using orbital-physics/11-orbit-points.txt
+# for calculating position of leave_coi point
+
+# using same method as in other-physics/3-warp.txt
+# for detecting if vessel will pass leave_coi point in next iteration
+
+# CALCULATING NEW ORBIT #
+
+# vessel absolute position is known: it is coordinates of above detected point
+# calculate vessel and reference relative positions (to their references):
+ves_rel_pos = ves_abs_pos - ref_abs_pos
+ref_rel_pos = ref_abs_pos - ref_ref_abs_pos   # (reference of reference)
+# calculate vessel and reference relative velocities (to their references):
+ves_ref_vel =   # see bellow note
+ref_rel_vel =   # see bellow note
+# add vessels and its references relative: positions and velocities
+new_ref_pos = ves_rel_pos + ref_rel_pos
+new_ref_vel = ves_ref_vel + ref_rel_vel
+# new standard grav. parameter must be calculated before converting to new orbit:
+new_u = gc * mass_of_new_ref
+# convert this position and absolute velocity to orbital parameters:
+a, ecc, pea, ma, dir =   # see bellow note
+# new reference is reference of current reference
+
+# notes:
+# using orbital-physics/7-inverse-ellipse-equations.txt
+# using orbital-physics/8-inverse-hyperola-equations.txt
+# for calculating vessel and reference velocity
+
+# using orbital-physics/3-keplerian-orbit.txt
+# for calculating orbital parameters from vessel position and velocity
+
+
+### ENTER COI ###
+
+# DETECTING #
+
+# using orbital-physics/11-orbit-points.txt
+# for calculating position of enter_coi point
+
+# using same method as in other-physics/3-warp.txt
+# for detecting if vessel will pass enter_coi point in next iteration
+
+# CALCULATING NEW ORBIT #
+
+# new reference is extracted from above calculated point
+# vessel position is known: it is coordinates of above detected point

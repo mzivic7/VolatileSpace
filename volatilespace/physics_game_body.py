@@ -86,7 +86,7 @@ def culling(curve, sim_screen, ref_coi, curve_points, cull):
     y_max = np.amax(curve[:, 1])
     x_min = np.amin(curve[:, 0])
     y_min = np.amin(curve[:, 1])
-    diff = np.array([x_max - x_min, y_max - y_min])
+    diff = np.array([max(x_max - x_min, 1), max(y_max - y_min, 1)])
     screen_diff = sim_screen_size / diff
     if ref_coi != 0.0:
         if diff[0] + diff[1] > ref_coi * 3:

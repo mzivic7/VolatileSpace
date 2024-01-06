@@ -57,7 +57,7 @@ def orbit_time_to(mean_anomaly, target_angle, period, dr):
 
 def rot_ellipse_by_y(x, a, b, p):
     """Rotatted ellipse by y, but only positive half"""
-    y = (math.sqrt(a**2 * b**2 * (a**2 * math.cos(p)**2 + b**2 * math.sin(p)**2 - x**2 * math.sin(p)**4 - x**2 * math.cos(p)**4 - 2 * x**2 * math.sin(p)**2 * math.cos(p)**2)) + a**2 * x * math.sin(p) * math.cos(p) - b**2 * x * math.sin(p) * math.cos(p)) / (a**2 * math.cos(p)**2 + b**2 * math.sin(p)**2)
+    y = (a*b*math.sqrt(-x**2 * (math.cos(p)**4 + math.sin(p)**4) - 2 * x**2 * math.cos(p)**2 * math.sin(p)**2 + b**2 * math.sin(p)**2 + a**2 * math.cos(p)**2) + a**2 * x * math.sin(p) * math.cos(p) - b**2 * x * math.sin(p) * math.cos(p)) / (a**2 * math.cos(p)**2 + b**2 * math.sin(p)**2)
     return y
 
 
@@ -444,7 +444,7 @@ class Physics():
 
 
         if direction == -1:   # if direction is clockwise
-            true_anomaly = 2*np.pi - true_anomaly   # invert Ta to be calculated in opposite direction ### BUG ###
+            true_anomaly = 2*np.pi - true_anomaly   # invert Ta to be calculated in opposite direction !? WHY ?!
         if ecc != 0:   # not circle
             pe_d = semi_major * (1 - ecc)
             if ecc < 1:   # ellipse

@@ -153,6 +153,7 @@ class Game():
         self.v_rot_dir = 0
         self.visible_bodies = []
         self.visible_vessels = []
+        self.change_vessel = None
 
         # ### DEBUG ###
         self.physics_debug_time = 1
@@ -422,6 +423,23 @@ class Game():
         self.v_pea = vessel_orb["pea"]
         self.v_dr = vessel_orb["dir"]
         self.v_period = vessel_orb["per"]
+
+
+    def update_vessel(self, vessel, vessel_data, vessel_orb):
+        # using lists to make it faster
+        # BODY DATA #
+        self.v_names[vessel] = vessel_data[0]
+        # ORBIT DATA #
+        self.v_a[vessel] = vessel_orb[0]
+        if self.v_ref[vessel] != vessel_orb[1] and self.active_vessel == vessel:
+            self.follow = 1   # when crossing coi change focus back to vessel
+        self.v_ref[vessel] = vessel_orb[1]
+        self.v_ecc[vessel] = vessel_orb[2]
+        self.v_pe_d[vessel] = vessel_orb[3]
+        self.v_ap_d[vessel] = vessel_orb[4]
+        self.v_pea[vessel] = vessel_orb[5]
+        self.v_dr[vessel] = vessel_orb[6]
+        self.v_period[vessel] = vessel_orb[7]
 
 
     def load(self):
@@ -1084,6 +1102,7 @@ class Game():
                         self.pos, self.ma = physics_body.move(self.warp_phys)
                         self.v_pos, self.v_ma = physics_vessel.move(self.warp_phys, self.pos)
                         self.v_rot_angle = physics_vessel.rotate(self.warp, self.active_vessel, self.v_rot_dir)
+                        self.change_vessel = physics_vessel.cross_coi(self.warp)
 
                     self.sim_time += 1 * self.warp_phys   # iterate sim_time
                 else:
@@ -1091,14 +1110,16 @@ class Game():
                     self.pos, self.ma = physics_body.move(self.warp)
                     self.v_pos, self.v_ma = physics_vessel.move(self.warp, self.pos)
                     self.v_rot_angle = physics_vessel.rotate(self.warp, self.active_vessel, self.v_rot_dir)
+                    self.change_vessel = physics_vessel.cross_coi(self.warp)
 
                     self.sim_time += 1 * self.warp   # iterate sim_time
 
                 self.v_rot_dir = 0
                 self.curves = physics_body.curve_move()
-                if False:   # TODO run only if something change
-                    physics_vessel.points(self.active_vessel)
-                    physics_vessel.curve(self.active_vessel)
+                if self.change_vessel is not None:
+                    vessel_data, vessel_orb_data = physics_vessel.change_vessel(self.change_vessel)
+                    self.update_vessel(self.change_vessel, vessel_data, vessel_orb_data)
+                    self.change_vessel = None
                 self.v_curves = physics_vessel.curve_move()
                 sim_screen = np.array((self.sim_coords((0, 0)), self.sim_coords((self.screen_x, self.screen_y))))
                 self.visible_bodies = physics_body.culling(sim_screen)

@@ -1,7 +1,9 @@
 # Volatile Space
 2D physics-based universe and spaceflight simulator.  
 Written in Python with PyGame.  
+[Download](https://mzivic.itch.io/volatile-space) (itch.io)  
 [Wiki](documentation/wiki.md)
+
 
 ## Building
 ### Linux
@@ -26,4 +28,3 @@ This also disables 'Numba' and 'FastMath' options in settings.
 
 ## How it works?
 Head to [wiki](documentation/wiki.md).  
-
