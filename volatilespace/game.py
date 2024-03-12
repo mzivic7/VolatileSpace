@@ -64,6 +64,19 @@ text_follow_mode = ["Disabled", "Active vessel", "Orbited body"]
 text_grid_mode = ["Disabled", "Global", "Active vessel", "Orbited body"]
 
 
+def angle_in_range(n, angle_range, dr=1):
+    """Checks if given angle is between two angle range with wrapping at 0pi and 2pi, counterclockwise"""
+    angle_1 = abs(n - angle_range[0])
+    angle_2 = abs(n - angle_range[1])
+    if n > a:
+        angle_1 = 2*np.pi - angle_1
+    if n > b:
+        angle_2 = 2*np.pi - angle_2
+    if dr < 0:
+        angle_1, angle_2 = angle_2, angle_1
+    return angle_1 > angle_2
+
+
 class Game():
     def __init__(self):
         self.state = 3
@@ -440,6 +453,10 @@ class Game():
         self.v_pea[vessel] = vessel_orb[5]
         self.v_dr[vessel] = vessel_orb[6]
         self.v_period[vessel] = vessel_orb[7]
+        # change bg_stars offset
+        if self.bg_stars_enable and self.follow and self.active_vessel == vessel:
+            parent_pos = self.pos[self.v_ref[self.active_vessel]]
+            self.offset_old = np.array([self.offset_x, self.offset_y]) + parent_pos
 
 
     def load(self):
@@ -1111,7 +1128,6 @@ class Game():
                     self.v_pos, self.v_ma = physics_vessel.move(self.warp, self.pos)
                     self.v_rot_angle = physics_vessel.rotate(self.warp, self.active_vessel, self.v_rot_dir)
                     self.change_vessel = physics_vessel.cross_coi(self.warp)
-
                     self.sim_time += 1 * self.warp   # iterate sim_time
 
                 self.v_rot_dir = 0
@@ -1124,9 +1140,10 @@ class Game():
                 sim_screen = np.array((self.sim_coords((0, 0)), self.sim_coords((self.screen_x, self.screen_y))))
                 self.visible_bodies = physics_body.culling(sim_screen)
                 self.visible_vessels = physics_vessel.culling(sim_screen)
-                self.curve_light, self.curve_dark, self.intersect, self.intersect_type = physics_vessel.curve_segments()
+                self.curve_light, self.curve_dark, self.intersect, self.intersect_type, self.select_range = physics_vessel.curve_segments()
 
                 self.physics_debug_time = time.time() - debug_time   # ### DEBUG ###
+
 
 
 
@@ -1297,16 +1314,16 @@ class Game():
             vessel_pos = self.screen_coords(self.v_pos[vessel])
             # active vessel
             if self.active_vessel is not None and self.active_vessel == vessel:
-                if intersect_type:
+                if intersect_type in [1, 3]:
                     graphics.draw_lines(screen, rgb.cyan_1, curve_dark, 2)
                 graphics.draw_lines(screen, rgb.cyan, curve_light, 2)
             # target vessel
             elif self.target is not None and self.target_type == 1 and self.target == vessel:
-                if intersect_type:
+                if intersect_type in [1, 3]:
                     graphics.draw_lines(screen, rgb.gray1, curve_dark, 2)
                 graphics.draw_lines(screen, rgb.gray, curve_light, 2)
             else:
-                if intersect_type:
+                if intersect_type in [1, 3]:
                     graphics.draw_lines(screen, rgb.gray2, curve_dark, 2)
                 graphics.draw_lines(screen, rgb.gray1, curve_light, 2)
 
@@ -1356,34 +1373,36 @@ class Game():
                         pe_scr = self.screen_coords(pe)
                         parent_rad = [self.size[ref] * self.zoom] * 2
                         pe_scr_dist = abs(parent_scr - pe_scr) - parent_rad
-                        if pe_scr_dist[0] > 8 or pe_scr_dist[1] > 8:   # don't draw Pe if it is too close to parent
+                        if pe_scr_dist[0] > 2 or pe_scr_dist[1] > 2:   # don't draw Pe if it is too close to parent
                             # periapsis location marker, text: distance and time to it
-                            pe_scr = self.screen_coords(pe)
-                            graphics.draw_circle_fill(screen, rgb.lime1, pe_scr, 3)   # periapsis marker
-                            graphics.text(screen, rgb.lime1, self.fontsm, "Periapsis: " + str(round(self.v_pe_d[vessel], 1)), (pe_scr[0], pe_scr[1] + 7), True)
-                            graphics.text(screen, rgb.lime1, self.fontsm,
-                                          "T - " + format_time.to_date(int(pe_t/self.ptps)),
-                                          (pe_scr[0], pe_scr[1] + 17), True)
+                            if intersect_type != 2 or (ntersect_type == 2 and angle_in_range(0, self.select_range[vessel])):
+                                pe_scr = self.screen_coords(pe)
+                                graphics.draw_circle_fill(screen, rgb.lime1, pe_scr, 3)   # periapsis marker
+                                graphics.text(screen, rgb.lime1, self.fontsm, "Periapsis: " + str(round(self.v_pe_d[vessel], 1)), (pe_scr[0], pe_scr[1] + 7), True)
+                                graphics.text(screen, rgb.lime1, self.fontsm,
+                                              "T - " + format_time.to_date(int(pe_t/self.ptps)),
+                                              (pe_scr[0], pe_scr[1] + 17), True)
 
-                        if self.ecc[vessel] < 1:   # if orbit is ellipse
+                        if self.v_ecc[vessel] < 1:   # if orbit is ellipse
                             if self.v_ap_d[vessel] <= self.coi[ref]:
                                 # apoapsis location marker, text: distance and time to it
-                                graphics.draw_circle_fill(screen, rgb.lime1, ap_scr, 3)   # apoapsis marker
-                                graphics.text(screen, rgb.lime1, self.fontsm, "Apoapsis: " + str(round(self.v_ap_d[vessel], 1)), (ap_scr[0], ap_scr[1] + 7), True)
-                                graphics.text(screen, rgb.lime1, self.fontsm,
-                                              "T - " + format_time.to_date(int(ap_t/self.ptps)),
-                                              (ap_scr[0], ap_scr[1] + 17), True)
+                                if intersect_type != 2 or (ntersect_type == 2 and angle_in_range(np.pi, self.select_range[vessel])):
+                                    graphics.draw_circle_fill(screen, rgb.lime1, ap_scr, 3)   # apoapsis marker
+                                    graphics.text(screen, rgb.lime1, self.fontsm, "Apoapsis: " + str(round(self.v_ap_d[vessel], 1)), (ap_scr[0], ap_scr[1] + 7), True)
+                                    graphics.text(screen, rgb.lime1, self.fontsm,
+                                                  "T - " + format_time.to_date(int(ap_t/self.ptps)),
+                                                  (ap_scr[0], ap_scr[1] + 17), True)
 
                         # characteristic points
                         if intersect_type == 1:   # impact
                             if self.size[ref] * self.zoom >= 5:
                                 graphics.draw_img(screen, self.impact_img, intersect, center=True)
-                        elif intersect_type == 2:   # leave COI
-                            if self.coi[ref] * self.zoom >= 10:
-                                graphics.draw_img(screen, self.orb_leave_img, intersect, center=True)
-                        elif intersect_type == 3:
+                        elif intersect_type == 2:   # enter COI
                             if self.coi[ref] * self.zoom >= 10:
                                 graphics.draw_img(screen, self.orb_enter_img, intersect, center=True)
+                        elif intersect_type == 3:   # leave COI
+                            if self.coi[ref] * self.zoom >= 10:
+                                graphics.draw_img(screen, self.orb_leave_img, intersect, center=True)
 
             # target vessel
             elif self.target is not None and self.target_type == 1 and self.target == vessel:

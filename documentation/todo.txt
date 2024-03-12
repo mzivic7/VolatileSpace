@@ -1,19 +1,17 @@
 ### TIMELINE ###
 
-v0.5.2 - game-vessel (Enter/leave coi)
-detect enter coi point
-enter coi physics
-documentation
-
 v0.5.3 - game-vessel (Second orbit prediction)
-don't draw ap and pe outside orbit line
-draw second orbit
+Draw ghost body
+Can follow ghost body
+Calculate second orbit for leaving coi
+Calculate second orbit for entering coi
+Draw second orbit
 documentation
 
 v0.5.4 - game-vessel (vessel close view)
 load svg sprite and display it
 sprite rotation
-documentatin for sprite creating
+documentation for sprite creating
 
 v0.5.5 - game-vessel (Near vessel warp switching)
 calculate radius around vessel from vessel size and scale
@@ -32,13 +30,16 @@ documentation
 
 v0.5.8 - game-gui (Orbit points UI)
 time to point
+ap/pe icons
 for points: ap/pe, leave/enter, impact
 mouseover - show data and warp button
 click - toggle show data
+points for target
 documentation
 
 v0.5.9 - game-vessel (Advanced warp)
 warp to point on orbit
+snap to special points
 warp to next orbit
 top gui warp to next orbit
 documentation
@@ -93,6 +94,7 @@ classification
 ### GAME ###
 advanced game GUI
 maneuvers (SAS, GUI)
+third orbit prediction
 more icons, markers
 vessel parts, editor and config
 part menus in cose view

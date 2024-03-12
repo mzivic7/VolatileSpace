@@ -9,21 +9,29 @@
 # draw only first point in orbit direction on screen
 # orbit line parameter is limited to range: (ea_vessel, ea_point_next)
 # other range of orbit is darker color
+# body is located in ellipse/hyperbola focus
 
-# LEAVE ORBIT
+# LEAVE COI
 # do only for ref
 # obtain Ea (2 points, first point is next in orbit direction, and second is previous)
 # draw only first point in orbit direction on screen
 # orbit line parameter is limited to range: (ea_vessel, ea_point_next)
 # dark color line parameter is in range: (ea_point_prev, ea_vessel)
 # other range is invisible
+# body is located in ellipse/hyperbola focus
 
-# ENTER ORBIT
+# ENTER COI
 # do for all planets orbiting ref
 # obtain Ea
 # draw only first point in orbit direction on screen
 # orbit line parameter is limited to range: (ea_vessel, ea_point_next)
 # other range is invisible
+# body is not in focus, its position must be predicted, since it is moving too
+
+### Predicting body position at the moment when its COI will intersect with vessel ###
+
+# TODO #
+
 
 
 ### Finding next and previous point on orbit ###
