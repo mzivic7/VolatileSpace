@@ -6,3 +6,5 @@
 [5] https://en.wikipedia.org/wiki/Quartic_equation
 [6] https://en.wikipedia.org/wiki/Hyperbola#Parametric_equations
 [7] https://en.wikipedia.org/wiki/Eccentric_anomaly#From_the_true_anomaly
+[8] https://quarticequations.com/Cubic.pdf
+[9] https://quarticequations.com/Quartic2.pdf

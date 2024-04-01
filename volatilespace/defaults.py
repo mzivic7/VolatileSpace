@@ -119,6 +119,6 @@ new_body_bh = {"name": "New black hole",
                "velocity": [0, 0],
                "color": [50, 50, 50],
                "atm_pres0": 0,
-                "atm_coef": 0,
-                "atm_den": 0
+               "atm_coef": 0,
+               "atm_den": 0
                }

@@ -2,7 +2,6 @@ from ast import literal_eval as leval
 import math
 import pygame
 from pygame import gfxdraw
-import time
 from volatilespace import fileops
 from volatilespace.graphics import rgb
 import numpy as np
@@ -63,7 +62,7 @@ class Graphics():
         if self.antial is True:
             pygame.draw.aalines(surface, color, closed, points)
         else:
-            pygame.draw.lines(surface, colors, closed, points, thickness)
+            pygame.draw.lines(surface, color, closed, points, thickness)
 
 
     def draw_circle(self, surface, color, center, radius, thickness):   # gfxdraw ### OBSOLETE ###

@@ -3,64 +3,20 @@ import math
 from itertools import repeat
 import numpy as np
 try:   # to allow building without numba
-    from numba import njit, types, int32, int64, float64
+    from numba import njit, int32, int64, float64
     numba_avail = True
 except ImportError:
     numba_avail = False
 
 from volatilespace import fileops
 from volatilespace import defaults
-
-
-###### --Constants-- ######
-c = 299792458   # speed of light in vacuum
-k = 1.381 * 10**-23   # boltzman constant
-m_h = 1.674 * 10**-27    # hydrogen atom mass in kg
-m_he = 6.646 * 10**-27   # helium atom mass in kg
-mp = (m_h * 99 + m_he * 1) / 100   # average particle mass   # depends on star age
+from volatilespace.physics.phys_shared import rot_ellipse_by_y, orbit_time_to, \
+    newton_root_kepler_ell, \
+    mag, dot_2d, cross_2d, \
+    mp, k, c
 
 
 ###### --Functions-- ######
-def newton_root(function, derivative, root_guess, variables={}):
-    """Newton root solver"""
-    root = root_guess   # take guessed root input
-    for _ in range(50):
-        delta_x = function(root, variables) / derivative(root, variables)   # guess correction
-        root -= delta_x   # better guess
-        if abs(delta_x) < 1e-10:   # if correction is small enough:
-            return root   # return root
-    return root   # if it is not returned above (it has too high deviation) return it anyway
-
-
-def keplers_eq(ea, variables):
-    """Keplers equation"""
-    return ea - variables['e'] * np.sin(ea) - variables['Ma']
-
-
-def keplers_eq_derivative(ea, variables):
-    """Derivative of keplers equation"""
-    return 1.0 - variables['e'] * np.cos(ea)
-
-
-def get_angle(a, b, c):
-    """Angle between 3 points in 2D or 3D"""
-    ba = a - b   # get 2 vectors from 3 points
-    bc = c - b
-    cosine_angle = np.dot(ba, bc) / (np.linalg.norm(ba) * np.linalg.norm(bc))   # angle between 2 vectors
-    return np.arccos(cosine_angle)
-
-
-def orbit_time_to(mean_anomaly, target_angle, period, dr):
-    """Time to point on orbit"""
-    return period - (dr * mean_anomaly + target_angle)*(period / (2 * np.pi)) % period
-
-
-def rot_ellipse_by_y(x, a, b, p):
-    """Rotatted ellipse by y, but only positive half"""
-    y = (a*b*math.sqrt(-x**2 * (math.cos(p)**4 + math.sin(p)**4) - 2 * x**2 * math.cos(p)**2 * math.sin(p)**2 + b**2 * math.sin(p)**2 + a**2 * math.cos(p)**2) + a**2 * x * math.sin(p) * math.cos(p) - b**2 * x * math.sin(p) * math.cos(p)) / (a**2 * math.cos(p)**2 + b**2 * math.sin(p)**2)
-    return y
-
-
 def swap_with_first(list_in, n):
     """Swaps first element of list with n element."""
     if list_in.ndim == 1:
@@ -68,21 +24,6 @@ def swap_with_first(list_in, n):
     elif list_in.ndim == 2:
         list_in[[0, n]] = list_in[[n, 0]]
     return list_in
-
-
-def dot_2d(v1, v2):
-    """Fastest 2D dot product. It is slightly faster than built in: v1 @ v2."""
-    return v1[0]*v2[0] + v1[1]*v2[1]
-
-
-def mag(vector):
-    """Vector magnitude"""
-    return math.sqrt(dot_2d(vector, vector))
-
-
-def cross_2d(v1, v2):
-    """Faster than numpy's"""
-    return np.array([v1[0]*v2[1] - v1[1]*v2[0]])
 
 
 def find_parent_one(body_s, bodies_sorted, pos, coi):
@@ -159,9 +100,6 @@ use_numba = leval(fileops.load_settings("game", "numba"))
 if numba_avail and use_numba:
     enable_fastmath = leval(fileops.load_settings("game", "fastmath"))
     jitkw = {"cache": True, "fastmath": enable_fastmath}   # numba JIT setings
-    dot_2d = njit(float64(float64[:], float64[:]), **jitkw)(dot_2d)
-    mag = njit(float64(float64[:]), **jitkw)(mag)
-    cross_2d = njit(float64[:](float64[:], float64[:]), **jitkw)(cross_2d)
     find_parent_one = njit(int32(int32, int64[:], float64[:, :], float64[:]), **jitkw)(find_parent_one)
     gravity_one = njit(float64[:](int32, int64, float64[:], float64[:], float64), **jitkw)(gravity_one)
     kepler_basic_one = njit((int32, int64, float64[:], float64[:, :], float64[:, :], float64, float64), **jitkw)(kepler_basic_one)
@@ -514,7 +452,7 @@ class Physics():
             ta = true_anomaly_deg * np.pi / 180
             ea = math.acos((ecc + math.cos(ta))/(1 + (ecc * math.cos(ta))))   # ea from ta
         else:
-            ea = newton_root(keplers_eq, keplers_eq_derivative, 0.0, {'Ma': mean_anomaly, 'e': ecc})
+            ea = newton_root_kepler_ell(ecc, mean_anomaly, 0.0)
 
         # calculate position vector
         pr_x = a * math.cos(ea) - f
@@ -525,10 +463,10 @@ class Physics():
         p_x, p_y = pr[0] - f * np.cos(omega), pr[1] - f * np.sin(omega)   # point on ellipse relative to its center
         # implicit derivative of rotated ellipse
         vr_angle = np.arctan(
-            -(b**2 * p_x * math.cos(omega)**2 + a**2 * p_x * math.sin(omega)**2 +
-              b**2 * p_y * math.sin(omega) * math.cos(omega) - a**2 * p_y * math.sin(omega) * math.cos(omega)) /
-             (a**2 * p_y * math.cos(omega)**2 + b**2 * p_y * math.sin(omega)**2 +
-              b**2 * p_x * math.sin(omega) * math.cos(omega) - a**2 * p_x * math.sin(omega) * math.cos(omega)))
+            -(b**2 * p_x * math.cos(omega)**2 + a**2 * p_x * math.sin(omega)**2
+              + b**2 * p_y * math.sin(omega) * math.cos(omega) - a**2 * p_y * math.sin(omega) * math.cos(omega))
+            / (a**2 * p_y * math.cos(omega)**2 + b**2 * p_y * math.sin(omega)**2
+               + b**2 * p_x * math.sin(omega) * math.cos(omega) - a**2 * p_x * math.sin(omega) * math.cos(omega)))
 
         # calcualte angle of velocity
         # calculate domain of function and substract some small value (10**-6) so y can be calculated

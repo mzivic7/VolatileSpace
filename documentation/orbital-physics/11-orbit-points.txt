@@ -28,14 +28,8 @@
 # other range is invisible
 # body is not in focus, its position must be predicted, since it is moving too
 
-### Predicting body position at the moment when its COI will intersect with vessel ###
-
-# TODO #
-
-
 
 ### Finding next and previous point on orbit ###
-
 # first calculate angle between points in CCW direction
 angle = abs(ea_vessel - ea_point)
 # if ea_vessel is larger: invert angle
@@ -47,3 +41,72 @@ if direction < 0:
 # do this for all points
 # then sort by calculated angle
 # and finally return ea_point by indices of first and last sorted angle
+
+
+### Predicting vessel and body ma at the moment when vessel will cross body COI ###
+# this is very hard to be done with just math and newton solver, so here is custom solver algorithm:
+
+first, check if vessel can intersect with body (no need to check for hyperbola):
+    if vessel apoapsis is greater than body apoapsis + its COI
+    a * (1 + ecc) > b_a * (1 - b_ecc) - coi
+    if this is true than continue
+generated probe points as vessel Ma in such way that Mais evenly distributed
+    this makes area around apoapsis more dense, because most intersections happens there
+    points are ordered so area around apoapsis is first probed
+search for initial intersection (loop):
+    take one probe point and make it new Ma
+    calculate time to move vessel from current Ma to new Ma (orbital-physics/5-orbit-shape-parameters.txt)
+    calculate body new Ma at that time (Ma + dr * n * time_to_new_ma)
+    from it, calculate body position relative to its reference (orbital-physics/6-parametric-equations.txt)
+    make body position relative to ellipse center:
+        (b_x_n and b_y_n are calculated above)
+        first, get center of ellipse/hyperbola relative to reference
+        center_x = f * np.cos(omega)
+        center_y = f * np.sin(omega)
+        then rotate body position by its periapsis argument (b_omega):
+        b_x = b_x_n * cos(b_omega - pi) - b_y_n * sin(b_omega - pi)
+        b_y = b_x_n * sin(b_omega - pi) + b_y_n * cos(b_omega - pi)
+        get its position relative to vessels ellipse center and rotate it by vessel periapsis argument (omega)
+        b_x_r = -(cos(-omega) * (b_x - center_x) - sin(-omega) * (b_y - center_y))
+        b_y_r = -(sin(-omega) * (b_x - center_x) + cos(-omega) * (b_y - center_y))
+        (b_x_r and b_y_r are then used in finding intersections)
+    check intersections for vessel ellipse and body COI at calculated position (other-physics/4-ellipse-circle.txt)
+        if there are intersections:
+            if body and vessel directions are SAME:
+            select intersection that is NEXT point on orbit from current vessel Ma (explained above this algorithm)
+            if body and vessel directions are OPPOSITE:
+                select intersection that is PREVIOUS point on orbit from current vessel Ma
+            correction = intersect position - new position
+        if there are no intersections:
+            check next point from probe points
+            if all points are checked then there are no intersections on one full orbit
+    from search, initial position with intersection -- new Ma is obtained
+    also correction is calculated for next stage
+iterate to lower correction (loop):
+    apply correction to new Ma
+        new Ma += correction
+    everything same as in search loop from 'calculate time' to 'check intersections'
+    check intersections
+        there are intersection:
+            # this is the most important part, here is decided where and how much to move vessel in next iteration
+            # so vessel gets closer to COI in next iteration, and correction gets significantly smaller
+            first select from what point to calculate correction from its angular distance to vessel
+            calculate new Ea from new Ma
+            distance = abs(intersect Ea - new Ea)
+            if body and vessel directions are SAME:
+                select closest intersection to new position
+            if body and vessel directions are OPPOSITE:
+                select furthest intersection to new position
+            then decide whether to move forward or backward
+            if directions are SAME: move backward
+                correction = -abs(intersect position - new position)
+            if directions are OPPOSITE: move forward
+                correction = abs(intersect position - new position)
+            if vessel is NOT inside COI:
+                reverse correction
+        there are no intersections:
+            move new position back by half correction so in each iteration correction is double smaller:
+                correction = back * abs(correction) / 2
+                back is either 1 or -1 and it is opposite sign of correction when intersection is lost
+    check if correction is small enough:
+        stop loop and return body new Ma, vessel new Ma, and time to intersection

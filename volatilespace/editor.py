@@ -8,8 +8,8 @@ import pygame
 import numpy as np
 
 from volatilespace import fileops
-from volatilespace import physics_editor
-from volatilespace import physics_convert
+from volatilespace.physics import phys_editor
+from volatilespace.physics import convert
 from volatilespace.graphics import rgb
 from volatilespace.graphics import graphics
 from volatilespace.graphics import bg_stars
@@ -19,7 +19,7 @@ from volatilespace import format_time
 from volatilespace import defaults
 
 
-physics = physics_editor.Physics()
+physics = phys_editor.Physics()
 graphics = graphics.Graphics()
 bg_stars = bg_stars.Bg_Stars()
 textinput = textinput.Textinput()
@@ -291,7 +291,7 @@ class Editor():
         self.vessel_data = None
         self.vessel_orb_data = None
         if body_orb_data["kepler"]:   # convert to newtonian model
-            body_orb_data = physics_convert.to_newton(self.mass, body_orb_data, self.sim_conf["gc"], self.sim_conf["coi_coef"])
+            body_orb_data = convert.to_newton(self.mass, body_orb_data, self.sim_conf["gc"], self.sim_conf["coi_coef"])
             self.vessel_data = vessel_data
             self.vessel_orb_data = vessel_orb_data
         physics.load_system(self.sim_conf, body_data, body_orb_data)   # add it to physics class
@@ -366,7 +366,7 @@ class Editor():
             kepler = False
 
         if kepler:   # save with convert
-            body_orb_data = physics_convert.to_kepler(self.mass, body_orb_data, self.sim_conf["gc"], self.sim_conf["coi_coef"])
+            body_orb_data = convert.to_kepler(self.mass, body_orb_data, self.sim_conf["gc"], self.sim_conf["coi_coef"])
             if not silent:
                 graphics.timed_text_init(rgb.gray0, self.fontmd, "Map saved successfully to game file.", (self.screen_x/2, self.screen_y-70), 2, True)
         else:   # normal save

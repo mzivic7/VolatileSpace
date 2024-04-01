@@ -7,20 +7,19 @@ import pygame
 import numpy as np
 
 from volatilespace import fileops
-from volatilespace import physics_game_body
-from volatilespace import physics_game_vessel
-from volatilespace import physics_convert
+from volatilespace.physics import phys_body
+from volatilespace.physics import phys_vessel
+from volatilespace.physics import convert
 from volatilespace.graphics import rgb
 from volatilespace.graphics import graphics
 from volatilespace.graphics import bg_stars
 from volatilespace import textinput
 from volatilespace import metric
 from volatilespace import format_time
-from volatilespace import defaults
 
 
-physics_body = physics_game_body.Physics()
-physics_vessel = physics_game_vessel.Physics()
+physics_body = phys_body.Physics()
+physics_vessel = phys_vessel.Physics()
 graphics = graphics.Graphics()
 bg_stars = bg_stars.Bg_Stars()
 textinput = textinput.Textinput()
@@ -68,9 +67,9 @@ def angle_in_range(n, angle_range, dr=1):
     """Checks if given angle is between two angle range with wrapping at 0pi and 2pi, counterclockwise"""
     angle_1 = abs(n - angle_range[0])
     angle_2 = abs(n - angle_range[1])
-    if n > a:
+    if n > angle_range[0]:
         angle_1 = 2*np.pi - angle_1
-    if n > b:
+    if n > angle_range[1]:
         angle_2 = 2*np.pi - angle_2
     if dr < 0:
         angle_1, angle_2 = angle_2, angle_1
@@ -210,7 +209,7 @@ class Game():
         body_star = pygame.image.load("img/star.png")
         body_bh = pygame.image.load("img/bh.png")
         self.body_imgs = [body_moon, body_planet_solid, body_planet_gas, body_star, body_bh]
-        self.vessel_img = graphics.fill(pygame.image.load_sized_svg("img/vessel.svg", (24,24)), rgb.gray)
+        self.vessel_img = graphics.fill(pygame.image.load_sized_svg("img/vessel.svg", (24, 24)), rgb.gray)
         self.target_img = pygame.image.load("img/target.png")
         self.impact_img = pygame.image.load("img/impact.png")
         self.orb_leave_img = graphics.fill(pygame.image.load("img/orb_leave.png"), rgb.cyan)
@@ -306,7 +305,7 @@ class Game():
         self.density = body_data["den"]
         self.color = body_data["color"]
         if not body_orb_data["kepler"]:   # convert to keplerian model
-            body_orb_data = physics_convert.to_kepler(self.mass, body_orb_data, self.sim_conf["gc"], self.sim_conf["coi_coef"])
+            body_orb_data = convert.to_kepler(self.mass, body_orb_data, self.sim_conf["gc"], self.sim_conf["coi_coef"])
             os.remove(system)
             fileops.save_file(system, game_data, self.sim_conf,
                               body_data, body_orb_data,
@@ -339,7 +338,7 @@ class Game():
         self.unpack_body(body_data, body_orb_data)
 
         physics_vessel.load(self.sim_conf, body_data, body_orb_data, vessel_data, vessel_orb_data)
-        vessel_orb_data, self.v_pos, self.v_ma, self.v_curves = physics_vessel.initial(self.warp, self.pos)
+        vessel_orb_data, self.v_pos, self.v_ma, self.v_curves = physics_vessel.initial(self.warp, self.pos, self.ma)
         self.unpack_vessel(vessel_data, vessel_orb_data)
 
         self.active_vessel = game_data["vessel"]
@@ -444,7 +443,7 @@ class Game():
         self.v_names[vessel] = vessel_data[0]
         # ORBIT DATA #
         self.v_a[vessel] = vessel_orb[0]
-        if self.v_ref[vessel] != vessel_orb[1] and self.active_vessel == vessel:
+        if self.v_ref[vessel] != vessel_orb[1] and self.active_vessel == vessel and self.follow != 0:
             self.follow = 1   # when crossing coi change focus back to vessel
         self.v_ref[vessel] = vessel_orb[1]
         self.v_ecc[vessel] = vessel_orb[2]
@@ -1117,7 +1116,7 @@ class Game():
                     # physical warp
                     for _ in range(self.warp_phys):
                         self.pos, self.ma = physics_body.move(self.warp_phys)
-                        self.v_pos, self.v_ma = physics_vessel.move(self.warp_phys, self.pos)
+                        self.v_pos, self.v_ma = physics_vessel.move(self.warp_phys, self.pos, self.ma)
                         self.v_rot_angle = physics_vessel.rotate(self.warp, self.active_vessel, self.v_rot_dir)
                         self.change_vessel = physics_vessel.cross_coi(self.warp)
 
@@ -1125,7 +1124,7 @@ class Game():
                 else:
                     # regular warp
                     self.pos, self.ma = physics_body.move(self.warp)
-                    self.v_pos, self.v_ma = physics_vessel.move(self.warp, self.pos)
+                    self.v_pos, self.v_ma = physics_vessel.move(self.warp, self.pos, self.ma)
                     self.v_rot_angle = physics_vessel.rotate(self.warp, self.active_vessel, self.v_rot_dir)
                     self.change_vessel = physics_vessel.cross_coi(self.warp)
                     self.sim_time += 1 * self.warp   # iterate sim_time
@@ -1375,7 +1374,7 @@ class Game():
                         pe_scr_dist = abs(parent_scr - pe_scr) - parent_rad
                         if pe_scr_dist[0] > 2 or pe_scr_dist[1] > 2:   # don't draw Pe if it is too close to parent
                             # periapsis location marker, text: distance and time to it
-                            if intersect_type != 2 or (ntersect_type == 2 and angle_in_range(0, self.select_range[vessel])):
+                            if intersect_type != 2 or (intersect_type == 2 and angle_in_range(0, self.select_range[vessel])):
                                 pe_scr = self.screen_coords(pe)
                                 graphics.draw_circle_fill(screen, rgb.lime1, pe_scr, 3)   # periapsis marker
                                 graphics.text(screen, rgb.lime1, self.fontsm, "Periapsis: " + str(round(self.v_pe_d[vessel], 1)), (pe_scr[0], pe_scr[1] + 7), True)
@@ -1386,7 +1385,7 @@ class Game():
                         if self.v_ecc[vessel] < 1:   # if orbit is ellipse
                             if self.v_ap_d[vessel] <= self.coi[ref]:
                                 # apoapsis location marker, text: distance and time to it
-                                if intersect_type != 2 or (ntersect_type == 2 and angle_in_range(np.pi, self.select_range[vessel])):
+                                if intersect_type != 2 or (intersect_type == 2 and angle_in_range(np.pi, self.select_range[vessel])):
                                     graphics.draw_circle_fill(screen, rgb.lime1, ap_scr, 3)   # apoapsis marker
                                     graphics.text(screen, rgb.lime1, self.fontsm, "Apoapsis: " + str(round(self.v_ap_d[vessel], 1)), (ap_scr[0], ap_scr[1] + 7), True)
                                     graphics.text(screen, rgb.lime1, self.fontsm,
@@ -1481,7 +1480,7 @@ class Game():
             bg_rect = [sum(i) for i in zip(border_rect, [-10, -10, 20, 20])]
             pygame.draw.rect(screen, rgb.black, bg_rect)
             pygame.draw.rect(screen, rgb.white, border_rect, 1)
-            graphics.text(screen, rgb.white, self.fontbt, "New Save", (self.screen_x/2,  self.ask_y-20-self.btn_h), True)
+            graphics.text(screen, rgb.white, self.fontbt, "New Save", (self.screen_x/2, self.ask_y-20-self.btn_h), True)
             textinput.graphics(screen, clock, self.fontbt, (self.ask_x, self.ask_y-self.btn_h), (self.btn_w_h*2+self.space, self.btn_h))
             graphics.buttons_horizontal(screen, buttons_new_game, (self.ask_x, self.ask_y+self.space), safe=True)
 

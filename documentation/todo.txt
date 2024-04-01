@@ -37,7 +37,7 @@ click - toggle show data
 points for target
 documentation
 
-v0.5.9 - game-vessel (Advanced warp)
+v0.5.9 - game-gui (Advanced warp)
 warp to point on orbit
 snap to special points
 warp to next orbit
@@ -52,6 +52,7 @@ fuel
 engine properties in vessel config
 velocity slider
 add velocity in facing direction
+option to not recalculate in 60 tps
 temporary way to spawn vessel in orbit
 
 v0.6.1 - game-gui (Right UI)
@@ -61,17 +62,17 @@ Surface
 Vessel
 Maneuver - placeholder
 Thermal - placeholder
-Selected body
-Selected body orbit
+Target body
+Target orbit
 
-v0.6.3 - game-vessel (SAS)
+v0.6.2 - game-vessel (SAS)
 rotate free
 rotate prograde/retrograde/radial/antiradial
 hold rotated position
 bot gui buttons
 documentation
 
-v0.6.4 - editor (Rebuilt editor physics)
+v0.6.3 - editor (Rebuilt editor physics)
 rebuilt editor physics
 prograde/retrograde, radial/antiradial with W/A/S/D
 documentation

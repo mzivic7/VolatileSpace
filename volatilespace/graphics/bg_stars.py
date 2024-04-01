@@ -23,6 +23,7 @@ rand_color_pool_inv = rand_color_pool_inv[rand_color_pool_inv <= 255]
 bg_imgs = [[pygame.image.load(f"img/bg/{star}.png") for star in radius] for radius in [[11, 12, 13], [21, 22, 23]]]
 # format: [radius, speed]
 
+
 ###### --Functions-- ######
 def random_star_color(radius, speed, opacity=1):
     """Generate star color based on its radius and speed"""
@@ -57,7 +58,7 @@ def random_cluster_stars(count_minmax, size_mult, speed, radius_prob, opacity, u
         radius = np.random.choice([1, 2, 3], p=radius_prob)   # random radius from prob
         stars[star, 2] = radius
         if use_img:
-            stars[star, 3] = graphics.fill(bg_imgs[int(speed>1.5)][radius-1], random_star_color(radius, speed, opacity))
+            stars[star, 3] = graphics.fill(bg_imgs[int(speed > 1.5)][radius-1], random_star_color(radius, speed, opacity))
         else:
             stars[star, 3] = random_star_color(radius, speed, opacity)
     return stars
@@ -129,7 +130,7 @@ class Bg_Stars():
                 speed = np.sqrt(speed)  # decrease speed for few fast and large stars
             color = random_star_color(radius, speed, self.opacity)
             if self.use_img:   # replace color with colored image of star
-                color = graphics.fill(bg_imgs[int(speed>1.5)][radius-1], color)
+                color = graphics.fill(bg_imgs[int(speed > 1.5)][radius-1], color)
             self.star_field = np.vstack((self.star_field, np.array([star_x, star_y, radius, speed, color], dtype=object)))
 
         # generate initial clusters
@@ -158,7 +159,7 @@ class Bg_Stars():
             star_zoom = stars_zoom_pos[num]
             if self.new_color:
                 if self.use_img:
-                    star[4] = graphics.fill(bg_imgs[int(star[3]>1.5)][star[2]-1], random_star_color(star[2], star[3], self.opacity))
+                    star[4] = graphics.fill(bg_imgs[int(star[3] > 1.5)][star[2]-1], random_star_color(star[2], star[3], self.opacity))
                 else:
                     star[4] = random_star_color(star[2], star[3], self.opacity)
             if star_zoom[0] >= -1 and star_zoom[1] >= -1 and star_zoom[0] <= self.res[0]+1 and star_zoom[1] <= self.res[1]+1:   # if star is on screen

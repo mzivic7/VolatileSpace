@@ -13,6 +13,7 @@ maps_builtin/
 
 # Mega
 .debris
+.megaignore
 
 # Cython
 *.pyc
