@@ -256,7 +256,7 @@ class Game():
             else:
                 pygame.display.set_mode((avail_res[0]))
         self.antial = leval(fileops.load_settings("graphics", "antialiasing"))
-        self.mouse_wrap = leval(fileops.load_settings("graphics", "mouse_wrap"))
+        self.mouse_warp = leval(fileops.load_settings("graphics", "mouse_warp"))
         self.bg_stars_enable = leval(fileops.load_settings("background", "stars"))
         bg_stars.reload_settings()
         graphics.reload_settings()
@@ -998,7 +998,9 @@ class Game():
                 for num, _ in enumerate(self.top_ui_imgs):
                     if x_pos <= self.mouse_raw[0] <= x_pos + self.btn_sm and 0 <= self.mouse_raw[1] <= self.btn_sm:
                         if num == 0:   # warp
-                            if self.warp_phys_active:
+                            if self.pause:
+                                self.pause = not self.pause
+                            elif self.warp_phys_active:
                                 self.warp_phys_index += 1
                                 if self.warp_phys_index >= len(self.warp_phys_range):
                                     self.warp_phys_index = 0
@@ -1180,18 +1182,18 @@ class Game():
                 self.offset_x += self.mouse[0] - self.mouse_old[0]   # add mouse movement to offset
                 self.offset_y += self.mouse[1] - self.mouse_old[1]
 
-            if self.mouse_wrap:
+            if self.mouse_warp:
                 if self.mouse_raw[0] >= self.screen_x-1:   # if mouse hits screen edge
                     pygame.mouse.set_pos(1, self.mouse_raw[1])   # move it to opposite edge
                     self.mouse_fix_x = True   # in next itteration, dont calculate that as movement
                 if self.mouse_raw[0] <= 0:
-                    pygame.mouse.set_pos(self.screen_x, self.mouse_raw[1]-1)
+                    pygame.mouse.set_pos(self.screen_x-2, self.mouse_raw[1])
                     self.mouse_fix_x = True
                 if self.mouse_raw[1] >= self.screen_y-1:
                     pygame.mouse.set_pos(self.mouse_raw[0], 1)
                     self.mouse_fix_y = True
                 if self.mouse_raw[1] <= 0:
-                    pygame.mouse.set_pos(self.mouse_raw[0], self.screen_y-1)
+                    pygame.mouse.set_pos(self.mouse_raw[0], self.screen_y-2)
                     self.mouse_fix_y = True
             self.mouse_old = self.mouse
 
@@ -1225,7 +1227,7 @@ class Game():
                     origin = self.screen_coords(self.pos[self.v_ref[self.active_vessel]])
             else:
                 origin = self.screen_coords([0, 0])
-            graphics.draw_grid(screen, self.grid_mode, origin, self.zoom)
+            graphics.draw_grid(screen, origin, self.zoom)
 
         # DRAWING ORDER: body stuff, vessel orbit, body, vessel, vessel stuff
 
@@ -1612,7 +1614,7 @@ class Game():
                 self.physics_debug_time_sum += self.physics_debug_time
             else:
                 self.debug_timer = 0
-                self.physics_debug_percent = round((self.physics_debug_time_sum/10 * 100) / (1 / clock.get_fps()), 1)
+                self.physics_debug_percent = round((self.physics_debug_time_sum/10 * 100) / (1 / max(clock.get_fps(), 1)), 1)
                 self.physics_debug_time_sum = 0
             graphics.text(screen, rgb.gray1, self.fontmd, "phys: " + str(self.physics_debug_percent) + "%", (self.screen_x - 150, 2))
             graphics.text(screen, rgb.gray1, self.fontmd, "fps: " + str(int(clock.get_fps())), (self.screen_x - 50, 2))

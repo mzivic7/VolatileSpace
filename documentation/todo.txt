@@ -6,6 +6,7 @@ Can follow ghost body
 Calculate second orbit for leaving coi
 Calculate second orbit for entering coi
 Draw second orbit
+Use delta-time
 documentation
 
 v0.5.4 - game-vessel (vessel close view)

@@ -58,7 +58,7 @@ def random_cluster_stars(count_minmax, size_mult, speed, radius_prob, opacity, u
         radius = np.random.choice([1, 2, 3], p=radius_prob)   # random radius from prob
         stars[star, 2] = radius
         if use_img:
-            stars[star, 3] = graphics.fill(bg_imgs[int(speed > 1.5)][radius-1], random_star_color(radius, speed, opacity))
+            stars[star, 3] = graphics.fill(bg_imgs[0][radius-1], random_star_color(radius, speed, opacity))
         else:
             stars[star, 3] = random_star_color(radius, speed, opacity)
     return stars

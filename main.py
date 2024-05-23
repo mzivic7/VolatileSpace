@@ -2,6 +2,7 @@ from ast import literal_eval as leval
 import pygame
 
 from volatilespace import fileops
+debug = True
 
 
 def main():
@@ -42,6 +43,11 @@ def main():
 
     ###### --Main loop-- ######
     state = 1   # enter main menu on startup
+    if debug:
+        state = 3
+        selected_path = "Saves/test1aaa.ini"
+        game.reload_settings()
+        game.load_system(selected_path)
     run = True
     while run:
         for e in pygame.event.get():
@@ -86,9 +92,7 @@ def main():
                     game.reload_settings()
             if e.type == pygame.QUIT:
                 run = False
-
     pygame.quit()
-
 
 
 if __name__ == "__main__":

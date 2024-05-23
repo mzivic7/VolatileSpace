@@ -33,6 +33,29 @@ def cross_2d(v1, v2):
     return np.array([v1[0]*v2[1] - v1[1]*v2[0]])
 
 
+def compare(a, b):
+    """Compares 2 values and returns percentage difference"""
+    if a == b:
+        return 0.0
+    elif 0 in (a, b):
+        return 100.0
+    elif a > 0 and b > 0:
+        return abs(a - b) / max(a, b) * 100
+    elif a < 0 and b < 0:
+        a = abs(a)
+        b = abs(b)
+        return abs(a - b) / max(a, b) * 100
+    else:   # skipping negative
+        return 100
+
+
+def compare_coord(a, b):
+    """Compares 2 coordinates and returns percentage difference"""
+    p = compare(a[0], b[0])
+    q = compare(a[1], b[1])
+    return (p + q) / 2
+
+
 def orbit_time_to(source_angle, target_angle, period, dr):
     """Time to point on orbit"""
     time_to = period - (source_angle - target_angle) * (period / (2 * np.pi))
@@ -55,7 +78,7 @@ def newton_root(function, derivative, root_guess, variables={}):
 
 
 def newton_root_kepler_ell(ecc, ma, ea_guess):
-    """Newton root solver for elliptic Keplers equation"""
+    """Newton root solver for elliptic Kepler's equation"""
     ea = ea_guess
     for _ in range(50):
         delta_x = (ea - ecc * np.sin(ea) - ma) / (1.0 - ecc * np.cos(ea))
@@ -66,7 +89,7 @@ def newton_root_kepler_ell(ecc, ma, ea_guess):
 
 
 def newton_root_kepler_hyp(ecc, ma, ea_guess):
-    """Newton root solver for hyperbolic Keplers equation"""
+    """Newton root solver for hyperbolic Kepler's equation"""
     ea = ea_guess
     for _ in range(50):
         delta_x = (ea - ecc * np.sinh(ea) - ma) / (1.0 - ecc * np.cosh(ea))
@@ -86,14 +109,76 @@ def get_angle(a, b, c):
 
 def rot_ellipse_by_y(x, a, b, p):
     """Rotatted ellipse by y, but only positive half"""
-    y = (a*b*math.sqrt(-x**2 * (math.cos(p)**4 + math.sin(p)**4) - 2 * x**2 * math.cos(p)**2 * math.sin(p)**2 + b**2 * math.sin(p)**2 + a**2 * math.cos(p)**2) + a**2 * x * math.sin(p) * math.cos(p) - b**2 * x * math.sin(p) * math.cos(p)) / (a**2 * math.cos(p)**2 + b**2 * math.sin(p)**2)
+    sin_p = math.sin(p)
+    cos_p = math.cos(p)
+    a2 = a**2
+    b2 = b**2
+    x2 = x**2
+    sin_p2 = sin_p**2
+    cos_p2 = cos_p**2
+    y = (a*b*math.sqrt(-x2 * (cos_p**4 + sin_p**4) - 2 * x2 * cos_p2 * sin_p2 + b2 * sin_p2 + a2 * cos_p2)
+         + a2 * x * sin_p * cos_p - b2 * x * sin_p * cos_p) / (a2 * cos_p2 + b2 * sin_p2)
     return y
 
 
 def rot_hyperbola_by_y(x, a, b, p):
     """Rotatted hyperbola by y, but only positive half"""
-    y = -((a*b*math.sqrt(-x**2 * (math.cos(p)**4 + math.sin(p)**4) + 2 * x**2 * math.cos(p)**2 * math.sin(p)**2 + b**2 * math.sin(p)**2 - a**2 * math.cos(p)**2) + a**2 * x * math.sin(p) * math.cos(p) + b**2 * x * math.sin(p) * math.cos(p)) / (-a**2 * math.cos(p)**2 + b**2 * math.sin(p)**2))
+    sin_p = math.sin(p)
+    cos_p = math.cos(p)
+    a2 = a**2
+    b2 = b**2
+    x2 = x**2
+    sin_p2 = sin_p**2
+    cos_p2 = cos_p**2
+    y = -((a*b*math.sqrt(-x2 * (cos_p**4 + sin_p**4) + 2 * x2 * cos_p2 * sin_p2 + b2 * sin_p2 - a2 * cos_p2)
+           + a2 * x * sin_p * cos_p + b2 * x * sin_p * cos_p) / (-a2 * cos_p2 + b2 * sin_p2))
     return y
+
+
+def impl_derivative_rot_ell(p_x, p_y, a, b, p):
+    """Implicite derivative of rotated ellipse"""
+    sin_p = math.sin(p)
+    cos_p = math.cos(p)
+    a2 = a**2
+    b2 = b**2
+    sin_cos_p = sin_p * cos_p
+    sin_p2 = sin_p**2
+    cos_p2 = cos_p**2
+    derivative = np.arctan(
+        - (b2 * p_x * cos_p2 + a2 * p_x * sin_p2 + b2 * p_y * sin_cos_p - a2 * p_y * sin_cos_p)
+        / (a2 * p_y * cos_p2 + b2 * p_y * sin_p2 + b2 * p_x * sin_cos_p - a2 * p_x * sin_cos_p))
+    return derivative
+
+
+def impl_derivative_rot_hyp(p_x, p_y, a, b, p):
+    """Implicite derivative of rotated hyperbola"""
+    sin_p = math.sin(p)
+    cos_p = math.cos(p)
+    a2 = a**2
+    b2 = b**2
+    sin_cos_p = sin_p * cos_p
+    sin_p2 = sin_p**2
+    cos_p2 = cos_p**2
+    derivative = np.arctan(
+        - (+ b2 * p_x * cos_p2 - a2 * p_x * sin_p2 + b2 * p_y * sin_cos_p + a2 * p_y * sin_cos_p)
+        / (- a2 * p_y * cos_p2 + b2 * p_y * sin_p2 + b2 * p_x * sin_cos_p + a2 * p_x * sin_cos_p))
+    return derivative
+
+
+def orb2xy(a, b, f, ecc, pea, pos, ea):
+    """ Calculate relative x and y coordinates from orbital parameters"""
+    if ea:
+        if ecc < 1:
+            x_n = a * np.cos(ea) - f
+            y_n = b * np.sin(ea)
+        else:
+            x_n = a * np.cosh(ea) - f
+            y_n = b * np.sinh(ea)
+        x = (x_n * np.cos(pea - np.pi) - y_n * np.sin(pea - np.pi)) + pos[0]
+        y = (x_n * np.sin(pea - np.pi) + y_n * np.cos(pea - np.pi)) + pos[1]
+        return np.array(([x, y]))
+    else:
+        return np.array(([None, None]))
 
 
 def culling(curve, sim_screen, ref_coi, curve_points, cull):
@@ -133,7 +218,13 @@ if numba_avail and use_numba:
     dot_2d = njit(float64(float64[:], float64[:]), **jitkw)(dot_2d)
     mag = njit(float64(float64[:]), **jitkw)(mag)
     cross_2d = njit(float64[:](float64[:], float64[:]), **jitkw)(cross_2d)
+    compare = njit(float64(float64, float64), **jitkw)(compare)
+    compare_coord = njit(float64(float64[:], float64[:]), **jitkw)(compare_coord)
     orbit_time_to = njit(float64(float64, float64, float64, float64), **jitkw)(orbit_time_to)
     newton_root_kepler_ell = njit(float64(float64, float64, float64), **jitkw)(newton_root_kepler_ell)
     newton_root_kepler_hyp = njit(float64(float64, float64, float64), **jitkw)(newton_root_kepler_hyp)
+    rot_ellipse_by_y = njit(float64(float64, float64, float64, float64), **jitkw)(rot_ellipse_by_y)
+    rot_hyperbola_by_y = njit(float64(float64, float64, float64, float64), **jitkw)(rot_hyperbola_by_y)
+    impl_derivative_rot_ell = njit(float64(float64, float64, float64, float64, float64), **jitkw)(impl_derivative_rot_ell)
+    impl_derivative_rot_hyp = njit(float64(float64, float64, float64, float64, float64), **jitkw)(impl_derivative_rot_hyp)
     culling = njit(bool_(float64[:, :], float64[:, :], float64, int32, bool_), **jitkw)(culling)

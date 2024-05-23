@@ -1,7 +1,7 @@
 from ast import literal_eval as leval
 import math
 import pygame
-from pygame import gfxdraw
+from pygame import gfxdraw   # TODO
 from volatilespace import fileops
 from volatilespace.graphics import rgb
 import numpy as np
@@ -9,8 +9,6 @@ import numpy as np
 
 class Graphics():
     def __init__(self):
-        self.grid_mode = 0   # grid mode: 0 - global, 1 - selected body, 2 - parent
-        self.grid_mode_prev = 0   # history of grid mode
         self.screen_x, self.screen_y = 0, 0   # initial window width, window height
         self.timed_text_enable = False   # for drawing timed text on screen
         self.timer = 0   # timer for drawing timed text on screen
@@ -65,36 +63,33 @@ class Graphics():
             pygame.draw.lines(surface, color, closed, points, thickness)
 
 
-    def draw_circle(self, surface, color, center, radius, thickness):   # gfxdraw ### OBSOLETE ###
+    def draw_circle(self, surface, color, center, radius, thickness):
         """Draw a circle"""
         if radius < 60000:   # no need to draw so large circle lines
-            if self.antial is True and radius < 1000:   # limit radius because of gfxdraw bug
-                # if circle is off screen don't draw it, because gfxdraw uses short integers for position and radius
+            # pygame.draw.aacircle(surface, color, center, radius, thickness)   # TODO
+            if self.antial is True and radius < 1000:
                 if center[0]+radius > 0 and center[0]-radius < self.screen_x and center[1]+radius > 0 and center[1]-radius < self.screen_y:
-                    gfxdraw.aacircle(surface, int(center[0]), int(center[1]), int(radius), color)   # draw initial circle
-                    if thickness != 1:   # antial line has no thickness option
-                        for num in range(1, thickness):   # draw one more circle for each number of thickness
+                    gfxdraw.aacircle(surface, int(center[0]), int(center[1]), int(radius), color)
+                    if thickness != 1:
+                        for num in range(1, thickness):
                             gfxdraw.aacircle(surface, int(center[0]), int(center[1]), int(radius)+num, color)
             else:
                 pygame.draw.circle(surface, color, center, radius, thickness)
 
 
-    def draw_circle_fill(self, surface, color, center, radius, antial=None):   # gfxdraw ### OBSOLETE ###
+    def draw_circle_fill(self, surface, color, center, radius, antial=None):
         """Draw a filled circle"""
         if antial is None:
             func_antial = self.antial
         else:
             func_antial = antial   # antial as function argument is optional override to global antial
-        if radius == 1:
-            gfxdraw.pixel(surface, int(center[0]), int(center[1]), color)
+        if func_antial is True and radius < 1000:
+            # pygame.draw.circle(surface, color, center, radius)   # TODO
+            if center[0]+radius > 0 and center[0]-radius < self.screen_x and center[1]+radius > 0 and center[1]-radius < self.screen_y:
+                gfxdraw.aacircle(surface, int(center[0]), int(center[1]), int(radius - 1), color)
+                gfxdraw.filled_circle(surface, int(center[0]), int(center[1]), int(radius - 1), color)
         else:
-            if func_antial is True and radius < 1000:
-                if center[0]+radius > 0 and center[0]-radius < self.screen_x and center[1]+radius > 0 and center[1]-radius < self.screen_y:
-                    # radius-1 because 1px radius covers 4px total
-                    gfxdraw.aacircle(surface, int(center[0]), int(center[1]), int(radius - 1), color)
-                    gfxdraw.filled_circle(surface, int(center[0]), int(center[1]), int(radius - 1), color)
-            else:
-                pygame.draw.circle(surface, color, center, radius - 1)
+            pygame.draw.circle(surface, color, center, radius)
 
 
     def fill(self, surface, color):
@@ -185,9 +180,8 @@ class Graphics():
         return text
 
 
-    def draw_grid(self, screen, grid_mode, origin, zoom):
+    def draw_grid(self, screen, origin, zoom):
         """Draw grid of lines expanding from origin"""
-        self.grid_mode = grid_mode
         spacing = 10 * zoom   # initial spacing
         while spacing < self.spacing_min:   # if spacing gets smaller than limit
             spacing *= 2   # double increase spacing

@@ -237,7 +237,7 @@ class Editor():
             else:
                 pygame.display.set_mode((avail_res[0]))
         self.antial = leval(fileops.load_settings("graphics", "antialiasing"))
-        self.mouse_wrap = leval(fileops.load_settings("graphics", "mouse_wrap"))
+        self.mouse_warp = leval(fileops.load_settings("graphics", "mouse_warp"))
         self.bg_stars_enable = leval(fileops.load_settings("background", "stars"))
         bg_stars.reload_settings()
         graphics.reload_settings()
@@ -1472,18 +1472,18 @@ class Editor():
             if mouse_move > self.select_sens:   # stop following if mouse distance is more than sensitivity
                 self.follow = False
 
-            if self.mouse_wrap:
+            if self.mouse_warp:
                 if self.mouse_raw[0] >= self.screen_x-1:   # if mouse hits screen edge
-                    pygame.mouse.set_pos(1, self.mouse_raw[1])   # move it to opposite edge ### BUG ###
+                    pygame.mouse.set_pos(1, self.mouse_raw[1])   # move it to opposite edge
                     self.mouse_fix_x = True   # in next itteration, dont calculate that as movement
                 if self.mouse_raw[0] <= 0:
-                    pygame.mouse.set_pos(self.screen_x, self.mouse_raw[1]-1)    # ### BUG ###
+                    pygame.mouse.set_pos(self.screen_x-2, self.mouse_raw[1])
                     self.mouse_fix_x = True
                 if self.mouse_raw[1] >= self.screen_y-1:
-                    pygame.mouse.set_pos(self.mouse_raw[0], 1)    # ### BUG ###
+                    pygame.mouse.set_pos(self.mouse_raw[0], 1)
                     self.mouse_fix_y = True
                 if self.mouse_raw[1] <= 0:
-                    pygame.mouse.set_pos(self.mouse_raw[0], self.screen_y-1)    # ### BUG ###
+                    pygame.mouse.set_pos(self.mouse_raw[0], self.screen_y-2)
                     self.mouse_fix_y = True
             self.mouse_old = self.mouse
 
@@ -1514,7 +1514,7 @@ class Editor():
                     origin = self.screen_coords(self.position[self.parents[self.selected]])
             else:
                 origin = self.screen_coords([0, 0])
-            graphics.draw_grid(screen, self.grid_mode, origin, self.zoom)
+            graphics.draw_grid(screen, origin, self.zoom)
 
 
         # bodies drawing
@@ -1889,7 +1889,7 @@ class Editor():
                 self.physics_debug_time_sum += self.physics_debug_time
             else:
                 self.debug_timer = 0
-                self.physics_debug_percent = round((self.physics_debug_time_sum/10 * 100) / (1 / clock.get_fps()), 1)
+                self.physics_debug_percent = round((self.physics_debug_time_sum/10 * 100) / (1 / max(clock.get_fps(), 1)), 1)
                 self.physics_debug_time_sum = 0
             graphics.text(screen, rgb.gray1, self.fontmd, "phys: " + str(self.physics_debug_percent) + "%", (self.screen_x - 150, 2))
             graphics.text(screen, rgb.gray1, self.fontmd, "fps: " + str(int(clock.get_fps())), (self.screen_x - 50, 2))

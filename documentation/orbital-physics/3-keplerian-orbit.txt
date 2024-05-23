@@ -1,5 +1,6 @@
 ### Keplerian orbit ###
-# (only for simplified orbit model)
+
+# Calculating keplerian orbit parameters from position and velocity vectors
 
 i = 0   # inclination (for 3D)
 asc_node = 0   # longitude of ascending node (for 3D)
@@ -19,10 +20,8 @@ omega = pi + arctan2(ev_y, ev_x)   # argument of periapsis [4]
     if e = 0:   # if it is circle
         omega = 0   # there is no periapsis
 
-
 References:
 [4]  https://en.wikipedia.org/wiki/Argument_of_periapsis#Calculation
 [5]  https://en.wikipedia.org/wiki/Semi-major_and_semi-minor_axes#Energy;_calculation_of_semi-major_axis_from_state_vectors
 [9]  https://en.wikipedia.org/wiki/Vis-viva_equation
 [10] https://en.wikipedia.org/wiki/Eccentricity_vector
-

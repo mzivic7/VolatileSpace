@@ -1,7 +1,7 @@
 from ast import literal_eval as leval
 import numpy as np
 try:
-    from numba import njit, float64
+    from numba import njit, float64, bool_
     from numba.types import UniTuple
     numba_avail = True
 except ImportError:
@@ -10,6 +10,16 @@ from volatilespace import fileops
 from volatilespace.physics.phys_shared import orbit_time_to, \
     newton_root_kepler_ell, newton_root_kepler_hyp
 from volatilespace.physics.quartic_solver import solve_quartic
+
+
+# evenly distributed probe points (ma) on orbit
+# optimized so area around apoapsis is probed first and is more dense
+probe_points_ell = np.array([1, 1/2, 3/2, 3/4, 5/4, 1/4, 7/4, 7/8, 9/8,
+                             1/8, 15/8, 5/8, 11/8, 3/8, 13/8, 0]) * np.pi
+probe_points_hyp = np.array([1, 1/2, 3/2, 3/4, 5/4, 1/4, 7/4, 7/8, 9/8,
+                             1/8, 15/8, 5/8, 11/8, 3/8, 13/8, 0]) * np.pi
+probe_points_ell = np.round(probe_points_ell, 6)
+probe_points_hyp = np.round(probe_points_ell, 6)
 
 
 def ell_hyp_intersect(a, b, ecc, c_x, c_y, r):
@@ -25,7 +35,7 @@ def ell_hyp_intersect(a, b, ecc, c_x, c_y, r):
         # quartic equation roots
         roots = solve_quartic(a_4, a_3, a_2, a_1, a_0)
         # take only non-complex roots
-        real_roots = np.real(roots[np.isreal(roots)])
+        real_roots = np.array([x.real for x in roots if not x.imag])
         if np.any(real_roots):
             ea = np.arctan2(2 * real_roots, 1.0 - real_roots**2)
             return ea % (2*np.pi)
@@ -38,7 +48,7 @@ def ell_hyp_intersect(a, b, ecc, c_x, c_y, r):
         a_3 = -4 * a**2 * r * c_y
         a_4 = -a**2 * (c_y**2 + b**2) + b**2 * (c_x - r)**2
         roots = solve_quartic(a_4, a_3, a_2, a_1, a_0)
-        real_roots = np.real(roots[np.isreal(roots)])
+        real_roots = np.array([x.real for x in roots if not x.imag])
         if np.any(real_roots):
             x = c_x + r * (1-real_roots**2) / (1 + real_roots**2)   # point coordinates
             y = c_y + r * 2 * real_roots / (1 + real_roots**2)
@@ -81,18 +91,11 @@ def sort_intersect_indices(ea_vessel, ea_points, direction):
         return np.array([np.NaN])
 
 
-# evenly distributed probe points (ma) on orbit
-# optimized so area around apoapsis is probed first and is more dense
-probe_points_ell = np.array([np.pi, np.pi/2, 3*np.pi/2,
-                             3*np.pi/4, 5*np.pi/4, np.pi/4, 7*np.pi/4,
-                             7*np.pi/8, 9*np.pi/8, np.pi/8, 15*np.pi/8,
-                             5*np.pi/8, 11*np.pi/8, 3*np.pi/8, 13*np.pi/8, 0])
-probe_points_hyp = np.array([np.pi, np.pi/2, 3*np.pi/2,
-                             3*np.pi/4, 5*np.pi/4, np.pi/4, 7*np.pi/4,
-                             7*np.pi/8, 9*np.pi/8, np.pi/8, 15*np.pi/8,
-                             5*np.pi/8, 11*np.pi/8, 3*np.pi/8, 13*np.pi/8, 0])
-probe_points_ell = np.round(probe_points_ell, 6)
-probe_points_hyp = np.round(probe_points_ell, 6)
+def point_between(p1, p2, p3):
+    """Returns True if angle p1 is between angles p2 and p3 on circle"""
+    p1_p2 = np.fmod(p2 - p1 + np.pi, np.pi)
+    p1_p3 = np.fmod(p3 - p1 + np.pi, np.pi)
+    return (p1_p2 <= np.pi) != (p1_p3 > p1_p2)
 
 
 def predict_enter_coi(vessel_data, body_data, vessel_orbit_center):
@@ -171,7 +174,7 @@ def predict_enter_coi(vessel_data, body_data, vessel_orbit_center):
                 else:
                     intersect_ma = ecc * np.sinh(intersect_ea) - intersect_ea
                 corr = intersect_ma - new_ma
-                actual_corr = corr   # correction without backing
+                actual_corr = corr   # correction without no intersection backing
             else:
                 lost = False
                 if ecc < 1:
@@ -179,16 +182,23 @@ def predict_enter_coi(vessel_data, body_data, vessel_orbit_center):
                 else:
                     new_ea = newton_root_kepler_hyp(ecc, new_ma, new_ma)
                 closest = np.argmin(np.abs(intersections - new_ea))
-                intersect_ea = intersections[closest]
+                intersect_ea = intersections[closest]   # select closest intersection
                 if ecc < 1:
                     intersect_ma = (intersect_ea - ecc * np.sin(intersect_ea)) % (2 * np.pi)
                 else:
                     intersect_ma = ecc * np.sinh(intersect_ea) - intersect_ea
-                corr = -abs(intersect_ma - new_ma)
-                actual_corr = corr   # correction without backing
+                corr = -abs(intersect_ma - new_ma)   # move backward
+                # check if vessel is ouside COI and in front of body
+                sorted_intersections = next_point(ea, intersections, dr)
+                if not point_between(new_ea, sorted_intersections[0], sorted_intersections[1]):
+                    dist = np.abs(new_ea - sorted_intersections)
+                    dist = np.where(dist > np.pi, 2*np.pi - dist, dist)
+                    if np.argmin(dist) == 1:
+                        corr = -corr
+                actual_corr = corr   # correction without no-intersection backing
 
         # if there are no intersections
-        else:  # there are no intersection
+        else:
             if search:
                 corr = 1
             else:
@@ -208,10 +218,10 @@ def predict_enter_coi(vessel_data, body_data, vessel_orbit_center):
     if search:
         return np.array([np.NaN] * 5)
     else:
-        if actual_corr < 1e-3:
+        if abs(actual_corr) < 1e-3:
             return np.array([new_ea, new_b_ea, new_ma, new_b_ma, time_to_new_ma])
         else:
-            return np.array([new_ea, new_b_ea, new_ma, new_b_ma, time_to_new_ma])
+            return np.array([np.NaN] * 5)
 
 
 # if numba is enabled, compile functions ahead of time
@@ -223,4 +233,5 @@ if numba_avail and use_numba:
     jitkw_nofast = {"cache": True, "fastmath": False}
     ell_hyp_intersect = njit(float64[:](float64, float64, float64, float64, float64, float64), **jitkw)(ell_hyp_intersect)
     next_point = njit(float64[:](float64, float64[:], float64), **jitkw_nofast)(next_point)
+    point_between = njit(bool_(float64, float64, float64), **jitkw)(point_between)
     predict_enter_coi = njit(float64[:](UniTuple(float64, 10), UniTuple(float64, 11), UniTuple(float64, 2)), **jitkw_nofast)(predict_enter_coi)

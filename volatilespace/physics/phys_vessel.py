@@ -12,7 +12,7 @@ from volatilespace import fileops
 from volatilespace import defaults
 from volatilespace.physics.phys_shared import \
     newton_root_kepler_ell, newton_root_kepler_hyp, \
-    mag, culling, orbit_time_to
+    mag, culling, orbit_time_to, orb2xy
 from volatilespace.physics.orbit_intersect import \
     ell_hyp_intersect, next_point, sort_intersect_indices, \
     predict_enter_coi
@@ -20,24 +20,8 @@ from volatilespace.physics.convert import \
     kepler_to_velocity, velocity_to_kepler
 
 
-def orb2xy(a, b, f, ecc, pea, pos, ea):
-    """ Calculate relative x and y coordinates from orbital parameters"""
-    if ea:
-        if ecc < 1:
-            x_n = a * np.cos(ea) - f
-            y_n = b * np.sin(ea)
-        else:
-            x_n = a * np.cosh(ea) - f
-            y_n = b * np.sinh(ea)
-        x = (x_n * np.cos(pea - np.pi) - y_n * np.sin(pea - np.pi)) + pos[0]
-        y = (x_n * np.sin(pea - np.pi) + y_n * np.cos(pea - np.pi)) + pos[1]
-        return np.array(([x, y]))
-    else:
-        return np.array(([None, None]))
-
-
 def concat_wrap(array, point_start, range_start, range_end, point_end):
-    """Concatenates [point_start, array[range_start, range_end], point_end] such that if range_start > range_end,
+    """Concatenates [point_start, range_start, range_end, point_end] such that if range_start > range_end,
     range goes from range_end to array_end + array_start to range_start, and point_1 and point_2 swaps places."""
     # not using np.concatenate because it cannot be easily NJIT-ed with numba, and this is faster
     out = np.empty((array.shape[0], 2))
@@ -294,9 +278,9 @@ class Physics():
 
         # recalculate ea
         if self.ecc[vessel] < 1:
-            self.ea[vessel] = newton_root_kepler_ell(self.ecc[vessel], self.ma[vessel], self.ea[vessel])
+            self.ea[vessel] = newton_root_kepler_ell(self.ecc[vessel], self.ma[vessel], self.ma[vessel])
         else:
-            self.ea[vessel] = newton_root_kepler_hyp(self.ecc[vessel], self.ma[vessel], self.ea[vessel])
+            self.ea[vessel] = newton_root_kepler_hyp(self.ecc[vessel], self.ma[vessel], self.ma[vessel])
         # recalculate points and curves
         self.points(vessel)
         self.curve(vessel)
@@ -363,12 +347,7 @@ class Physics():
                          self.body_a[body], self.body_b[body], self.body_f[body], 0.0,
                          self.body_dr[body], self.body_coi[body])
             vessel_orbit_center = (center_x, center_y)
-            if vessel == 0:
-                print(vessel_data)
-                print(body_data)
-                print(vessel_orbit_center)
             enter_data_one = predict_enter_coi(vessel_data, body_data, vessel_orbit_center)
-            enter_data_one = np.array([np.nan]*5)
             enter_data_all = np.vstack((enter_data_all, enter_data_one))
         coi_enter_all = enter_data_all[:, 2]
         first_enter = sort_intersect_indices(ea_vessel, coi_enter_all, dr)[0]
@@ -430,10 +409,9 @@ class Physics():
 
             # check where and what is next intesection
             impact = self.body_impact[vessel, int(not ell)]
-            coi_enter = self.coi_enter[vessel]
-            coi_enter_ea = coi_enter[1]
+            coi_enter = self.coi_enter[vessel, 1]
             coi_leave = self.coi_leave[vessel, int(not ell)]
-            all_intersect = np.array((impact, coi_enter_ea, coi_leave))
+            all_intersect = np.array((impact, coi_enter, coi_leave))
             next_intersect = sort_intersect_indices(self.ea[vessel], all_intersect, dr)
 
             # do all possible scenarios
@@ -474,7 +452,7 @@ class Physics():
 
             if next_intersect[0] == 1:   # COI ENTER
                 curves_dark[vessel] = curve_dark
-                ea_next = coi_enter_ea
+                ea_next = coi_enter
                 coord_next = self.ea2coord(vessel, ea_next)
                 if ell:   # for ellipse
                     ea_vessel = round(ea * self.curve_points / (2*np.pi))
@@ -489,7 +467,7 @@ class Physics():
                             curves_light[vessel] = concat_wrap(curve_light, coord_next, ea_vessel, ea_point_next, point_vessel)
                     else:   # CW
                         if ea < np.pi:
-                            curves_light[vessel] = concat_wrap(point_vessel, coord_next, ea_point_next, ea_vessel-1, curve_light)
+                            curves_light[vessel] = concat_wrap(curve_light, coord_next, ea_point_next, ea_vessel-1, point_vessel)
                         else:
                             if ea_vessel == ea_point_next:
                                 ea_vessel += 1
@@ -652,7 +630,7 @@ class Physics():
 
 
     def check_warp(self, warp):
-        """Returns vessel that will in next iteration meet conditions for switching warp, and that condition.
+        """Returns vessel that will in next iteration meet conditions for switching warp, and what is that condition.
         This should be done every tick after move(), and after points(), which must be run at least once.
         Conditions (situations):
         0 space -> impact
@@ -665,13 +643,14 @@ class Physics():
             ecc = self.ecc[vessel]
             dr = self.dr[vessel]
 
-            # find what is next intersection
+            # find what is next relevant intersection
             ea_vessel_1 = self.ea[vessel]
             impact = self.body_impact[vessel, int(not (ecc < 1))]
             enter_atm = self.body_enter_atm[vessel, int(not (ecc < 1))]
             leave_atm = self.body_enter_atm[vessel, int(ecc < 1)]
             all_intersect = np.array((impact, enter_atm, leave_atm))
             next_intersections = sort_intersect_indices(ea_vessel_1, all_intersect, dr)
+
             if not np.all(np.isnan(next_intersections)):
                 next_intersect = next_intersections[0]
                 ea_intersect = all_intersect[next_intersect]
@@ -716,24 +695,29 @@ class Physics():
         """Changes vessel orbit reference and orbital parametes when it is leaving or entering COI"""
         for vessel, _ in enumerate(self.names):
             ecc = self.ecc[vessel]
+            ell = ecc < 1
             dr = self.dr[vessel]
             ea_vessel_1 = self.ea[vessel]
+            coi_leave = self.coi_leave[vessel, int(not ell)]
+            coi_enter = self.coi_enter[vessel]
 
-            leave_coi = self.coi_leave[vessel, int(ecc > 1)]
-            enter_coi = self.coi_enter[vessel]
+            # in case there are multiple points, find next point
+            impact = self.body_impact[vessel, int(not ell)]
+            all_intersect = np.array((impact, coi_enter[1], coi_leave))
+            next_intersect = sort_intersect_indices(self.ea[vessel], all_intersect, dr)
 
-            if not np.isnan(leave_coi):
+            if next_intersect[0] == 2:   # LEAVE COI
                 # calculate vessel ea for next iteration
-                if ecc < 1:
+                if ell:
                     next_ma = self.ma[vessel] + self.n[vessel] * warp * dr
                     ea_vessel_2 = newton_root_kepler_ell(ecc, next_ma, ea_vessel_1)
                 else:
                     next_ma = self.ma[vessel] + self.n[vessel] * warp * dr * -1
                     ea_vessel_2 = newton_root_kepler_hyp(ecc, next_ma, ea_vessel_1)
                 # checking if vessel will pass point in next iteration
-                angle_1 = abs(ea_vessel_1 - leave_coi)
+                angle_1 = abs(ea_vessel_1 - coi_leave)
                 angle_2 = abs(ea_vessel_1 - ea_vessel_2)
-                if ea_vessel_1 > leave_coi:
+                if ea_vessel_1 > coi_leave:
                     angle_1 = 2*np.pi - angle_1
                 if ea_vessel_1 > ea_vessel_2:
                     angle_2 = 2*np.pi - angle_2
@@ -743,32 +727,32 @@ class Physics():
                     ref = self.ref[vessel]
                     new_u = self.gc * self.body_mass[self.body_ref[ref]]
                     # calculate vessel and reference relative positions (to their references)
-                    ves_abs_pos = self.ea2coord(vessel, leave_coi)
+                    ves_abs_pos = self.ea2coord(vessel, coi_leave)
                     ref_abs_pos = self.body_pos[ref]
                     ves_rel_pos = ves_abs_pos - ref_abs_pos
                     ref_rel_pos = ref_abs_pos - self.body_pos[self.body_ref[ref]]
                     # calculate vessel and reference relative velocities (to their references)
                     ves_rel_vel = kepler_to_velocity(ves_rel_pos, self.a[vessel], ecc, self.pea[vessel], self.u[vessel], dr)
                     ref_rel_vel = kepler_to_velocity(ref_rel_pos, self.body_a[ref], self.body_ecc[ref], self.body_pea[ref], new_u, self.body_dr[ref])
-                    # add vessels and its references relative: positions and velocities
-                    new_ref_pos = ves_rel_pos + ref_rel_pos
-                    new_ref_vel = ves_rel_vel + ref_rel_vel
+                    # add vessels and its references relative positions and velocities
+                    new_ves_pos = ves_rel_pos + ref_rel_pos
+                    new_ves_vel = ves_rel_vel + ref_rel_vel
                     # convert this position and absolute velocity to orbital parameters
-                    self.a[vessel], self.ecc[vessel], self.pea[vessel], self.ma[vessel], self.dr[vessel] = velocity_to_kepler(new_ref_pos, new_ref_vel, new_u)
+                    self.a[vessel], self.ecc[vessel], self.pea[vessel], self.ma[vessel], self.dr[vessel] = velocity_to_kepler(new_ves_pos, new_ves_vel, new_u, failsafe=True)
                     # set new reference
                     self.ref[vessel] = self.body_ref[ref]
                     return vessel
-            elif not np.isnan(enter_coi[0]):
-                enter_coi_ea = enter_coi[1]
+            elif next_intersect[0] == 1:   # ENTER COI
+                coi_enter_ea = coi_enter[1]
                 if ecc < 1:
                     next_ma = self.ma[vessel] + self.n[vessel] * warp * dr
                     ea_vessel_2 = newton_root_kepler_ell(ecc, next_ma, ea_vessel_1)
                 else:
                     next_ma = self.ma[vessel] + self.n[vessel] * warp * dr * -1
                     ea_vessel_2 = newton_root_kepler_hyp(ecc, next_ma, ea_vessel_1)
-                angle_1 = abs(ea_vessel_1 - enter_coi_ea)
+                angle_1 = abs(ea_vessel_1 - coi_enter_ea)
                 angle_2 = abs(ea_vessel_1 - ea_vessel_2)
-                if ea_vessel_1 > enter_coi_ea:
+                if ea_vessel_1 > coi_enter_ea:
                     angle_1 = 2*np.pi - angle_1
                 if ea_vessel_1 > ea_vessel_2:
                     angle_2 = 2*np.pi - angle_2
@@ -776,18 +760,18 @@ class Physics():
                     angle_1, angle_2 = angle_2, angle_1
                 if angle_1 < angle_2:
                     ref = self.ref[vessel]
-                    new_ref = int(enter_coi[0])
+                    new_ref = int(coi_enter[0])
                     new_u = self.gc * self.body_mass[new_ref]
-                    ves_abs_pos = self.ea2coord(vessel, enter_coi_ea)
+                    ves_abs_pos = self.ea2coord(vessel, coi_enter_ea)
                     ref_abs_pos = self.body_pos[ref]
                     ves_rel_pos = ves_abs_pos - ref_abs_pos
                     new_ref_abs_pos = self.body_pos[new_ref]
                     new_ref_rel_pos = new_ref_abs_pos - ref_abs_pos
                     ves_rel_vel = kepler_to_velocity(ves_rel_pos, self.a[vessel], ecc, self.pea[vessel], self.u[vessel], dr)
                     new_ref_rel_vel = kepler_to_velocity(new_ref_rel_pos, self.body_a[new_ref], self.body_ecc[new_ref], self.body_pea[new_ref], new_u, self.body_dr[new_ref])
-                    new_ref_pos = ves_rel_pos - new_ref_rel_pos
-                    new_ref_vel = ves_rel_vel - new_ref_rel_vel
-                    self.a[vessel], self.ecc[vessel], self.pea[vessel], self.ma[vessel], self.dr[vessel] = velocity_to_kepler(new_ref_pos, new_ref_vel, new_u)
+                    new_ves_pos = ves_rel_pos - new_ref_rel_pos
+                    new_ves_vel = ves_rel_vel - new_ref_rel_vel
+                    self.a[vessel], self.ecc[vessel], self.pea[vessel], self.ma[vessel], self.dr[vessel] = velocity_to_kepler(new_ves_pos, new_ves_vel, new_u, failsafe=True)
                     self.ref[vessel] = new_ref
                     return vessel
 

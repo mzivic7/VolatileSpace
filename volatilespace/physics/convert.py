@@ -1,12 +1,15 @@
 import math
 import numpy as np
-from volatilespace.physics.phys_shared import rot_hyperbola_by_y, rot_ellipse_by_y, \
+from volatilespace.physics.phys_shared import \
+    rot_hyperbola_by_y, rot_ellipse_by_y, \
+    impl_derivative_rot_ell, impl_derivative_rot_hyp, \
     newton_root_kepler_ell, newton_root_kepler_hyp, \
-    mag, dot_2d, cross_2d
+    mag, dot_2d, cross_2d, compare_coord, orb2xy
 
 
 def kepler_to_velocity(rel_pos, a, ecc, pe_arg, u, dr):
-    """Converts from kepler parameters to relative velocity vector, given that relative position vector is known."""
+    """Converts from keplerian parameters to relative velocity vector, given that relative position vector is known.
+    True anomaly can be inverted for ellipse and hyperbola separately, if needed."""
     if ecc < 1:   # ellipse
         b = a * math.sqrt(1 - ecc**2)
         f = math.sqrt(a**2 - b**2)
@@ -14,11 +17,7 @@ def kepler_to_velocity(rel_pos, a, ecc, pe_arg, u, dr):
         # calculate position vector
         p_x, p_y = rel_pos[0] - f * np.cos(pe_arg), rel_pos[1] - f * np.sin(pe_arg)   # point on ellipse relative to its center
         # implicit derivative of rotated ellipse
-        rel_vel_angle = np.arctan(
-            -(b**2 * p_x * math.cos(pe_arg)**2 + a**2 * p_x * math.sin(pe_arg)**2
-              + b**2 * p_y * math.sin(pe_arg) * math.cos(pe_arg) - a**2 * p_y * math.sin(pe_arg) * math.cos(pe_arg))
-            / (a**2 * p_y * math.cos(pe_arg)**2 + b**2 * p_y * math.sin(pe_arg)**2
-               + b**2 * p_x * math.sin(pe_arg) * math.cos(pe_arg) - a**2 * p_x * math.sin(pe_arg) * math.cos(pe_arg)))
+        rel_vel_angle = impl_derivative_rot_ell(p_x, p_y, a, b, pe_arg)
         # calcualte angle of velocity vector
         # calculate domain of function and subtract some small value (10**-6) so y can be calculated
         x_max = math.sqrt(a**2 * math.cos(2*pe_arg) + a**2 - b**2 * math.cos(2*pe_arg) + b**2)/math.sqrt(2) - 10**-6
@@ -34,11 +33,7 @@ def kepler_to_velocity(rel_pos, a, ecc, pe_arg, u, dr):
         f_rot = [f * math.cos(pe_arg), f * math.sin(pe_arg)]
         b = math.sqrt(f**2 - a**2)
         p_x, p_y = rel_pos[0] - f * np.cos(pe_arg), rel_pos[1] - f * np.sin(pe_arg)
-        rel_vel_angle = np.arctan(
-            -(b**2 * p_x * math.cos(pe_arg)**2 - a**2 * p_x * math.sin(pe_arg)**2
-              + b**2 * p_y * math.sin(pe_arg) * math.cos(pe_arg) + a**2 * p_y * math.sin(pe_arg) * math.cos(pe_arg))
-            / (- a**2 * p_y * math.cos(pe_arg)**2 + b**2 * p_y * math.sin(pe_arg)**2
-               + b**2 * p_x * math.sin(pe_arg) * math.cos(pe_arg) + a**2 * p_x * math.sin(pe_arg) * math.cos(pe_arg)))
+        rel_vel_angle = impl_derivative_rot_hyp(p_x, p_y, a, b, pe_arg)
         try:
             x_max = math.sqrt(a**2 * math.cos(2*pe_arg) + a**2 + b**2 * math.cos(2*pe_arg) - b**2)/math.sqrt(2) - 10**-6
             y_max = rot_hyperbola_by_y(x_max, a, b, pe_arg)
@@ -57,14 +52,16 @@ def kepler_to_velocity(rel_pos, a, ecc, pe_arg, u, dr):
     return np.array([rel_vel_x, rel_vel_y])
 
 
-def velocity_to_kepler(rel_pos, rel_vel, u):
+def velocity_to_kepler(rel_pos, rel_vel, u, failsafe=False):
+    """Converts from relative velocity vector to keplerian parameters, given that relative position vector is known.
+    Failsafe option will check if new position is same as before, because newton root may fail"""
     a = -1 * u / (2*(dot_2d(rel_vel, rel_vel) / 2 - u / mag(rel_pos)))   # mag(x)^2 = x dot x
     momentum = cross_2d(rel_pos, rel_vel)    # orbital momentum, since this is 2d, momentum is scalar
     rel_vel[0], rel_vel[1] = rel_vel[1], -rel_vel[0]
     ecc_v = (rel_vel * momentum / u) - rel_pos / mag(rel_pos)
     ecc = mag(ecc_v)
     pe_arg = ((3 * np.pi / 2) + math.atan2(-ecc_v[0], ecc_v[1])) % (2*np.pi)
-    dr = int(math.copysign(1, momentum[0]))   # if moment is negative, rotation is clockwise (-1)
+    dr = int(math.copysign(1, momentum[0]))   # if momentum is negative, rotation is clockwise (-1)
     ta = (pe_arg - (math.atan2(rel_pos[1], rel_pos[0]) - np.pi)) % (2*np.pi)
     if dr > 0:
         ta = 2*np.pi - ta   # invert Ta to be calculated in opposite direction !? WHY ?!
@@ -73,14 +70,31 @@ def velocity_to_kepler(rel_pos, rel_vel, u):
         if np.pi < ta < 2*np.pi:   # quadrant problems
             ea = 2*np.pi - ea
         ma = (ea - ecc * math.sin(ea)) % (2*np.pi)
+        # failsafe check in case position is wrong due to wrong ma calculation in newton root
+        if failsafe:
+            new_ea = newton_root_kepler_ell(ecc, ma, ma)
+            f = a * ecc
+            b = math.sqrt(abs(f**2 - a**2))
+            new_pos = orb2xy(a, b, f, ecc, pe_arg, [0, 0], new_ea)
+            if compare_coord(rel_pos, new_pos) > 1:
+                ea = 2*np.pi - ea
+                ma = (ea - ecc * math.sin(ea)) % (2*np.pi)
     else:
         ea = math.acosh((ecc + math.cos(ta))/(1 + (ecc * math.cos(ta))))
         ma = ecc * math.sinh(ea) - ea
+        # failsafe check in case position is wrong due to wrong ma calculation in newton root
+        if failsafe:
+            new_ea = newton_root_kepler_hyp(ecc, ma, ma)
+            f = a * ecc
+            b = math.sqrt(abs(f**2 - a**2))
+            new_pos = orb2xy(a, b, f, ecc, pe_arg, [0, 0], new_ea)
+            if compare_coord(rel_pos, new_pos) > 1:
+                ma = -ma
     return a, ecc, pe_arg, ma, dr
 
 
 def to_newton(mass, orb_data, gc, coi_coef):
-    """Converts form keplerian orbit parameters values to newtonian (position, velocity) """
+    """Converts form keplerian orbit parameters to newtonian (position, velocity) """
     semi_major_l = orb_data["a"]
     ecc_l = orb_data["ecc"]
     pe_arg_l = orb_data["pe_arg"]
@@ -141,7 +155,7 @@ def to_newton(mass, orb_data, gc, coi_coef):
 
 
 def to_kepler(mass, orb_data, gc, coi_coef):
-    """Converts form newtonian (position, velocity) values to keplerian orbit parameters"""
+    """Converts form newtonian (position, velocity) orbit parameters to keplerian"""
     pos = orb_data["pos"]
     vel = orb_data["vel"]
 

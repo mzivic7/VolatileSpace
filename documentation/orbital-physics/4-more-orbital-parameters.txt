@@ -7,7 +7,7 @@ T = 2 * pi * sqrt(a^3 / u)   # orbital period [7]
 Ta = acos((cos(Ea) - ecc)/(1 - ecc * cos(Ea)))  # true anomaly from eccentric anomaly [15]
 if ea > np.pi:   #  this puts true anomaly in right quadrants since it is symmetrical
     Ta = 2*np.pi - Ta
-moment = rel_pos cross rel_vel   # rotation moment
+h = Pr x Vr   # orbital momentum, since simulation is 2D, momentum is scalar
 direction = sign(moment)   # if moment is negative, rotation is clockwise (-1)
 if direction is -1:
     Ta = 2pi - Ta   # invert Ta to be calculated in opposite direction

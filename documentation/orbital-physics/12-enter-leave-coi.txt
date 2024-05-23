@@ -18,14 +18,13 @@ ref_rel_pos = ref_abs_pos - ref_ref_abs_pos   # (reference of reference)
 ves_ref_vel =   # see bellow notes
 ref_rel_vel =   # see bellow notes
 # add vessels and its references relative: positions and velocities
-new_ref_pos = ves_rel_pos + ref_rel_pos
-new_ref_vel = ves_ref_vel + ref_rel_vel
+new_ves_pos = ves_rel_pos + ref_rel_pos
+new_ves_vel = ves_ref_vel + ref_rel_vel
 # new standard grav. parameter must be calculated before converting to new orbit:
 new_u = gc * mass_of_new_ref
 # convert this position and absolute velocity to orbital parameters:
-a, ecc, pea, ma, dir =   # see bellow note
+a, ecc, pea, ma, dir =   # see notes at end
 # new reference is reference of current reference
-
 
 ### ENTER COI ###
 # vessel absolute position is known
@@ -37,19 +36,41 @@ new_ref_rel_pos = new_ref_abs_pos - old_ref_abs_pos
 ves_ref_vel =   # see bellow notes
 new_ref_rel_vel =   # see bellow notes
 # subtract vessels and new reference relative: positions and velocities
-new_ref_pos = ves_rel_pos - new_ref_rel_pos
-new_ref_vel = ves_ref_vel - new_ref_rel_vel
+new_ves_pos = ves_rel_pos - new_ref_rel_pos
+new_ves_vel = ves_rel_vel - new_ref_rel_vel
 # new standard grav. parameter must be calculated before converting to new orbit:
 new_u = gc * mass_of_new_ref
 # convert this position and absolute velocity to orbital parameters:
-a, ecc, pea, ma, dir =   # see bellow note
+a, ecc, pea, ma, dir =   # see notes at end
 # new reference is defined when obtaining leave_coi point (orbital-physics/11-orbit-points.txt)
 
 
-# NOTES #
-# using orbital-physics/7-inverse-ellipse-equations.txt
-# using orbital-physics/8-inverse-hyperola-equations.txt
-# for calculating vessel and reference velocity
+!IMPORTANT! This is failsafe mechanism to prevent vessel from jumping at wrong positions when leaving/entering coi
+# "Jumping" is caused by Newon root algorithm for solving Kepler's equation,
+# it is returning opposite solutions, in some unpredictable cases
+# This failsafe is applied at end of both leave and enter COI calculations:
+Calculate back ea from above obtained ma
+Then calculate check_relative position from that ea
+Compare this check_position with known new_ves_pos (from above calculations)
+Comparison should be percentage difference, because simulation is scalable:
+if both a and b are negative, take absolute value of them
+if only one is negative, difference is 100%
+difference = |a - b| / max(a, b) * 100
+This is applied on both coordinates for new_ves_pos and check_position
+Then mean value is taken, if it is larger than threshold:
+- for ellipse:
+    # Invert Ea:
+    ea = 2pi - ea
+    # then recalculate Ma (from math in notes blellow)
+- for hyperbola:
+    # just negate Ma (from math in notes blellow):
+    Ma = -Ma
 
-# using orbital-physics/3-keplerian-orbit.txt
-# for calculating orbital parameters from vessel position and velocity
+# NOTES #
+for calculating vessel and reference velocity
+    - using orbital-physics/7-inverse-ellipse-equations.txt
+    - using orbital-physics/8-inverse-hyperbola-equations.txt
+for calculating orbital parameters from vessel position and velocity
+    - using orbital-physics/3-keplerian-orbit.txt
+    - using orbital-physics/4-more-orbital-parameters.txt
+    - using orbital-physics/5-orbit-shape-parameters.txt

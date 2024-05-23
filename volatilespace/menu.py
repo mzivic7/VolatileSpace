@@ -39,7 +39,7 @@ buttons_set_vid = ["Fullscreen",
                    "Resolution",
                    "Antialiasing",
                    "Vsync",
-                   "Mouse wrap",
+                   "Mouse warp",
                    "Background stars"]
 buttons_set_aud = ["WIP"]
 buttons_set_gam = ["Keybindings", "Autosave:"]
@@ -157,7 +157,7 @@ class Menu():
 
         # for settings menu only:
         self.vsync = leval(fileops.load_settings("graphics", "vsync"))
-        self.mouse_wrap = leval(fileops.load_settings("graphics", "mouse_wrap"))
+        self.mouse_warp = leval(fileops.load_settings("graphics", "mouse_warp"))
         self.bg_stars_enable = leval(fileops.load_settings("background", "stars"))
         self.curve_points = int(fileops.load_settings("graphics", "curve_points"))
         self.star_aa = leval(fileops.load_settings("background", "stars_antialiasing"))
@@ -653,8 +653,8 @@ class Menu():
                             elif num == 3:   # vsync
                                 self.vsync = not self.vsync
                                 self.restart = True
-                            elif num == 4:   # mouse wrap
-                                self.mouse_wrap = not self.mouse_wrap
+                            elif num == 4:   # mouse warp
+                                self.mouse_warp = not self.mouse_warp
                             elif num == 5:   # background stars
                                 self.bg_stars_enable = not self.bg_stars_enable
                         y_pos += self.btn_h + self.space
@@ -735,7 +735,7 @@ class Menu():
                                 fileops.save_settings("graphics", "resolution", list(self.avail_res[self.selected_res]))
                                 fileops.save_settings("graphics", "antialiasing", self.antial)
                                 fileops.save_settings("graphics", "vsync", self.vsync)
-                                fileops.save_settings("graphics", "mouse_wrap", self.mouse_wrap)
+                                fileops.save_settings("graphics", "mouse_warp", self.mouse_warp)
                                 fileops.save_settings("graphics", "curve_points", self.curve_points)
                                 fileops.save_settings("background", "stars", self.bg_stars_enable)
                                 fileops.save_settings("background", "stars_antialiasing", self.star_aa)
@@ -982,7 +982,7 @@ class Menu():
             # video
             graphics.text(screen, rgb.white, self.fonthd, "Video", (self.settings_section/2, 30), True)
             buttons_set_vid[1] = str(self.avail_res[self.selected_res]).strip("(").strip(")").replace(", ", "x")
-            prop_1 = [int(self.fullscreen), 3, int(self.antial), int(self.vsync), int(self.mouse_wrap), int(self.bg_stars_enable)]
+            prop_1 = [int(self.fullscreen), 3, int(self.antial), int(self.vsync), int(self.mouse_warp), int(self.bg_stars_enable)]
             graphics.buttons_vertical(screen, buttons_set_vid, (self.set_x_1, self.top_margin), prop_1)
 
             # audio
