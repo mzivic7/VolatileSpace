@@ -2,7 +2,8 @@ from ast import literal_eval as leval
 import math
 import numpy as np
 try:   # to allow building without numba
-    from numba import njit, int32, float64, bool_
+    from numba import njit, int64, float64, bool_
+    from numba.types.misc import Omitted
     numba_avail = True
 except ImportError:
     numba_avail = False
@@ -56,13 +57,15 @@ def compare_coord(a, b):
     return (p + q) / 2
 
 
-def orbit_time_to(source_angle, target_angle, period, dr):
+def orbit_time_to(source_angle, target_angle, period, dr, neg_time=False):
     """Time to point on orbit"""
     time_to = period - (source_angle - target_angle) * (period / (2 * np.pi))
     if source_angle < target_angle:
         time_to = time_to - period
     if dr < 0:
         time_to = period - time_to
+    if neg_time and time_to > period / 2:
+        time_to -= period
     return time_to
 
 
@@ -74,7 +77,7 @@ def newton_root(function, derivative, root_guess, variables={}):
         root -= delta_x   # better guess
         if abs(delta_x) < 1e-10:   # if correction is small enough:
             return root   # return root
-    return root   # if it is not returned above (it has too high deviation) return it anyway
+    return root   # if it is not returned above (it has too high correction) return it anyway
 
 
 def newton_root_kepler_ell(ecc, ma, ea_guess):
@@ -181,33 +184,40 @@ def orb2xy(a, b, f, ecc, pea, pos, ea):
         return np.array(([None, None]))
 
 
-def culling(curve, sim_screen, ref_coi, curve_points, cull):
-    """Decides wether provided body/vessel should be drawn on screen"""
-    sim_screen_size = np.absolute(sim_screen[1] - sim_screen[0])
-    x_max = np.amax(curve[:, 0])   # numba does not support axis argument, yet
-    y_max = np.amax(curve[:, 1])   # https://github.com/numba/numba/issues/1269
-    x_min = np.amin(curve[:, 0])
-    y_min = np.amin(curve[:, 1])
-    diff = np.array([max(x_max - x_min, 1), max(y_max - y_min, 1)])
-    screen_diff = sim_screen_size / diff
-    if ref_coi != 0:
-        if diff[0] + diff[1] > ref_coi * 3:
-            screen_diff = sim_screen_size / np.array([ref_coi * 1.5, ref_coi * 1.5])
-    if screen_diff[0] + screen_diff[1] < 130:
-        if cull:
-            factor = max(int(curve_points / 25), 4)
-            curve = curve[0::factor]
-            frame = max(sim_screen_size) / 4
-            sc_x_max = np.max(sim_screen[:, 0]) + frame
-            sc_y_max = np.max(sim_screen[:, 1]) + frame
-            sc_x_min = np.min(sim_screen[:, 0]) - frame
-            sc_y_min = np.min(sim_screen[:, 1]) - frame
-            a = (curve >= np.array([sc_x_min, sc_y_min])) & (curve <= np.array([sc_x_max, sc_y_max]))
-            if np.any(np.logical_and(a[:, 0], a[:, 1])):
-                return True
-        else:
-            return True
-    return False
+def curve_points(ecc, a, b, pea, t):
+    """Calculates conic curve line points coordinates, rotated by periapsis argument."""
+    sin_p = np.sin(pea)
+    cos_p = np.cos(pea)
+    if ecc < 1:   # ellipse
+        x = a * np.cos(t)
+        y = b * np.sin(t)
+    else:   # hyperbola
+        x = -a * np.cosh(t)
+        y = b * np.sinh(t)
+    # parametric equation for circle is same as for ellipse, just semi_major = semi_minor, thus it is not required
+    # parabola is avoided, and made sure it won't happen. Very small number is added to ecc if ecc == 1.
+    x_rot = x * cos_p - y * sin_p
+    y_rot = y * cos_p + x * sin_p
+    return np.stack((x_rot, y_rot), axis=1)
+
+
+def curve_move_to(curves, body_pos, ref, f, pea):
+    """Aligns focus of rotated curve points with its refernce body position. For multiple curves."""
+    focus_x = f * np.cos(pea)
+    focus_y = f * np.sin(pea)
+    focus = np.column_stack((focus_x, focus_y))
+    return curves + focus[:, np.newaxis, :] + body_pos[ref, np.newaxis, :]
+
+
+def culling(coords, radius, screen_bounds, zoom):
+    """Decides wether provided bodies should be drawn on screen,
+    depending on their position and radius (if any)."""
+    # swapping y axis because (0, 0) is in top left
+    min_dim = (coords.T + radius).T + 2 / zoom > np.array([screen_bounds[0, 0], screen_bounds[1, 1]])
+    max_dim = (coords.T - radius).T + 2 / zoom < np.array([screen_bounds[1, 0], screen_bounds[0, 1]])
+    min_dim_xy = np.logical_and(min_dim[:, 0], min_dim[:, 1])   # numba does not support axis argument, yet
+    max_dim_xy = np.logical_and(max_dim[:, 0], max_dim[:, 1])   # https://github.com/numba/numba/issues/1269
+    return np.logical_and(min_dim_xy, max_dim_xy)
 
 
 # if numba is enabled, compile functions ahead of time
@@ -220,11 +230,15 @@ if numba_avail and use_numba:
     cross_2d = njit(float64[:](float64[:], float64[:]), **jitkw)(cross_2d)
     compare = njit(float64(float64, float64), **jitkw)(compare)
     compare_coord = njit(float64(float64[:], float64[:]), **jitkw)(compare_coord)
-    orbit_time_to = njit(float64(float64, float64, float64, float64), **jitkw)(orbit_time_to)
+    orbit_time_to = njit([float64(float64, float64, float64, float64, Omitted(False)),
+                          float64(float64, float64, float64, float64, bool_)],
+                         **jitkw)(orbit_time_to)
     newton_root_kepler_ell = njit(float64(float64, float64, float64), **jitkw)(newton_root_kepler_ell)
     newton_root_kepler_hyp = njit(float64(float64, float64, float64), **jitkw)(newton_root_kepler_hyp)
     rot_ellipse_by_y = njit(float64(float64, float64, float64, float64), **jitkw)(rot_ellipse_by_y)
     rot_hyperbola_by_y = njit(float64(float64, float64, float64, float64), **jitkw)(rot_hyperbola_by_y)
     impl_derivative_rot_ell = njit(float64(float64, float64, float64, float64, float64), **jitkw)(impl_derivative_rot_ell)
     impl_derivative_rot_hyp = njit(float64(float64, float64, float64, float64, float64), **jitkw)(impl_derivative_rot_hyp)
-    culling = njit(bool_(float64[:, :], float64[:, :], float64, int32, bool_), **jitkw)(culling)
+    curve_points = njit(float64[:, :](float64, float64, float64, float64, float64[:]), **jitkw)(curve_points)
+    curve_move_to = njit(float64[:, :, :](float64[:, :, :], float64[:, :], int64[:], float64[:], float64[:]), **jitkw)(curve_move_to)
+    culling = njit(bool_[:](float64[:, :], float64[:], float64[:, :], float64), **jitkw)(culling)

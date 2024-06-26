@@ -44,7 +44,6 @@ buttons_set_vid = ["Fullscreen",
 buttons_set_aud = ["WIP"]
 buttons_set_gam = ["Keybindings", "Autosave:"]
 buttons_set_adv = ["Curve:",
-                   "Stars antialiasing",
                    "New star color",
                    "Star clusters",
                    "New clusters",
@@ -160,7 +159,6 @@ class Menu():
         self.mouse_warp = leval(fileops.load_settings("graphics", "mouse_warp"))
         self.bg_stars_enable = leval(fileops.load_settings("background", "stars"))
         self.curve_points = int(fileops.load_settings("graphics", "curve_points"))
-        self.star_aa = leval(fileops.load_settings("background", "stars_antialiasing"))
         self.new_color = leval(fileops.load_settings("background", "stars_new_color"))
         self.cluster_enable = leval(fileops.load_settings("background", "cluster_enable"))
         self.cluster_new = leval(fileops.load_settings("background", "cluster_new"))
@@ -704,19 +702,17 @@ class Menu():
                                         self.curve_points = 0
                                 if x_pos+self.btn_w-40 <= self.mouse[0]-1 <= x_pos + self.btn_w:   # plus
                                     self.curve_points += 25
-                            elif num == 1:   # stars antialiasing
-                                self.star_aa = not self.star_aa
-                            elif num == 2:   # stars new color
+                            elif num == 1:   # stars new color
                                 self.new_color = not self.new_color
-                            elif num == 3:   # cluster enable
+                            elif num == 2:   # cluster enable
                                 self.cluster_enable = not self.cluster_enable
-                            elif num == 4:   # cluster new
+                            elif num == 3:   # cluster new
                                 self.cluster_new = not self.cluster_new
-                            elif num == 5:   # numba
+                            elif num == 4:   # numba
                                 if numba_avail:
                                     self.numba = not self.numba
                                     self.restart = True
-                            elif num == 6:   # FastMath
+                            elif num == 5:   # FastMath
                                 if self.numba:
                                     self.fastmath = not self.fastmath
                                     self.restart = True
@@ -738,7 +734,6 @@ class Menu():
                                 fileops.save_settings("graphics", "mouse_warp", self.mouse_warp)
                                 fileops.save_settings("graphics", "curve_points", self.curve_points)
                                 fileops.save_settings("background", "stars", self.bg_stars_enable)
-                                fileops.save_settings("background", "stars_antialiasing", self.star_aa)
                                 fileops.save_settings("background", "stars_new_color", self.new_color)
                                 fileops.save_settings("background", "cluster_enable", self.cluster_enable)
                                 fileops.save_settings("background", "cluster_new", self.cluster_new)
@@ -1007,7 +1002,7 @@ class Menu():
                 fastmath_button = int(self.fastmath)
             else:
                 fastmath_button = 5
-            prop_4 = [3, int(self.star_aa), int(self.new_color), int(self.cluster_enable), int(self.cluster_new), numba_button, fastmath_button]
+            prop_4 = [3, int(self.new_color), int(self.cluster_enable), int(self.cluster_new), numba_button, fastmath_button]
             graphics.buttons_vertical(screen, buttons_set_adv, (self.set_x_4, self.top_margin), prop_4)
 
             # ui

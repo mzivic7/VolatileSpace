@@ -50,4 +50,3 @@ tAp = time to apoapsis from current position
 i_w = i * w   # warped physics tick
 all calculated times are at end divided by i
 (Apt, Pet, T)
-

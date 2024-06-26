@@ -2,7 +2,6 @@ from ast import literal_eval as leval
 import pygame
 
 from volatilespace import fileops
-debug = True
 
 
 def main():
@@ -10,7 +9,7 @@ def main():
     pygame.init()
     pygame.display.set_caption('Volatile Space')
     pygame.display.set_icon(pygame.image.load('img/icon.png'))
-    if leval(fileops.load_settings("graphics", "first_run")) is True:   # if this is first time running
+    if leval(fileops.load_settings("graphics", "first_run")) is True:
         avail_res = pygame.display.get_desktop_sizes()
         (screen_x, screen_y) = avail_res[0]   # use highest resolution
         fileops.save_settings("graphics", "resolution", [screen_x, screen_y])
@@ -19,12 +18,13 @@ def main():
         (screen_x, screen_y) = fileops.load_settings("graphics", "resolution")
     fullscreen = leval(fileops.load_settings("graphics", "fullscreen"))
     vsync = leval(fileops.load_settings("graphics", "vsync"))
-    if fullscreen is True:   # set window size and fullscreen
+    if fullscreen is True:
         screen = pygame.display.set_mode((screen_x, screen_y), pygame.FULLSCREEN, vsync=vsync)
     else:
         screen = pygame.display.set_mode((screen_x, screen_y), vsync=vsync)
-    clock = pygame.time.Clock()   # start clock
-    pygame.time.set_timer(pygame.USEREVENT, int(round(1000/60)))   # userevent is called every 1/60 of second (rounded to 17ms)
+    clock = pygame.time.Clock()
+    # userevent is called every 1/60 of second (rounded to 17ms)
+    pygame.time.set_timer(pygame.USEREVENT, int(round(1000/60)))
 
 
     ###### --Load classes-- ######
@@ -43,11 +43,6 @@ def main():
 
     ###### --Main loop-- ######
     state = 1   # enter main menu on startup
-    if debug:
-        state = 3
-        selected_path = "Saves/test1aaa.ini"
-        game.reload_settings()
-        game.load_system(selected_path)
     run = True
     while run:
         for e in pygame.event.get():

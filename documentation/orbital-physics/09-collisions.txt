@@ -1,6 +1,9 @@
-### inelastic collision ###
+### Inelastic collision ###
 (2 bodies merge into third one)
 mr = m1 + m2   # resulting mass
 mv1 = v1 * m1   # first body momentum vector
 mv2 = v2 * m1   # second body momentum vector
 v = (mv1 + mv2) / mr   # resulting velocity vector
+
+### Elastic collision with rotation ###
+WIP

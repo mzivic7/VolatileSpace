@@ -125,7 +125,7 @@ class Editor():
         graphics.antial = self.antial
 
         # simulation related
-        self.ptps = 59   # divisor to convert simulation time to real time (it is not 60 because userevent timer is rounded to 17ms)
+        self.ptps = 58.823   # divisor to convert simulation time to real time (it is not 60 because userevent timer is rounded to 17ms)
         self.zoom = 0.15
         self.key_sens = 0.02   # sensitivity when pressing or holding wasd buttons
         self.select_sens = 5   # how many pixels are tolerable for mouse to move while selecting body
@@ -1553,13 +1553,20 @@ class Editor():
 
                     # circles
                     if not self.disable_labels:
+                        # target selection
                         if scr_body_size >= 5:
-                            graphics.draw_circle(screen, rgb.cyan, self.screen_coords(body_pos), self.size[body] * self.zoom + 4, 2)   # selection circle
+                            # selection circle
+                            scr_atm_size = (self.size[body] + self.atm_h[body]) * self.zoom
+                            graphics.draw_circle(screen, rgb.cyan, self.screen_coords(body_pos), scr_atm_size + 4, 1)
                         else:
-                            graphics.draw_circle(screen, rgb.cyan, self.screen_coords(body_pos), 8, 2)   # for body marker
+                            # marker img
+                            graphics.draw_circle(screen, rgb.cyan, self.screen_coords(body_pos), 8, 1)
+
+                        # circle of influence
                         if self.size[body] < self.coi[body]:
                             if self.coi[body] * self.zoom >= 8:
-                                graphics.draw_circle(screen, rgb.gray1, self.screen_coords(body_pos), self.coi[body] * self.zoom, 1)   # circle of influence
+                                graphics.draw_circle(screen, rgb.gray1, self.screen_coords(body_pos), self.coi[body] * self.zoom, 1)
+
                         if body != 0:
                             parent_scr = self.screen_coords(self.position[parent])
                             if self.size[parent] * self.zoom >= 5:

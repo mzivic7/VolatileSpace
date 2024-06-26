@@ -1,3 +1,5 @@
+# CALCULATION OF INTERSECTING POINTS OF ROTATED HYPERBOLA AND CIRCLE #
+
 # Convert all points to check from global coordinate system to local
 # Local CS is rotated by vessels argument of periapsis and translated to its position
 

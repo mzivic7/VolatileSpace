@@ -1,0 +1,127 @@
+### Predicting vessel and body ma at the moment when vessel ENTER body COI ###
+# this is very hard to do with just math and newton solver, so this is custom solver algorithm:
+
+first, check if vessel can intersect with body (no need to check for hyperbola):
+    if vessel_apoapsis is greater than body_apoapsis-COI
+    a * (1 + ecc) > b_a * (1 - b_ecc) - coi
+    if this is true than continue
+
+then generate and select probe points
+    probe points are vessel Ma, and they are evenly distributed
+    this makes area around vessel apoapsis more dense, because most intersections happens there
+    If vessel orbit is ellipse and vessels Ap is lower then body Ap+COI:
+        use default points
+        default points have such order that area around vessel apoapsis is first probed
+        There are 2 ways of ordering default points:
+            Raveled - point on one side of curve then on other side
+            Stacked - First one side, then other side of ellipse
+    else:
+        # there is no need to probe where vessel cant enter body COI
+        # so generate probe points excluding orbit piece outside circle: r=body_Ap+COI
+        get intersections of vessel orbit with r=body_Ap+COI in orbit focus
+        # Note: intersections are in Ea, but bellow is used Ma, so they must be converted
+        additionally check if vessel Ap is larger than is parent COI
+        if yes:
+            generate points from current body Ma to first-in-orbit intersection Ma
+            in that order, with wrapping at 2pi
+        if no:
+            first points are ordered from current body Ma to first-in-orbit intersection Ma
+            second points are ordered from last-in-orbit intersection Ma to current body Ma
+            in that order, with wrapping at 2pi
+            then points from both groups are concatenated
+        # This specific order of probe points is very important.
+        # Algorithm for lowering correction is designed to work from Ap towards current vessel Ma.
+        # Otherwise it will have to make corrections larger than in previous iteration,
+        # causing it to invert correction, leading to wrong or none result.
+
+Hinted vessel Ma can be appended at start of probe points, so it is checked first.
+    This is useful when vessel is accelerating and its orbit is smoothly changing, and can speed up algorithm.
+At start, correction is not inverted
+
+(loop) search for initial intersection:
+    take one probe point and make it new Ma
+    calculate time to move vessel from current Ma to new Ma (orbital-physics/5-orbit-shape-parameters.txt)
+    If correction is inverted use negative time
+    calculate body new Ma at that time (Ma + dr * n * time_to_new_ma)
+    from it, calculate body position relative to its reference (orbital-physics/6-parametric-equations.txt)
+    make body position relative to vessel orbit center:
+        (b_x_n and b_y_n are calculated above)
+        first, get center of ellipse/hyperbola relative to reference
+        center_x = f * np.cos(omega)
+        center_y = f * np.sin(omega)
+        then rotate body position by its periapsis argument (b_omega):
+        b_x = b_x_n * cos(b_omega - pi) - b_y_n * sin(b_omega - pi)
+        b_y = b_x_n * sin(b_omega - pi) + b_y_n * cos(b_omega - pi)
+        get its position relative to vessels ellipse center and rotate it by vessel periapsis argument (omega)
+        b_x_r = -(cos(-omega) * (b_x - center_x) - sin(-omega) * (b_y - center_y))
+        b_y_r = -(sin(-omega) * (b_x - center_x) + cos(-omega) * (b_y - center_y))
+        (b_x_r and b_y_r are then used in finding intersections)
+    check intersections for vessel orbit and body COI at calculated body position (other-physics/4-ellipse-circle.txt)
+        if there are intersections:
+            if body and vessel directions are SAME:
+                select intersection that is NEXT point on orbit from current vessel Ma (explained above this algorithm)
+            if body and vessel directions are OPPOSITE:
+                select intersection that is PREVIOUS point on orbit from current vessel Ma
+            correction = intersect position - new position
+            stop search and go to next stage
+            new Ma and correction are obtained from this picked point, those values are used in next stage
+        if there are no intersections:
+            check next point from probe points
+            if all points are checked:
+                then there are no intersections on one full orbit, so just quit
+
+(loop) iterate to lower correction:
+    apply correction to new Ma
+        new Ma += correction
+    everything is same as in search loop from 'calculate time' to 'check intersections'
+    check intersections:
+        there are intersection:
+            # this is the most important part, here is decided where and how much to move vessel in next iteration
+            # so vessel gets closer to COI in next iteration, and correction gets significantly smaller
+            first calculate new Ea from new Ma
+            check if vessel is inside COI
+                sort all intersections Ea to distance from vessel Ea in orbit direction
+                if correction is inverted, invert sorted intersections order
+                if vessel Ea is between first two intersections Ea, it is inside COI
+            pick target
+                distance = abs(intersect Ea - new Ea)
+                if correction is NORMAL:
+                    select CLOSEST intersection Ea to vessel Ea
+                if correction is INVERTED and vessel is OUTSIDE COI:
+                    select FURTHEST intersection Ea to vessel Ea
+                    # selecting furthest because it will bring vessel closer to first point of intersect
+                    # this solves special case when both points are on same side of COI, then there are 2 solutions
+                    # one for enter coi, and other for second point of intersection
+                    # additionally this should be allowed only once, to prevent distancing from intersection
+                    # in case this is wrong, backing will repair damage
+            # get correction
+                ellipse:
+                    intersect_ma = (intersect_ea - ecc * sin(intersect_ea)) % (2 * pi)
+                hyperbola:
+                    intersect_ma = ecc * sinh(intersect_ea) - intersect_ea
+                corr = -abs(intersect_ma - new_ma)
+            # then decide whether to move forward or backward (skip if correction is inverted)
+            # if vessel is outside COI and in front of it:
+                correction = -correction
+                # when new position is in front of closest intersection, but outside COI,
+                # if new position keeps moving towards intersection, it will get further
+                # because of that correction must be inverted
+            if correction was not inverted IN LAST INTERSECTION:
+                # check if correction is increasing:
+                compare last actual correction, not affected by backing, and current actual correction,
+                but only if both values have same sing
+                if abs(actual_corr) - abs(actual_corr_old) > 0   # if correction is increasing:
+                    # this means that body is moving faster than vessel
+                    # and enter coi point is actually in opposite direction, so just:
+                        permanently invert correction
+            # finally, mathematically invert correction value, if it is logically decided:
+            if correction is inverted (logical value):
+                correction = -correction
+        there are no intersections:
+            move new position back by half correction (BACKING)
+                # so in each iteration correction is decreased by half:
+                correction = back * abs(correction) / 2
+                back is either 1 or -1 and it is opposite sign of correction when intersection is lost
+                # backing is NOT affected by correction direction
+    if actual correction is small enough:
+        stop loop and return body new Ma, vessel new Ma, and time to intersection

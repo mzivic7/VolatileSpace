@@ -13,4 +13,3 @@ R = radius in m
 Tc = core temperature in K
 rho = density
 vol = volume
-

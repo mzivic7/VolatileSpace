@@ -126,7 +126,7 @@ class Game():
         graphics.antial = self.antial
 
         # simulation related
-        self.ptps = 59   # divisor to convert simulation time to real time (it is not 60 because userevent timer is rounded to 17ms)
+        self.ptps = 58.823   # divisor to convert simulation time to real time (it is not 60 because userevent timer is rounded to 17ms)
         self.zoom = 0.15
         self.select_sens = 5   # how many pixels are tolerable for mouse to move while selecting body
         self.drag_sens = 0.02   # drag sensitivity when inserting body
@@ -163,8 +163,11 @@ class Game():
         self.v_curves = np.array([])
         self.v_rot_angle = np.array([])
         self.v_rot_dir = 0
-        self.visible_bodies = []
-        self.visible_vessels = []
+        self.visible_bodies = np.array([])
+        self.visible_coi = np.array([])
+        self.visible_body_orbits = np.array([])
+        self.visible_vessel_orbits = np.array([])
+        self.visible_vessels = np.array([])
         self.change_vessel = None
 
         # ### DEBUG ###
@@ -222,6 +225,7 @@ class Game():
     def set_screen(self):
         """Load pygame-related variables, this should be run after pygame has initialised or resolution has changed"""
         self.screen_x, self.screen_y = pygame.display.get_surface().get_size()
+        self.screen_dim = np.array([self.screen_x, self.screen_y])
         self.ask_x = self.screen_x/2 - (2*self.btn_w_h + self.space)/2
         self.ask_y = self.screen_y/2 + self.space
         self.pause_x = self.screen_x/2 - self.btn_w/2
@@ -246,6 +250,7 @@ class Game():
         self.fullscreen = leval(fileops.load_settings("graphics", "fullscreen"))
         avail_res = pygame.display.list_modes()
         self.screen_x, self.screen_y = pygame.display.get_surface().get_size()
+        self.screen_dim = np.array((self.screen_x, self.screen_y))
         try:
             self.selected_res = avail_res.index((self.screen_x, self.screen_y))
         except Exception:   # fail-safe repair if resolution is invalid
@@ -1073,9 +1078,8 @@ class Game():
     def physics(self, e):
         """Do simulation physics with warp and pause"""
         if e.type == pygame.USEREVENT:
+            debug_time = time.time()   # ### DEBUG ###
             if self.pause is False:
-                debug_time = time.time()   # ### DEBUG ###
-
                 # regular/physical warp toggle
                 situation, alarm_vessel, physical_hold = physics_vessel.check_warp(self.warp)
                 match situation:
@@ -1114,8 +1118,8 @@ class Game():
                                                          (self.screen_x/2, self.screen_y-70), 1.5, True)
                         self.set_warp_ui(silent=True)
 
+                # physical warp
                 if self.warp_phys_active:
-                    # physical warp
                     for _ in range(self.warp_phys):
                         self.pos, self.ma = physics_body.move(self.warp_phys)
                         self.v_pos, self.v_ma = physics_vessel.move(self.warp_phys, self.pos, self.ma)
@@ -1123,8 +1127,8 @@ class Game():
                         self.change_vessel = physics_vessel.cross_coi(self.warp)
 
                     self.sim_time += 1 * self.warp_phys   # iterate sim_time
+                # regular warp
                 else:
-                    # regular warp
                     self.pos, self.ma = physics_body.move(self.warp)
                     self.v_pos, self.v_ma = physics_vessel.move(self.warp, self.pos, self.ma)
                     self.v_rot_angle = physics_vessel.rotate(self.warp, self.active_vessel, self.v_rot_dir)
@@ -1133,17 +1137,22 @@ class Game():
 
                 self.v_rot_dir = 0
                 self.curves = physics_body.curve_move()
+
+                # handling changes on vessel orbit
                 if self.change_vessel is not None:
                     vessel_data, vessel_orb_data = physics_vessel.change_vessel(self.change_vessel)
                     self.update_vessel(self.change_vessel, vessel_data, vessel_orb_data)
                     self.change_vessel = None
-                self.v_curves = physics_vessel.curve_move()
-                sim_screen = np.array((self.sim_coords((0, 0)), self.sim_coords((self.screen_x, self.screen_y))))
-                self.visible_bodies = physics_body.culling(sim_screen)
-                self.visible_vessels = physics_vessel.culling(sim_screen)
-                self.curve_light, self.curve_dark, self.intersect, self.intersect_type, self.select_range = physics_vessel.curve_segments()
 
-                self.physics_debug_time = time.time() - debug_time   # ### DEBUG ###
+                self.v_curves = physics_vessel.curve_move()
+
+            # culing
+            sim_screen = np.array((self.sim_coords((0, 0)), self.sim_coords(self.screen_dim)))
+            self.visible_bodies, self.visible_coi, self.visible_body_orbits = physics_body.culling(sim_screen, self.zoom)
+            self.visible_vessels, self.visible_vessel_orbits = physics_vessel.culling(sim_screen, self.zoom, self.visible_coi)
+            self.curve_light, self.curve_dark, self.intersect, self.intersect_type, self.select_range = physics_vessel.curve_segments()
+
+            self.physics_debug_time = time.time() - debug_time   # ### DEBUG ###
 
 
 
@@ -1232,7 +1241,7 @@ class Game():
         # DRAWING ORDER: body stuff, vessel orbit, body, vessel, vessel stuff
 
         # bodies stuff drawing, WITHOUT bodies - bodies are drawn aftter vessel orbit lines
-        for body in self.visible_bodies:
+        for body in self.visible_body_orbits:
             curve = self.screen_coords_array(self.curves[body])   # line coords on screen
 
             # draw orbit curve lines
@@ -1241,12 +1250,15 @@ class Game():
                 graphics.draw_lines(screen, tuple(line_color), curve, 2)
 
             # draw body atmosphere
-            scr_body_size = self.size[body] * self.zoom
-            if scr_body_size >= 5:
-                if self.atm_h[body]:
-                    atm_color = tuple(np.append(self.color[body], 30))   # add alpha
-                    scr_atm_size = (self.size[body] + self.atm_h[body]) * self.zoom
-                    graphics.draw_circle_fill(screen, atm_color, self.screen_coords(self.pos[body]), scr_atm_size)
+            if body in self.visible_bodies:
+                scr_body_size = self.size[body] * self.zoom
+                if scr_body_size >= 5:
+                    if self.atm_h[body]:
+                        atm_color = tuple(np.append(self.color[body], 30))   # add alpha
+                        scr_atm_size = (self.size[body] + self.atm_h[body]) * self.zoom
+                        if scr_atm_size > scr_body_size + 2:
+                            screen_coords = self.screen_coords(self.pos[body])
+                            graphics.draw_circle_fill(screen, atm_color, screen_coords, scr_atm_size)
 
             # target body
             if self.target is not None and self.target_type == 0 and self.target == body:
@@ -1269,16 +1281,22 @@ class Game():
 
                 # circles
                 if not self.disable_labels:
-                    if scr_body_size >= 5:
-                        graphics.draw_circle(screen, rgb.cyan, self.screen_coords(body_pos), self.size[body] * self.zoom + 4, 2)   # selection circle
-                    else:
-                        graphics.draw_img(screen, self.target_img, self.screen_coords(body_pos), center=True)   # target img for marker
-                    if self.size[body] < self.coi[body]:
-                        if self.coi[body] * self.zoom >= 8:
-                            graphics.draw_circle(screen, rgb.gray2, self.screen_coords(body_pos), self.coi[body] * self.zoom, 1)   # circle of influence
+                    # target selection
+                    if body in self.visible_bodies:
+                        if scr_body_size >= 5:
+                            # selection circle
+                            scr_atm_size = (self.size[body] + self.atm_h[body]) * self.zoom
+                            graphics.draw_circle(screen, rgb.cyan, self.screen_coords(body_pos), scr_atm_size + 4, 1)
+                        else:
+                            # marker img
+                            graphics.draw_img(screen, self.target_img, self.screen_coords(body_pos), center=True)
+
+                    # circle of influence
+                    if body in self.visible_coi and self.size[body] < self.coi[body]:
+                        graphics.draw_circle(screen, rgb.gray2, self.screen_coords(body_pos), self.coi[body] * self.zoom, 1)
+
                     if body != 0:
                         parent_scr = self.screen_coords(self.pos[parent])
-
                         # ap and pe
                         if self.ap_d[body] > 0:
                             ap_scr = self.screen_coords(ap)
@@ -1307,7 +1325,7 @@ class Game():
                                               (ap_scr[0], ap_scr[1] + 17), True)
 
         # vessel orbit lines drawing
-        for vessel in self.visible_vessels:
+        for vessel in self.visible_vessel_orbits:
             # get curve intersections and ranges
             curve_light = self.screen_coords_array(self.curve_light[vessel])
             curve_dark = self.screen_coords_array(self.curve_dark[vessel])
@@ -1341,7 +1359,7 @@ class Game():
 
 
         # vessel stuff drawing WITH vessels
-        for vessel in self.visible_vessels:
+        for vessel in self.visible_vessel_orbits:
             # get curve intersections and ranges
             curve_light = self.screen_coords_array(self.curve_light[vessel])
             curve_dark = self.screen_coords_array(self.curve_dark[vessel])
@@ -1358,10 +1376,9 @@ class Game():
 
                 # parent circle of influence
                 if not self.disable_labels:
-                    parent_scr = self.screen_coords(self.pos[ref])
-                    if ref != 0:
-                        if self.coi[ref] * self.zoom >= 8:
-                            graphics.draw_circle(screen, rgb.gray2, parent_scr, self.coi[ref] * self.zoom, 1)
+                    if ref != 0 and ref in self.visible_coi:
+                        parent_scr = self.screen_coords(self.pos[ref])
+                        graphics.draw_circle(screen, rgb.gray2, parent_scr, self.coi[ref] * self.zoom, 1)
 
                     # ap and pe
                     if self.v_ap_d[vessel] > 0:
@@ -1426,7 +1443,8 @@ class Game():
 
             # all other vessels
             else:
-                graphics.draw_img(screen, self.vessel_img, vessel_pos, angle=vessel_rot-np.pi/2, scale=0.75, center=True)
+                if vessel in self.visible_vessels:
+                    graphics.draw_img(screen, self.vessel_img, vessel_pos, angle=vessel_rot-np.pi/2, scale=0.75, center=True)
 
 
 

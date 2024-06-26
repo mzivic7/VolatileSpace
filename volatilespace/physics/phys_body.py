@@ -12,7 +12,8 @@ from volatilespace import fileops
 from volatilespace import defaults
 from volatilespace.physics.phys_shared import \
     newton_root_kepler_ell, newton_root_kepler_hyp, \
-    mag, culling, orbit_time_to, \
+    curve_points, curve_move_to, \
+    mag, orbit_time_to, culling, \
     mp, k, c
 
 
@@ -84,9 +85,9 @@ class Physics():
     def __init__(self):
         # body internal
         self.names = np.array([])
-        self.visible_bodies = []
         self.mass = np.array([])
         self.den = np.array([])
+        self.size = np.array([])
         self.base_color = np.empty((0, 3), int)   # original color unaffected by temperature
         self.types = np.array([])
         self.atm_pres0 = np.array([])
@@ -121,10 +122,9 @@ class Physics():
         """Reload all settings, should be run every time game is entered"""
         self.curve_points = int(fileops.load_settings("graphics", "curve_points"))   # number of points from which curve is drawn
         self.curves = np.zeros((len(self.mass), self.curve_points, 2))
-        self.cull = leval(fileops.load_settings("graphics", "culling"))
-        # parameters
-        self.ell_t = np.linspace(-np.pi, np.pi, self.curve_points)   # ellipse parameter
-        self.par_t = np.linspace(- np.pi - 1, np.pi + 1, self.curve_points)   # parabola parameter
+        self.t = np.linspace(-np.pi, np.pi, self.curve_points)   # parameter
+        for body, _ in enumerate(self.names):
+            self.curve(body)
 
 
     def load_conf(self, conf):
@@ -156,12 +156,20 @@ class Physics():
         self.curves_mov = np.zeros((len(self.mass), self.curve_points, 2))
 
 
-    def culling(self, sim_screen):
-        """Returns list of bodies orbits that are visible on screen and are large enough.
-        Checking for orbits that are on screen can be toggle in settings"""
-        values = list(map(culling, self.curves_mov, repeat(sim_screen), self.coi[self.ref], repeat(self.curve_points), repeat(self.cull)))
-        self.visible_bodies = np.concatenate(([0], np.arange(len(self.mass))[values]))
-        return self.visible_bodies
+    def culling(self, sim_screen, zoom):
+        """Returns separate lists of:
+        - Bodies whose COI is visible on screen,
+        - Bodies that are visible on screen (atmosphere incl),
+        - Bodies whose orbits are inside COI that is visible on screen and COI is larger than N pixels"""
+        visible_bodies_truth = culling(self.pos, self.size, sim_screen, zoom)
+        visible_bodies = np.concatenate(([0], np.arange(len(self.mass))[visible_bodies_truth]))
+        visible_coi_truth = culling(self.pos, self.coi, sim_screen, zoom)
+        visible_coi = np.concatenate(([0], np.arange(len(self.mass))[visible_coi_truth]))
+        visible_orbits_truth = np.logical_and(visible_coi_truth[self.ref], self.coi[self.ref] > 8 / zoom)
+        visible_orbits_truth = np.logical_or(visible_orbits_truth, self.ref == 0)   # incl all orbits around main ref
+        visible_orbits = np.arange(len(self.mass))[visible_orbits_truth]
+        # not returning truth values so "for vessel in visible_bodies" can easily be done
+        return visible_bodies, visible_coi, visible_orbits
 
 
     def initial(self, warp):
@@ -169,12 +177,12 @@ class Physics():
 
         # BODY DATA #
         volume = self.mass / self.den
-        size = self.rad_mult * np.cbrt(3 * volume / (4 * np.pi))
-        core_temp = (self.gc * mp * self.mass) / ((3/2) * k * size * self.rad_mult)
+        self.size = self.rad_mult * np.cbrt(3 * volume / (4 * np.pi))
+        core_temp = (self.gc * mp * self.mass) / ((3/2) * k * self.size * self.rad_mult)
         temp = 0 / core_temp   # surface temperature # ### temporarily ###
         rad_sc = 2 * self.mass * self.gc / c**2   # Schwarzschild radius
         color = temp_color(temp, self.base_color)
-        surf_grav = self.gc * self.mass / size**2
+        surf_grav = self.gc * self.mass / self.size**2
         atm_h = np.zeros(len(self.mass))
         for body, _ in enumerate(self.mass):
             if all(x != 0 for x in [self.atm_pres0[body], self.atm_scale_h[body], self.atm_den0[body]]):
@@ -194,7 +202,7 @@ class Physics():
                      "temp": temp,
                      "color_b": self.base_color,
                      "color": color,
-                     "size": size,
+                     "size": self.size,
                      "rad_sc": rad_sc,
                      "surf_grav": surf_grav,
                      "atm_pres0": self.atm_pres0,
@@ -230,18 +238,7 @@ class Physics():
     def curve(self, body):
         """Calculate RELATIVE conic curve line points coordinates for one body.
         This should be done only if something changed on body or it's orbit, and after points()."""
-        ecc = self.ecc[body]
-        pea = self.pea[body]
-
-        # curves points
-        if ecc < 1:   # ellipse
-            curves = np.array([self.a[body] * np.cos(self.ell_t), self.b[body] * np.sin(self.ell_t)])   # raw ellipses
-        else:
-            curves = np.array([-self.a[body] * np.cosh(self.ell_t), self.b[body] * np.sinh(self.ell_t)])   # raw hyperbolas
-            # parametric equation for circle is same as for ellipse, just semi_major = semi_minor, thus it is not required
-        # rotation matrix
-        rot = np.array([[np.cos(pea), - np.sin(pea)], [np.sin(pea), np.cos(pea)]])
-        self.curves[body] = np.swapaxes(np.dot(rot, curves), 0, 1)
+        self.curves[body] = curve_points(self.ecc[body], self.a[body], self.b[body], self.pea[body], self.t)
 
 
     def move(self, warp):
@@ -333,8 +330,5 @@ class Physics():
     def curve_move(self):
         """Move all orbit curves to parent position.
         This should be done every tick after move()."""
-        focus_x = self.f * np.cos(self.pea)
-        focus_y = self.f * np.sin(self.pea)
-        focus = np.column_stack((focus_x, focus_y))
-        self.curves_mov = self.curves + focus[:, np.newaxis, :] + self.pos[self.ref, np.newaxis, :]
+        self.curves_mov = curve_move_to(self.curves, self.pos, self.ref, self.f, self.pea)
         return self.curves_mov

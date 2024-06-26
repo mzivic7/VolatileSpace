@@ -1,12 +1,12 @@
 ### Inverse equations from orbital parameters to positional and velocity vectors ###
-# ecc < 1
-# Inputs: ecc, omega_deg, Pe, Ma, Ap, direction
+# ecc > 1
+# Inputs: ecc, omega_deg, Pe, Ma, direction
+# Ma can be negative, and can go over 2pi
 
 u = G * m   # standard gravitational parameter
-a = - Pe / (ecc - 1)   # semi-major axis from periapsis
-e = (Ap / a) - 1   # eccentricity from apoapsis
-b = a * sqrt(1-e^2)   # semi minor axis
-f = sqrt(a^2 - b^2)   # focus distance from center of ellipse
+a = abs(- Pe / (e - 1))   # semi-major axis from periapsis
+f = a * ecc   # focus distance from center of hyperbola [13]
+b = sqrt(f^2 - a^2)   # semi-minor [13]
 omega = omega_deg * pi / 180   # periapsis argument from deg to rad
 if e = 0:   # if eccentricity is set to 0 (it is circle):
     omega = 0   # disable omega input
@@ -17,10 +17,11 @@ if e = 0:   # if eccentricity is set to 0 (it is circle):
 # Because anomalies are positive in orbiting direction.
 
 # Get Ea from Ma using Newtons method for finding equation roots [3]. Plug this in Newton root solver:
-0 = Ea - e * sin(Ea) - Ma   # Keplers equation
-d(f(Ea))/dEa = 1 - e * cos(Ea)   # derivative from Keplers equation
-ea = acos((ecc + cos(ta))/(1 + (ecc * cos(ta))))   # eccentric anomaly from true anomaly [11]
-
+0 = e * sinh(Ea) - Ea - Ma   # Kepler's equation
+d(f(Ea))/dE = e * cosh(Ea) - 1   # derivative from Kepler's equation
+! IMPORTANT ! Ma should be converted to (-pi:pi) range and resulting Ea back to (0:2pi) range
+! IMPORTANT ! But is not, because ellipse Ma can be larger than pi and smaller than -pi
+ea = acosh((ecc + cos(ta))/(1 + (ecc * cos(ta))))   # eccentric anomaly from true anomaly [11]
 
 
 # -calculate position vector (Pr)- #
@@ -31,30 +32,39 @@ Pr = [Pr_x * cos(omega - pi) - Pr_y * sin(omega - pi), Pr_x * sin(omega - pi) + 
 
 
 
-# -calculate angle of velocity vector (vr_angle)- #
-# angle of velocity vector is calculated from slope of tangent on rotated ellipse, in point Pr, from implicit derivative
-(((x*cos(p)+y*sin(p))^2)/a^2) + (((x*sin(p)-y*cos(p))^2)/b^2) = 1   # Rotated ellipse implicit formula
+# -Calculate angle of velocity vector (vr_angle)- #
+# omega is written as p in further equations for simplicity (also Pr[0] = x, Pr[1] = y)
+# angle of velocity vector is calculated from slope of tangent on rotated hyperbola, in point Pr, from implicit derivative
+(((x*cos(p)+y*sin(p))^2)/a^2) - (((x*sin(p)-y*cos(p))^2)/b^2) = 1   # Rotated ellipse implicit formula
 # Implicit derivative in respect to x:
-k = -(b^2 * x * cos(p)^2 + a^2 * x * sin(p)^2 + b^2 * y * sin(p)cos(p) - a^2 * y * sin(p)cos(p)) /
-     (a^2 * y * cos(p)^2 + b^2 * y * sin(p)^2 + b^2 * x * sin(p)cos(p) - a^2 * x * sin(p)cos(p))
+k = -(b^2 * x * cos(p)^2 - a^2 * x * sin(p)^2 + b^2 * y * sin(p)cos(p) + a^2 * y * sin(p)cos(p)) /
+     (-a^2 * y * cos(p)^2 + b^2 * y * sin(p)^2 + b^2 * x * sin(p)cos(p) + a^2 * x * sin(p)cos(p))
 vr_angle = atan(k)   # angle from tangent slope
-# but angle is in range (-1/2pi, 1/2pi), when Pr is in negative part of ellipse, it gives same angle as in positive part
+# but angle is in range (-1/2pi, 1/2pi), when Pr is in negative part of hyperbola, it gives same angle as in positive part
 
 # find 2 points that divide ellipse on positive and negative part:
 # find domain of one half of rotated ellipse equation
 # skipped long steps (express equation explicitly (y=), find part that affects domain, it equals zero, solve it by x)
 # calculate domain of function and subtract some small value (10**-6) so y can be calculated without division by zero error
-x_max = sqrt(a^2 * cos(2p) + a^2 - b^2 * cos(2p) + b^2)/sqrt(2) - [10^-6]
+x_max = sqrt(a^2 * cos(2p) + a^2 + b^2 * cos(2p) - b^2)/sqrt(2) - [10^-6]   # SEE NOTE BELLOW
 # insert this value in explicit formula to get y coordinate:
-y_max = (a*b*sqrt(-x^2 (cos^4(p) + sin^4(p)) - 2 * x^2 * cos^2(p) * sin^2(p) + b^2 * sin^2(p) + a^2 * cos^2(p)) +
-        a^2 * x * sin(p) * cos(p) - b^2 * x * sin(p) * cos(p)) /
-        (a^2 * cos^2(p) + b^2 * sin^2(p))    # rotated ellipse formula by y, but only positive half
+y_max = - ((a*b*sqrt(x^2 (cos^4(p) + sin^4(p)) + 2 * x^2 * cos^2(p) * sin^2(p) + b^2 * sin^2(p) - a^2 * cos^2(p)) +
+           a^2 * x * sin(p) * cos(p) + b^2 * x * sin(p) * cos(p)) /
+           (- a^2 * cos(p)^2 + b^2 * sin(p)^2))   # rotated hyperbola formula by y, but only positive half
 
 x_max1, y_max1 = x_max + f * cos(p), y_max + f * sin(p)   # add rotated focus since it is origin, not (0, 0)
 x_max2, y_max2 = -x_max + f * cos(p), -y_max + f * sin(p)   # ellipse function domain is symmetrical, so there are 2 points
+
 # determine if Pr is at 'positive' side of 2 domain points:
 if ((x_max2 - x_max1) * (pr_y - y_max1)) - ((y_max2 - y_max1) * (pr_x - x_max1)) < 0:   # when in positive part of curve:
     vr_angle = vr_angle + pi   # add pi to angle to put it in (-1/2pi, 3/2pi) range
+
+# NOTE:
+# in some cases hyperbola has no positive and negative side, and this will cause error (sqrt of negative value)
+When that occur, just check if p (omega) is in negative side:
+if pi < omega < 2pi:
+    vr_angle = vr_angle + pi   # add pi to angle to put it in (-1/2pi, 3/2pi) range
+
 vr_angle = vr_angle % 2pi   # put it in (0, 2pi) range
 
 
@@ -79,3 +89,4 @@ v = vr + v_p   # absolute vel from relative vel and parents absolute vel
 References:
 [3]  https://orbital-mechanics.space/time-since-periapsis-and-keplers-equation/elliptical-orbits.html#newton-s-method-to-solve-kepler-s-equation
 [11] https://en.wikipedia.org/wiki/Eccentric_anomaly#From_the_true_anomaly
+[13] https://mathcurve.com/courbes2d.gb/hyperbole/hyperbole.shtml

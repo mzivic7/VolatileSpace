@@ -6,11 +6,6 @@ settings.ini
 keybindings.ini
 maps_builtin/
 
-# Kdevelop
-*.kate-swp
-*.kdev4
-/.kdev4
-
 # Mega
 .debris
 .megaignore
@@ -162,4 +157,3 @@ dmypy.json
 
 # pytype static type analyzer
 .pytype/
-

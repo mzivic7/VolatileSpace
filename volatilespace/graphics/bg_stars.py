@@ -84,7 +84,6 @@ class Bg_Stars():
 
     def reload_settings(self):
         """Reload all settings, should be run every time settings are changed"""
-        self.antial = leval(fileops.load_settings("background", "stars_antialiasing"))
         self.num = int(fileops.load_settings("background", "stars_num"))   # how many stars on extended screen
         self.new_color = leval(fileops.load_settings("background", "stars_new_color"))
         self.use_img = leval(fileops.load_settings("background", "use_img"))
@@ -166,7 +165,7 @@ class Bg_Stars():
                 if self.use_img:
                     screen.blit(star[4], star_zoom)
                 else:
-                    graphics.draw_circle_fill(screen, star[4], star_zoom, star[2], self.antial)   # screen, color, pos, radius
+                    graphics.draw_circle_fill(screen, star[4], star_zoom, star[2])   # screen, color, pos, radius
 
         if self.cluster_enable is True:
             self.clusters[:, 0] -= self.clusters[:, 2] * speed_mult * np.cos(direction) * self.custom_speed  # move cluster
@@ -181,4 +180,4 @@ class Bg_Stars():
                         if self.use_img:
                             screen.blit(star[3], star_zoom)
                         else:
-                            graphics.draw_circle_fill(screen, star[3], star_zoom, star[2], self.antial)   # screen, color, pos, radius
+                            graphics.draw_circle_fill(screen, star[3], star_zoom, star[2])   # screen, color, pos, radius

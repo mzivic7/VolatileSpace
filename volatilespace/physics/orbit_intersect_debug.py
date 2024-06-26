@@ -5,16 +5,6 @@ from volatilespace.physics.phys_shared import orbit_time_to, \
 from volatilespace.physics.quartic_solver import solve_quartic
 
 
-# evenly distributed probe points (ma) on orbit
-# optimized so area around apoapsis is probed first and is more dense
-probe_points_ell = np.array([1, 1/2, 3/2, 3/4, 5/4, 1/4, 7/4, 7/8, 9/8,
-                             1/8, 15/8, 5/8, 11/8, 3/8, 13/8, 0]) * np.pi
-probe_points_hyp = np.array([1, 1/2, 3/2, 3/4, 5/4, 1/4, 7/4, 7/8, 9/8,
-                             1/8, 15/8, 5/8, 11/8, 3/8, 13/8, 0]) * np.pi
-probe_points_ell = np.round(probe_points_ell, 6)
-probe_points_hyp = np.round(probe_points_ell, 6)
-
-
 def ell_hyp_intersect(a, b, ecc, c_x, c_y, r):
     """Calculate eccentric anomalies of intersecting points
     on non-rotated ellipse/hyperbola in origin, and translated circle"""
@@ -33,7 +23,7 @@ def ell_hyp_intersect(a, b, ecc, c_x, c_y, r):
             ea = np.arctan2(2 * real_roots, 1.0 - real_roots**2)
             return ea % (2*np.pi)
         else:
-            return np.array([np.NaN])
+            return np.array([np.nan])
     else:   # hyperbola
         a_0 = -a**2 * (c_y**2 + b**2) + b**2 * (c_x + r)**2
         a_1 = -4 * a**2 * r * c_y
@@ -51,7 +41,7 @@ def ell_hyp_intersect(a, b, ecc, c_x, c_y, r):
             ea = np.where(real_roots < 0, -ea, ea)
             return ea
         else:
-            return np.array([np.NaN])
+            return np.array([np.nan])
 
 
 def next_point(ea_vessel, ea_points, direction):
@@ -65,23 +55,23 @@ def next_point(ea_vessel, ea_points, direction):
         ea_points_sorted = ea_points[np.argsort(angle)]
         return np.array([ea_points_sorted[0], ea_points_sorted[-1]])
     else:
-        return np.array([np.NaN, np.NaN])
+        return np.array([np.nan, np.nan])
 
 
 def sort_intersect_indices(ea_vessel, ea_points, direction):
     """Sorts points on orbit by their angular (ea) distance from vessel in specified direction"""
     if not np.all(np.isnan(ea_points)):
-        angle = np.where(np.isnan(ea_points), np.NaN, np.abs(ea_vessel - ea_points))
+        angle = np.where(np.isnan(ea_points), np.nan, np.abs(ea_vessel - ea_points))
         # where ea_vessel is larger: invert
         angle = np.where(ea_vessel > ea_points, 2*np.pi - angle, angle)
         if direction < 0:   # if direction is clockwise: invert
             angle = np.pi*2 - angle
         ea_points_sorted = np.argsort(angle)
-        # returning -1 instead np.NaN because np.NaN is special float
+        # returning -1 instead np.nan because np.nan is special float
         ea_points_sorted = np.where(np.isnan(ea_points[ea_points_sorted]), -1, ea_points_sorted)
         return ea_points_sorted
     else:
-        return np.array([np.NaN])
+        return np.array([np.nan])
 
 
 def point_between(p1, p2, p3):
@@ -91,41 +81,145 @@ def point_between(p1, p2, p3):
     return (p1_p2 <= np.pi) != (p1_p3 > p1_p2)
 
 
-def predict_enter_coi(vessel_data, body_data, vessel_orbit_center):
+def gen_probe_points_ell(t1, t2, num):
+    """Generates specified number of probe points from specified range with wrapping at 2pi.
+    Returned points are in reverse order, those closer to t2 are first."""
+    if t1 < t2 or t2 == 0:
+        probe_points = np.linspace(t1, t2, int(num))
+    else:
+        ratio = (2*np.pi - t1) / t2
+        num_1 = int(num * ratio)
+        num_2 = int(num - num_1)
+        probe_points_1 = np.linspace(t1, 2*np.pi, num_1)
+        probe_points_2 = np.linspace(0, t2, num_2)
+        probe_points = np.concatenate((probe_points_1, probe_points_2))
+    return probe_points
+
+
+default_probe_points_ravel = True
+probe_points_num = 16
+extra_optimize_iterations = 10
+
+
+# generate default probe points
+if probe_points_num % 2:
+    probe_points_num -= 1
+default_probe_points_ell_all = np.linspace(0, 2*np.pi, probe_points_num)
+default_probe_points_ell_1 = default_probe_points_ell_all[:int(np.ceil(probe_points_num/2))][::-1]
+default_probe_points_ell_2 = default_probe_points_ell_all[int(np.ceil(probe_points_num/2)):]
+if default_probe_points_ravel:
+    default_probe_points_ell = np.vstack([default_probe_points_ell_1, default_probe_points_ell_2]).T.ravel()
+    default_probe_points_ell = np.concatenate(([np.pi], default_probe_points_ell))
+else:
+    default_probe_points_ell = np.concatenate(([np.pi], default_probe_points_ell_1, default_probe_points_ell_2))
+default_probe_points_ell = np.round(default_probe_points_ell, 6)
+
+
+def predict_enter_coi(vessel_data, body_data, vessel_orbit_center, hint_ma=np.nan):
     """Given body and vessel orbital parameters, that orbit same reference,
     searches for entering COI in one next full orbit.
-    Returns vessel Ea, body Ea, vessel Ma, body Ma and time when that will happen."""
+    Returns vessel Ea, body Ea, vessel Ma, body Ma and time when that will happen.
+    Vessel mean anomaly of enter COI point can be hinted."""
     total_start_time = time.perf_counter()
-    ecc, ma, ea, pea, _, a, b, f, per, dr = vessel_data
+    ecc, ma, ea, pea, _, a, b, f, per, ref_coi, dr = vessel_data
     b_ecc, b_ma, _, b_pea, b_n, b_a, b_b, b_f, _, b_dr, coi = body_data
     center_x, center_y = vessel_orbit_center
 
-    print("------------------------DATA-------------------------")
+    f = a * ecc
+    ap = a * (1 + ecc)
+    b_ap = b_a * (1 + b_ecc)
+    b_pe = b_a * (1 - b_ecc)
+
+    print()
+    print()
+    print("------------------------DATA------------------------")
+    print(f"v_ecc = {ecc}, v_dr = {dr}")
+    print(f"b_ecc = {b_ecc}, b_dr = {dr}")
+    print(f"ma = {ma}")
+    print(f"ea = {ea}")
     print(f"a = {a}")
     print(f"b = {b}")
-    print(f"r = {coi}")
+    print(f"f = {a * ecc}")
+    print(f"b_ap = {b_ap}")
+    print(f"b_coi = {coi}")
+    print(f"ref_coi = {ref_coi}")
+    print(f"hint_ma = {hint_ma}")
 
-    # check if vessel cant enter body COI
-    if ecc < 1 and a * (1 + ecc) < b_a * (1 - b_ecc) - coi:
+    # check if vessel can't enter body COI
+    if ecc < 1 and ap < b_pe - coi:
+        print()
         print("-------------------------END-------------------------")
-        print("vessel will never enter body COI, skipping all calculations")
+        print("Vessel will never enter body COI, skipping all calculations")
+        print(f"apoapsis = {ap}")
+        print(f"body periapsis - coi = {b_pe - coi}")
         print(f"total time = {time.perf_counter() - total_start_time} s")
-        return np.array([np.NaN] * 5)
+        return np.array([np.nan] * 5)
+
+    # generate and select probe poins
+    print()
+    print("---------------GENERATING PROBE POINTS---------------")
+    if ecc < 1 and ap < b_ap + coi:
+        print("Using default probe points")
+        print(f"Probe points type: {
+            "Raveled" if default_probe_points_ravel
+            else "Stacked"
+        }")
+        probe_points = default_probe_points_ell
+    else:
+        print("Using truncated probe points")
+        intersections = ell_hyp_intersect(a, b, ecc, f, 0, b_ap + coi)
+        if np.all(np.isnan(intersections)):
+            print()
+            print("-------------------------END-------------------------")
+            print("Vessel can't enter body COI")
+            return np.array([np.nan] * 5)
+        if ecc < 1:
+            if ap < ref_coi:   # using both sides of ellipse
+                range_point_1 = next_point(ea, intersections, dr)[0]
+                range_point_2 = next_point(ea, intersections, dr)[-1]
+                range_point_1_ma = (range_point_1 - ecc * np.sin(range_point_1)) % (2 * np.pi)
+                range_point_2_ma = (range_point_2 - ecc * np.sin(range_point_2)) % (2 * np.pi)
+                probe_points_1 = gen_probe_points_ell(ma, range_point_1_ma, probe_points_num/2)
+                probe_points_2 = gen_probe_points_ell(range_point_2_ma, ma, probe_points_num/2)
+                probe_points = np.concatenate((probe_points_1, probe_points_2))[:-1]
+                print("Using both sides of ellipse")
+                print(f"Range (ma):{range_point_1_ma} - {range_point_2_ma}")
+                print(f"Range (ea):{range_point_1} - {range_point_2}")
+            else:   # using only "first" side of ellipse
+                range_point = next_point(ea, intersections, dr)[0]
+                range_point_ma = (range_point - ecc * np.sin(range_point)) % (2 * np.pi)
+                probe_points = gen_probe_points_ell(ma, range_point_ma, probe_points_num)
+                print("Using only first side of ellipse")
+                print(f"Range (ma):{range_point_ma} - {ma}")
+                print(f"Range (ea):{range_point} - {ea}")
+        else:
+            # for hyperbola, points are always custom generated
+            # TODO
+            probe_points = np.array([1, 1/2, 3/2, 3/4, 5/4, 1/4, 7/4, 7/8, 9/8,
+                                     1/8, 15/8, 5/8, 11/8, 3/8, 13/8, 0]) * np.pi
+            print()
+            print("-------------------------END-------------------------")
+            print("Hyperbola not yet supported")
+            return np.array([np.nan] * 5)
+    probe_points = np.round(probe_points, 6)
+
+    # inject hint_ma at start of probe points, so it is checked first
+    if not np.isnan(hint_ma):
+        probe_points = np.concatenate((np.array([hint_ma]), probe_points))
 
     corr = 0
     search = True
     lost = False
     new_b_ea = 0
     actual_corr = 1000
+    actual_corr_old = actual_corr
+    corr_invert = False
+    furthest_once = True
+    last_iteration_inverted = False
 
-    # select probe points
-    if ecc < 1:
-        probe_points = probe_points_ell
-    else:
-        probe_points = probe_points_hyp
-
+    print()
     print("-----------SEARCHING FOR INIT INTERSECTION-----------")
-    for i in range(len(probe_points) + 5):
+    for i in range(len(probe_points) + extra_optimize_iterations):
 
         start_time = time.perf_counter()
         # search for initial intersection
@@ -137,7 +231,7 @@ def predict_enter_coi(vessel_data, body_data, vessel_orbit_center):
             new_ma += corr
 
         # time when vessel is at specified Ma
-        time_to_new_ma = orbit_time_to(ma, new_ma, per, dr)
+        time_to_new_ma = orbit_time_to(ma, new_ma, per, dr, corr_invert)
 
         # body Ma at that time
         if b_ecc < 1:
@@ -185,32 +279,47 @@ def predict_enter_coi(vessel_data, body_data, vessel_orbit_center):
                 print()
                 print("-----------------INTERSECTION FOUND------------------")
                 print(f"Search iterations: {i+1}")
-                print(f"total search time = {(time.perf_counter() - total_start_time)*1000} ms")
+                print(f"Total search time = {(time.perf_counter() - total_start_time)*1000} ms")
             else:
                 lost = False
                 if ecc < 1:
                     new_ea = newton_root_kepler_ell(ecc, new_ma, new_ma)
                 else:
                     new_ea = newton_root_kepler_hyp(ecc, new_ma, new_ma)
-                closest = np.argmin(abs(intersections - new_ea))
-                intersect_ea = intersections[closest]   # select closest intersection
+                # check if vessel is inside COI
+                sorted_intersections = next_point(ea, intersections, dr)
+                if corr_invert:
+                    sorted_intersections = sorted_intersections[::-1]
+                inside_coi = point_between(new_ea, sorted_intersections[0], sorted_intersections[1])
+                # pick target
+                if corr_invert and not inside_coi and furthest_once:
+                    # selecting furthest because it will bring vessel closer to first point of intersect
+                    # when both points are on same side of COI
+                    # this should be allowed only once, to prevent distancing from intersection
+                    # in case this is wrong, backing will repair damage
+                    target = np.argmax(np.abs(intersections - new_ea))   # furthest intersection
+                    furthest_once = False
+                else:
+                    target = np.argmin(np.abs(intersections - new_ea))   # closest intersection
+                intersect_ea = intersections[target]
+                # get correction
                 if ecc < 1:
                     intersect_ma = (intersect_ea - ecc * np.sin(intersect_ea)) % (2 * np.pi)
                 else:
                     intersect_ma = ecc * np.sinh(intersect_ea) - intersect_ea
-                corr = -abs(intersect_ma - new_ma)   # move backward
-                # check if vessel is ouside COI and in front of body
-                sorted_intersections = next_point(ea, intersections, dr)
-                if not point_between(new_ea, sorted_intersections[0], sorted_intersections[1]):
+                corr = -abs(intersect_ma - new_ma)
+                # if outside COI and in front of it
+                if not inside_coi and not corr_invert:
                     dist = np.abs(new_ea - sorted_intersections)
                     dist = np.where(dist > np.pi, 2*np.pi - dist, dist)
                     if np.argmin(dist) == 1:
                         corr = -corr
                 actual_corr = corr   # correction without backing when there are no itersection
+                print()
                 print(f"--------------------ITERATION {i}--------------------")
 
             print(f"new_ma = {new_ma} rad, {new_ma * 180/np.pi} deg")
-            print(f"new_ea = {newton_root_kepler_ell(ecc, new_ma, new_ma)}")
+            print(f"new_ea = {newton_root_kepler_ell(ecc, new_ma, new_ma)} rad")
             print(f"new_b_ma = {new_b_ma} rad, {new_b_ma * 180/np.pi} deg")
             print(f"new_b_ea = {new_b_ea} rad")
             if ecc < 1:
@@ -218,16 +327,39 @@ def predict_enter_coi(vessel_data, body_data, vessel_orbit_center):
             else:
                 new_ea = newton_root_kepler_hyp(ecc, new_ma, new_ma)
             sorted_intersections = next_point(ea, intersections, dr)
+            if corr_invert:
+                sorted_intersections = sorted_intersections[::-1]
             print(f"new_pos is in COI: {point_between(new_ea, sorted_intersections[0], sorted_intersections[1])}")
             print(f"time_to_new_ma = {time_to_new_ma / 60} s")
-            print(f"b_pos = {[b_x, b_y]}")
-            print(f"b_pos_rel = {[b_x_r, b_y_r]}")
+            print(f"b_pos = {np.array([b_x, b_y])}")
+            print(f"b_pos_rel = {np.array([b_x_r, b_y_r])}")
             print(f"intersections_ea: {intersections} rad")
             print(f"intersections_ma: {(intersections - ecc * np.sin(intersections)) % (2*np.pi)} rad")
             print(f"selected_ma = {intersect_ma} rad, {intersect_ma * 180/np.pi} deg")
             print(f"correction = {corr} rad")
             print(f"iteration time = {(time.perf_counter() - start_time)*1000} ms")
-            print()
+            print(f"correction is {"INVERTED" if corr_invert else "NORMAL"}")
+
+            if not last_iteration_inverted:
+                print()
+                print("-----CHECKING CORRECTION-----")
+                print(f"actual_corr_old = {actual_corr_old} rad")
+                print(f"actual_corr_cur = {actual_corr} rad")
+                if np.sign(actual_corr) == np.sign(actual_corr_old):
+                    if abs(actual_corr) - abs(actual_corr_old) > 0:
+                        print("BAD - correction is growing, permanently inverting correction")
+                        corr_invert = not corr_invert
+                        last_iteration_inverted = True
+                    else:
+                        print("OK - correction is decrasing")
+                else:
+                    print("Unknown - correction changed sign")
+                actual_corr_old = actual_corr
+            else:
+                last_iteration_inverted = False
+            if corr_invert:
+                corr = -corr
+                actual_corr_old = actual_corr
 
         # if there are no intersections
         else:
@@ -244,10 +376,11 @@ def predict_enter_coi(vessel_data, body_data, vessel_orbit_center):
                     lost = True
                 corr = back * abs(corr) / 2   # go back by half
 
+                print()
                 print(f"--------------------ITERATION {i}--------------------")
-                print("intersection lost, searching for it")
+                print("intersection LOST, backing by half of last correction")
                 print(f"new_ma = {new_ma} rad, {new_ma * 180/np.pi} deg")
-                print(f"new_ea = {newton_root_kepler_ell(ecc, new_ma, new_ma)}")
+                print(f"new_ea = {newton_root_kepler_ell(ecc, new_ma, new_ma)} rad")
                 print(f"new_b_ma = {new_b_ma} rad, {new_b_ma * 180/np.pi} deg")
                 print(f"new_b_ea = {new_b_ea} rad")
                 print(f"time_to_new_ma = {time_to_new_ma / 60} s")
@@ -256,15 +389,18 @@ def predict_enter_coi(vessel_data, body_data, vessel_orbit_center):
                 else:
                     new_ea = newton_root_kepler_hyp(ecc, new_ma, new_ma)
                 sorted_intersections = next_point(ea, intersections, dr)
+                if corr_invert:
+                    sorted_intersections = sorted_intersections[::-1]
                 print(f"new_pos is in COI: {point_between(new_ea, sorted_intersections[0], sorted_intersections[1])}")
-                print(f"b_pos = {[b_x, b_y]}")
-                print(f"b_pos_rel = {[b_x_r, b_y_r]}")
+                print(f"b_pos = {np.array([b_x, b_y])}")
+                print(f"b_pos_rel = {np.array([b_x_r, b_y_r])}")
                 print(f"correction = {corr} rad")
                 print(f"iteration time = {(time.perf_counter() - start_time)*1000} ms")
-                print()
+                print(f"correction is {"INVERTED" if corr_invert else "NORMAL"}")
 
         # break when correction gets too small
         if abs(actual_corr) < 1e-4:
+            print()
             print("-------------------------END-------------------------")
             print(f"finished in {i+1} iterations")
             print(f"correction = {actual_corr} rad")
@@ -279,9 +415,10 @@ def predict_enter_coi(vessel_data, body_data, vessel_orbit_center):
     if search:
         print(f"no intersections found in one full orbit ({i+1} iterations)")
         print(f"total time = {time.perf_counter() - total_start_time} s")
-        return np.array([np.NaN] * 5)
+        return np.array([np.nan] * 5)
     else:
         if abs(actual_corr) < 1e-3:
+            print()
             print("-------------------------END-------------------------")
             print("reached maximum number of iterations but correction is too large, yet acceptable")
             print(f"correction = {actual_corr} rad")
@@ -293,8 +430,9 @@ def predict_enter_coi(vessel_data, body_data, vessel_orbit_center):
             print(f"time_to_new_ma = {time_to_new_ma / 60} s")
             return np.array([new_ea, new_b_ea, new_ma, new_b_ma, time_to_new_ma])
         else:
+            print()
             print("-------------------------END-------------------------")
             print("reached maximum number of iterations but correction is too large")
             print(f"correction = {actual_corr} rad")
             print(f"total time = {(time.perf_counter() - total_start_time)*1000} ms")
-            return np.array([np.NaN] * 5)
+            return np.array([np.nan] * 5)

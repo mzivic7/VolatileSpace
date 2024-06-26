@@ -1,10 +1,8 @@
 from ast import literal_eval as leval
 import math
 import pygame
-from pygame import gfxdraw   # TODO
 from volatilespace import fileops
 from volatilespace.graphics import rgb
-import numpy as np
 
 
 class Graphics():
@@ -49,7 +47,7 @@ class Graphics():
 
     def draw_line(self, surface, color, point_1, point_2, thickness):
         """Draw a straight line"""
-        if self.antial is True:
+        if self.antial:
             pygame.draw.aaline(surface, color, point_1, point_2)
         else:
             pygame.draw.line(surface, color, point_1, point_2, thickness)
@@ -57,7 +55,7 @@ class Graphics():
 
     def draw_lines(self, surface, color, points, thickness, closed=False):
         """Draw multiple contiguous straight line segments"""
-        if self.antial is True:
+        if self.antial:
             pygame.draw.aalines(surface, color, closed, points)
         else:
             pygame.draw.lines(surface, color, closed, points, thickness)
@@ -65,31 +63,34 @@ class Graphics():
 
     def draw_circle(self, surface, color, center, radius, thickness):
         """Draw a circle"""
-        if radius < 60000:   # no need to draw so large circle lines
-            # pygame.draw.aacircle(surface, color, center, radius, thickness)   # TODO
-            if self.antial is True and radius < 1000:
-                if center[0]+radius > 0 and center[0]-radius < self.screen_x and center[1]+radius > 0 and center[1]-radius < self.screen_y:
-                    gfxdraw.aacircle(surface, int(center[0]), int(center[1]), int(radius), color)
-                    if thickness != 1:
-                        for num in range(1, thickness):
-                            gfxdraw.aacircle(surface, int(center[0]), int(center[1]), int(radius)+num, color)
+        if self.antial:
+            pygame.draw.aacircle(surface, color, center, radius, thickness)
+        else:
+            pygame.draw.circle(surface, color, center, radius, thickness)
+
+
+    def draw_circle_fill(self, surface, color, center, radius):
+        """Draw a filled circle.
+        Transparency is supported."""
+        if len(color) > 3 and color[3] != 255:
+            # adding transparency
+            raw_pos = center - radius
+            surface_pos = (int(raw_pos[0]), int(raw_pos[1]))
+            circle_center = (center[0] - surface_pos[0],
+                             center[1] - surface_pos[1])
+            # surface is slightly larger (+4) because of antialiasing
+            alpha_surface = pygame.Surface(2*((radius * 2) + 4,))
+            if self.antial:
+                pygame.draw.aacircle(alpha_surface, color, circle_center, radius)
             else:
-                pygame.draw.circle(surface, color, center, radius, thickness)
-
-
-    def draw_circle_fill(self, surface, color, center, radius, antial=None):
-        """Draw a filled circle"""
-        if antial is None:
-            func_antial = self.antial
+                pygame.draw.circle(alpha_surface, color, circle_center, radius)
+            alpha_surface.set_alpha(color[3])
+            surface.blit(alpha_surface, surface_pos)
         else:
-            func_antial = antial   # antial as function argument is optional override to global antial
-        if func_antial is True and radius < 1000:
-            # pygame.draw.circle(surface, color, center, radius)   # TODO
-            if center[0]+radius > 0 and center[0]-radius < self.screen_x and center[1]+radius > 0 and center[1]-radius < self.screen_y:
-                gfxdraw.aacircle(surface, int(center[0]), int(center[1]), int(radius - 1), color)
-                gfxdraw.filled_circle(surface, int(center[0]), int(center[1]), int(radius - 1), color)
-        else:
-            pygame.draw.circle(surface, color, center, radius)
+            if self.antial:
+                pygame.draw.aacircle(surface, color, center, radius)
+            else:
+                pygame.draw.circle(surface, color, center, radius)
 
 
     def fill(self, surface, color):
@@ -113,11 +114,11 @@ class Graphics():
         """Draw image. If rotated, it is cenered."""
         if angle:
             if scale != 1:
-                img = pygame.transform.rotozoom(img, angle*180/np.pi, scale)
+                img = pygame.transform.rotozoom(img, angle*180/math.pi, scale)
                 img_rect = img.get_rect(center=pos)
                 pos = img_rect
             else:
-                img = pygame.transform.rotate(img, angle*180/np.pi)
+                img = pygame.transform.rotate(img, angle*180/math.pi)
                 img_rect = img.get_rect(center=pos)
                 pos = img_rect
         elif center:

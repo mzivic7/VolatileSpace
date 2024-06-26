@@ -46,8 +46,11 @@ a, ecc, pea, ma, dir =   # see notes at end
 
 
 !IMPORTANT! This is failsafe mechanism to prevent vessel from jumping at wrong positions when leaving/entering coi
-# "Jumping" is caused by Newon root algorithm for solving Kepler's equation,
-# it is returning opposite solutions, in some unpredictable cases
+# "Jumping" is caused by Newton root algorithm for solving Kepler's equation, it is returning opposite solutions.
+# The reason for this is that Ma angle outside (-pi:2pi) range is passed to solver
+# For ellipse range (0:2pi) can be converted to correct range, but for hyperbola Ma has infinite domain
+# See !important! in orbital-physics/8-inverse-hyperbola-equations.txt
+
 # This failsafe is applied at end of both leave and enter COI calculations:
 Calculate back ea from above obtained ma
 Then calculate check_relative position from that ea
@@ -66,11 +69,12 @@ Then mean value is taken, if it is larger than threshold:
     # just negate Ma (from math in notes blellow):
     Ma = -Ma
 
+
 # NOTES #
 for calculating vessel and reference velocity
-    - using orbital-physics/7-inverse-ellipse-equations.txt
-    - using orbital-physics/8-inverse-hyperbola-equations.txt
+    - using orbital-physics/07-inverse-ellipse-equations.txt
+    - using orbital-physics/08-inverse-hyperbola-equations.txt
 for calculating orbital parameters from vessel position and velocity
-    - using orbital-physics/3-keplerian-orbit.txt
-    - using orbital-physics/4-more-orbital-parameters.txt
-    - using orbital-physics/5-orbit-shape-parameters.txt
+    - using orbital-physics/03-keplerian-orbit.txt
+    - using orbital-physics/04-more-orbital-parameters.txt
+    - using orbital-physics/05-orbit-shape-parameters.txt

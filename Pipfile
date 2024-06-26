@@ -5,12 +5,13 @@ name = "pypi"
 
 [packages]
 numpy = "*"
-pyinstaller = "*"
-pygame-ce = "*"
+pyinstaller = ">=6"
+pygame-ce = ">=2.5"
 numba = "*"
+pre-commit = "*"
 
 [dev-packages]
 pyinstaller = "*"
 
 [requires]
-python_version = "3.11"
+python_version = "3.12"
