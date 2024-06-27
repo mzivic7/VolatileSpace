@@ -133,10 +133,14 @@ class Game():
         self.warp_range = [1, 2, 3, 4, 5, 10, 50, 100, 1000]   # all possible warps, by order
         self.warp_index = 0
         self.warp = self.warp_range[self.warp_index]
+        self.warp_mem = None
         self.warp_phys_active = True
         self.warp_phys_range = [1, 2, 4, 8]
         self.warp_phys_index = 0
         self.warp_phys = self.warp_range[self.warp_index]
+        self.warp_phys_mem = None
+        self.disable_warp_changing = False
+        self.vessel_crossing = None
         self.sim_time = 0
         self.pause = False
         self.move = False
@@ -326,9 +330,12 @@ class Game():
         self.set_pause(False)
         self.warp_index = 0
         self.warp = 1
+        self.warp_mem = None
         self.warp_phys_active = False
         self.warp_phys_index = 0
         self.warp_phys = 1
+        self.warp_phys_mem = None
+        self.disable_warp_changing = False
         self.set_warp_ui(True)
         self.follow = 1
         self.grid_mode = 0
@@ -531,7 +538,10 @@ class Game():
                 ui_warp_index = 3
             self.top_ui_imgs[0] = self.top_ui_img_warp_phys[ui_warp_index]
             if not silent:
-                graphics.timed_text_init(rgb.orange, self.fontmd, "Physical warp: x" + str(self.warp_phys), (self.screen_x/2, self.screen_y-70), 1, True)
+                if self.disable_warp_changing:
+                    graphics.timed_text_init(rgb.gray0, self.fontmd, "Time warp is disabled due to vessel crossing COI.", (self.screen_x/2, self.screen_y-70), 1.5, True)
+                else:
+                    graphics.timed_text_init(rgb.orange, self.fontmd, "Physical warp: x" + str(self.warp_phys), (self.screen_x/2, self.screen_y-70), 1, True)
         else:
             if self.warp_index < 3:
                 ui_warp_index = 1
@@ -541,7 +551,10 @@ class Game():
                 ui_warp_index = 3
             self.top_ui_imgs[0] = self.top_ui_img_warp[ui_warp_index]
             if not silent:
-                graphics.timed_text_init(rgb.gray0, self.fontmd, "Time warp: x" + str(self.warp), (self.screen_x/2, self.screen_y-70), 1, True)
+                if self.disable_warp_changing:
+                    graphics.timed_text_init(rgb.gray0, self.fontmd, "Time warp is disabled due to vessel crossing COI.", (self.screen_x/2, self.screen_y-70), 1.5, True)
+                else:
+                    graphics.timed_text_init(rgb.gray0, self.fontmd, "Time warp: x" + str(self.warp), (self.screen_x/2, self.screen_y-70), 1, True)
 
 
 
@@ -670,7 +683,9 @@ class Game():
                 # time warp
                 if not self.pause:
                     if e.key == self.keys["decrease_time_warp"]:
-                        if self.warp_phys_active:
+                        if self.disable_warp_changing:
+                            pass
+                        elif self.warp_phys_active:
                             if self.warp_phys_index > 0:   # stop index from going out of range
                                 self.warp_phys_index -= 1
                                 self.warp_phys = self.warp_phys_range[self.warp_phys_index]
@@ -681,7 +696,9 @@ class Game():
                                 self.warp = self.warp_range[self.warp_index]
                                 self.set_warp_ui()
                     if e.key == self.keys["increase_time_warp"]:
-                        if self.warp_phys_active:
+                        if self.disable_warp_changing:
+                            pass
+                        elif self.warp_phys_active:
                             if self.warp_phys_index < len(self.warp_phys_range)-1:
                                 self.warp_phys_index += 1
                                 self.warp_phys = self.warp_phys_range[self.warp_phys_index]
@@ -1005,6 +1022,11 @@ class Game():
                         if num == 0:   # warp
                             if self.pause:
                                 self.pause = not self.pause
+                            elif self.disable_warp_changing:
+                                self.warp_phys_index = 0
+                                self.warp_phys = self.warp_phys_range[self.warp_phys_index]
+                                self.warp_index = 0
+                                self.warp = self.warp_range[self.warp_index]
                             elif self.warp_phys_active:
                                 self.warp_phys_index += 1
                                 if self.warp_phys_index >= len(self.warp_phys_range):
@@ -1117,6 +1139,23 @@ class Game():
                                                          f"Vessel {self.v_names[alarm_vessel]} left atmosphere, NOT switching to regular warp ({physical_hold} vessel/s are still in physical).",
                                                          (self.screen_x/2, self.screen_y-70), 1.5, True)
                         self.set_warp_ui(silent=True)
+                    case 3:   # crossing coi
+                        self.vessel_crossing = alarm_vessel
+                        self.disable_warp_changing = True
+                        if self.warp_phys_active:
+                            if self.warp_phys_mem is None:
+                                self.warp_phys_mem = self.warp_phys_index
+                            self.warp_phys = 1
+                            self.warp_phys_index = 0
+                        else:
+                            if self.warp_mem is None:
+                                self.warp_mem = self.warp_index
+                            self.warp = 1
+                            self.warp_index = 0
+                            if self.warp_index > 5:
+                                graphics.timed_text_init(rgb.gray0, self.fontmd,
+                                                         f"Vessel {self.v_names[self.vessel_crossing]} is about to pass COI, warp will be held for that period",
+                                                         (self.screen_x/2, self.screen_y-70), 1.5, True)
 
                 # physical warp
                 if self.warp_phys_active:
@@ -1142,9 +1181,32 @@ class Game():
                 if self.change_vessel is not None:
                     vessel_data, vessel_orb_data = physics_vessel.change_vessel(self.change_vessel)
                     self.update_vessel(self.change_vessel, vessel_data, vessel_orb_data)
+
+                    # resuming warp after orbit changes
+                    if self.vessel_crossing is not None and self.change_vessel == self.vessel_crossing:
+                        self.disable_warp_changing = False
+                        if self.warp_phys_active:
+                            if self.warp_phys_mem is None:
+                                self.warp_phys_mem = 0
+                            self.warp_phys_index = self.warp_phys_mem
+                            self.warp_phys = self.warp_phys_range[self.warp_phys_index]
+                            self.warp_phys_mem = None
+                        else:
+                            if self.warp_mem is None:
+                                self.warp_mem = 0
+                            self.warp_index = self.warp_mem
+                            self.warp = self.warp_range[self.warp_index]
+                            self.warp_mem = None
+                        if self.warp or self.warp_phys:
+                            graphics.timed_text_init(rgb.gray0, self.fontmd,
+                                                     f"Vessel {self.v_names[self.vessel_crossing]} passed COI, warp was held for that period",
+                                                     (self.screen_x/2, self.screen_y-70), 1.5, True)
+                        self.vessel_crossing = None
                     self.change_vessel = None
 
                 self.v_curves = physics_vessel.curve_move()
+
+
 
             # culing
             sim_screen = np.array((self.sim_coords((0, 0)), self.sim_coords(self.screen_dim)))

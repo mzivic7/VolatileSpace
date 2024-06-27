@@ -314,7 +314,7 @@ class Physics():
             body_impact_all = ell_hyp_intersect(self.a[vessel], self.b[vessel], ecc, xc, yc, self.body_size[ref])
         self.body_impact[vessel] = next_point(self.ea[vessel], body_impact_all, dr)
 
-        if ecc < 1 and self.pe_d[vessel] > self.body_atm[ref]:
+        if ecc < 1 and self.pe_d[vessel] > self.body_size[ref] + self.body_atm[ref]:
             body_enter_atm_all = np.array([np.nan])
         else:
             body_enter_atm_all = ell_hyp_intersect(self.a[vessel], self.b[vessel], ecc, xc, yc, self.body_size[ref] + self.body_atm[ref])
@@ -625,34 +625,36 @@ class Physics():
         Conditions (situations):
         0 space -> impact
         1 space -> atmosphere
-        2 atmosphere -> space"""
+        2 atmosphere -> space
+        3 crossing coi"""
 
         situation = None
         alarm_vessel = None
         for vessel, _ in enumerate(self.names):
             ecc = self.ecc[vessel]
             dr = self.dr[vessel]
+            ell = ecc < 1
 
             # find what is next relevant intersection
             ea_vessel_1 = self.ea[vessel]
-            impact = self.body_impact[vessel, int(not (ecc < 1))]
-            enter_atm = self.body_enter_atm[vessel, int(not (ecc < 1))]
-            leave_atm = self.body_enter_atm[vessel, int(ecc < 1)]
-            all_intersect = np.array((impact, enter_atm, leave_atm))
+            impact = self.body_impact[vessel, 0]
+            enter_atm = self.body_enter_atm[vessel, 0]
+            leave_atm = self.body_enter_atm[vessel, 1]
+            leave_coi = self.coi_leave[vessel, 0]
+            enter_coi = self.coi_enter[vessel, 1]
+            all_intersect = np.array((impact, enter_atm, leave_atm, enter_coi, leave_coi))
             next_intersections = sort_intersect_indices(ea_vessel_1, all_intersect, dr)
-
             if not np.all(np.isnan(next_intersections)):
                 next_intersect = next_intersections[0]
                 ea_intersect = all_intersect[next_intersect]
 
                 # calculate vessel ea for next iteration
                 if ecc < 1:
-                    next_ma = self.ma[vessel] + self.n[vessel] * warp * dr
+                    next_ma = self.ma[vessel] + self.n[vessel] * warp * dr * 2
                     ea_vessel_2 = newton_root_kepler_ell(ecc, next_ma, ea_vessel_1)
                 else:
-                    next_ma = self.ma[vessel] + self.n[vessel] * warp * dr * -1
+                    next_ma = self.ma[vessel] + self.n[vessel] * warp * dr * -1 * 2
                     ea_vessel_2 = newton_root_kepler_hyp(ecc, next_ma, ea_vessel_1)
-
                 # checking if vessel will pass point in next iteration
                 angle_1 = abs(ea_vessel_1 - ea_intersect)
                 angle_2 = abs(ea_vessel_1 - ea_vessel_2)
@@ -663,16 +665,17 @@ class Physics():
                 if dr < 0:   # if clockwsise
                     angle_1, angle_2 = angle_2, angle_1
                 if angle_1 < angle_2:
-
                     # handling cases
                     alarm_vessel = vessel
                     if next_intersect in [0, 1]:
                         if vessel not in self.physical_hold:
                             self.physical_hold = np.append(self.physical_hold, vessel)
                         situation = next_intersect
-                    else:
+                    elif next_intersect == 2:
                         self.physical_hold = self.physical_hold[self.physical_hold != vessel]
-                        situation = 2
+                        situation = next_intersect
+                    else:
+                        situation = 3
                 else:
                     self.physical_hold = self.physical_hold[self.physical_hold != vessel]
             else:
@@ -688,7 +691,7 @@ class Physics():
             ell = ecc < 1
             dr = self.dr[vessel]
             ea_vessel_1 = self.ea[vessel]
-            coi_leave = self.coi_leave[vessel, int(not ell)]
+            coi_leave = self.coi_leave[vessel, 0]
             coi_enter = self.coi_enter[vessel]
 
             # in case there are multiple points, find next point
@@ -704,6 +707,7 @@ class Physics():
                 else:
                     next_ma = self.ma[vessel] + self.n[vessel] * warp * dr * -1
                     ea_vessel_2 = newton_root_kepler_hyp(ecc, next_ma, ea_vessel_1)
+
                 # checking if vessel will pass point in next iteration
                 angle_1 = abs(ea_vessel_1 - coi_leave)
                 angle_2 = abs(ea_vessel_1 - ea_vessel_2)
@@ -732,6 +736,7 @@ class Physics():
                     # set new reference
                     self.ref[vessel] = self.body_ref[ref]
                     return vessel
+
             elif next_intersect[0] == 1:   # ENTER COI
                 coi_enter_ea = coi_enter[1]
                 if ecc < 1:

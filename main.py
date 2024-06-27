@@ -29,13 +29,18 @@ def main():
 
     ###### --Load classes-- ######
     from volatilespace.graphics import loading_screen
-    loading_screen.loading(screen, 1)
+    loading = loading_screen.Loading(screen)
+    loading.stage(1)
     from volatilespace import menu
-    loading_screen.loading(screen, 2)
+    loading.stage(2)
+    from volatilespace.physics import phys_shared
+    loading.stage(3)
+    from volatilespace.physics import orbit_intersect
+    loading.stage(4)
     from volatilespace import game
-    loading_screen.loading(screen, 3)
+    loading.stage(5)
     from volatilespace import editor
-    loading_screen.loading(screen, 4)
+    loading.stage(6)
     menu = menu.Menu()
     game = game.Game()
     editor = editor.Editor()
