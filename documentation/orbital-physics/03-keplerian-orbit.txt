@@ -16,9 +16,9 @@ e = |ev|   # eccentricity
 f = sqrt(a^2 - b^2)   # focus
 f = e * a   # focus (from: e = f / a)
 b = sqrt(f^2 - a^2)   # semi-minor axis
-omega = pi + arctan2(ev_y, ev_x)   # argument of periapsis [4]
+pe_arg = pi + arctan2(ev_y, ev_x)   # argument of periapsis [4]
     if e = 0:   # if it is circle
-        omega = 0   # there is no periapsis
+        pe_arg = 0   # there is no periapsis
 
 References:
 [4]  https://en.wikipedia.org/wiki/Argument_of_periapsis#Calculation

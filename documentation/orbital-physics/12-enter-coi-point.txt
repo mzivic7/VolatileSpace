@@ -47,14 +47,14 @@ At start, correction is not inverted
     make body position relative to vessel orbit center:
         (b_x_n and b_y_n are calculated above)
         first, get center of ellipse/hyperbola relative to reference
-        center_x = f * np.cos(omega)
-        center_y = f * np.sin(omega)
-        then rotate body position by its periapsis argument (b_omega):
-        b_x = b_x_n * cos(b_omega - pi) - b_y_n * sin(b_omega - pi)
-        b_y = b_x_n * sin(b_omega - pi) + b_y_n * cos(b_omega - pi)
-        get its position relative to vessels ellipse center and rotate it by vessel periapsis argument (omega)
-        b_x_r = -(cos(-omega) * (b_x - center_x) - sin(-omega) * (b_y - center_y))
-        b_y_r = -(sin(-omega) * (b_x - center_x) + cos(-omega) * (b_y - center_y))
+        center_x = f * np.cos(pe_arg)
+        center_y = f * np.sin(pe_arg)
+        then rotate body position by its periapsis argument (b_pe_arg):
+        b_x = b_x_n * cos(b_pe_arg - pi) - b_y_n * sin(b_pe_arg - pi)
+        b_y = b_x_n * sin(b_pe_arg - pi) + b_y_n * cos(b_pe_arg - pi)
+        get its position relative to vessels ellipse center and rotate it by vessel periapsis argument (pe_arg)
+        b_x_r = -(cos(-pe_arg) * (b_x - center_x) - sin(-pe_arg) * (b_y - center_y))
+        b_y_r = -(sin(-pe_arg) * (b_x - center_x) + cos(-pe_arg) * (b_y - center_y))
         (b_x_r and b_y_r are then used in finding intersections)
     check intersections for vessel orbit and body COI at calculated body position (other-physics/4-ellipse-circle.txt)
         if there are intersections:

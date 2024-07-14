@@ -3,10 +3,14 @@
 # DETECTING #
 
 # using orbital-physics/11-orbit-points.txt
-# for calculating position of leave_coi point
+# for calculating position of leave-COI point
 
-# using same method as in other-physics/3-warp.txt
-# for detecting if vessel will pass leave_coi point in next iteration
+# using similar method as in other-physics/3-warp.txt
+# this is for detecting if vessel will pass point in next iteration
+# but here is checked if vessel has passed point in this iteration
+# the difference is:
+ea_vessel_1 is in previous iteration
+ea_vessel_2 is in current iteration
 
 # CALCULATING NEW ORBIT #
 
@@ -26,7 +30,25 @@ new_u = gc * mass_of_new_ref
 a, ecc, pea, ma, dir =   # see notes at end
 # new reference is reference of current reference
 
+
+
+
 ### ENTER COI ###
+
+# DETECTING #
+
+# using orbital-physics/11-orbit-points.txt
+# for calculating position of enter-COI point
+
+# using same method as in other-physics/3-warp.txt
+# for detecting if vessel will pass point in next iteration
+# but here is checked if vessel has passed point in this iteration
+# only difference is:
+ea_vessel_1 is in previous iteration
+ea_vessel_2 is in current iteration
+
+# CALCULATING NEW ORBIT #
+
 # vessel absolute position is known
 # new reference is also known
 # calculate vessel and reference relative positions (to their references):
@@ -45,7 +67,7 @@ a, ecc, pea, ma, dir =   # see notes at end
 # new reference is defined when obtaining leave_coi point (orbital-physics/11-orbit-points.txt)
 
 
-!IMPORTANT! This is failsafe mechanism to prevent vessel from jumping at wrong positions when leaving/entering coi
+!IMPORTANT! There is failsafe mechanism to prevent vessel from jumping at wrong positions when leaving/entering coi
 # "Jumping" is caused by Newton root algorithm for solving Kepler's equation, it is returning opposite solutions.
 # The reason for this is that Ma angle outside (-pi:2pi) range is passed to solver
 # For ellipse range (0:2pi) can be converted to correct range, but for hyperbola Ma has infinite domain
@@ -64,10 +86,42 @@ Then mean value is taken, if it is larger than threshold:
 - for ellipse:
     # Invert Ea:
     ea = 2pi - ea
-    # then recalculate Ma (from math in notes blellow)
+    # then recalculate Ma (from math in notes bellow)
 - for hyperbola:
-    # just negate Ma (from math in notes blellow):
+    # just negate Ma (from math in notes bellow):
     Ma = -Ma
+
+
+!IMPORTANT! Second failsafe mechanism is applied only to entering coi, to prevent body velocity is pointing outwards reference.
+# This is happening because of orbital mechanics simplification: when body is entering its reference coi, resulting
+# velocity can point outwards of reference, causing vessel to orbit outside reference coi.
+# To prevent this, it's not enough to invert orbit direction,
+# instead periapsis argument is rotated to match position and Ma is inverted
+# just to make crossing-coi look "more natural", since this is consequence of simplification.
+
+# This failsafe is applied at end of only enter COI calculations:
+Since velocity and position are known, calculate angles they have with x axis:
+velocity_angle = atan2(y, x) % 2pi
+position_angle = atan2(y, x) % 2pi
+Then check if velocity is pointing outwards of reference
+if sin(3pi/2 + velocity_angle - position_angle) < 0:
+    ma = -ma
+    if ellipse:
+        ea = 2pi - ea
+    else:
+        ea = -ea
+    invert periapsis argument:
+    pe_arg = (pe_arg + pi) % 2pi
+    Then calculate position from that ea, and new_position_angle
+    Get correction from current and calculated position angles:
+    correction_angle = new_position_angle - position_angle
+    And add it to calculated pe_arg:
+    pe_arg = pe_arg + correction_angle
+
+
+!IMPORTANT! After vessel has entered coi, its orbit is recalculated including enter/leave-coi poins
+# It can happen to vessel position be in front of wrong leave coi point which will trigger leave-coi
+# To prevent this, only for leave-coi when finding next point on orbit, vessel Ea in next iteration is used
 
 
 # NOTES #

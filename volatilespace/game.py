@@ -1268,6 +1268,19 @@ class Game():
                     self.mouse_fix_y = True
             self.mouse_old = self.mouse
 
+        # DRAWING ORDER: body stuff, vessel orbit, body, vessel, vessel stuff
+
+        # draw body atmosphere (before everything else because it is fake transparent)
+        for body in self.visible_bodies:
+            scr_body_size = self.size[body] * self.zoom
+            if scr_body_size >= 5:
+                if self.atm_h[body]:
+                    atm_color = np.array(self.color[body]) * 30 / 255   # fake transparency
+                    # atm_color = tuple(np.append(self.color[body], 30))   # real transparency - slow
+                    scr_atm_size = (self.size[body] + self.atm_h[body]) * self.zoom
+                    if scr_atm_size > scr_body_size + 2:
+                        screen_coords = self.screen_coords(self.pos[body])
+                        graphics.draw_circle_fill(screen, atm_color, screen_coords, scr_atm_size)
 
         # background stars:
         if self.bg_stars_enable:
@@ -1300,27 +1313,18 @@ class Game():
                 origin = self.screen_coords([0, 0])
             graphics.draw_grid(screen, origin, self.zoom)
 
-        # DRAWING ORDER: body stuff, vessel orbit, body, vessel, vessel stuff
 
         # bodies stuff drawing, WITHOUT bodies - bodies are drawn aftter vessel orbit lines
+        # draw orbit curve lines
         for body in self.visible_body_orbits:
-            curve = self.screen_coords_array(self.curves[body])   # line coords on screen
-
-            # draw orbit curve lines
-            if body != 0:   # skip root
+            curve = self.screen_coords_array(self.curves[body])
+            if body != 0:
                 line_color = np.where(self.color[body] > 255, 255, self.color[body])
                 graphics.draw_lines(screen, tuple(line_color), curve, 2)
 
+        for body in self.visible_bodies:
             # draw body atmosphere
-            if body in self.visible_bodies:
-                scr_body_size = self.size[body] * self.zoom
-                if scr_body_size >= 5:
-                    if self.atm_h[body]:
-                        atm_color = tuple(np.append(self.color[body], 30))   # add alpha
-                        scr_atm_size = (self.size[body] + self.atm_h[body]) * self.zoom
-                        if scr_atm_size > scr_body_size + 2:
-                            screen_coords = self.screen_coords(self.pos[body])
-                            graphics.draw_circle_fill(screen, atm_color, screen_coords, scr_atm_size)
+            scr_body_size = self.size[body] * self.zoom
 
             # target body
             if self.target is not None and self.target_type == 0 and self.target == body:
@@ -1357,8 +1361,13 @@ class Game():
                     if body in self.visible_coi and self.size[body] < self.coi[body]:
                         graphics.draw_circle(screen, rgb.gray2, self.screen_coords(body_pos), self.coi[body] * self.zoom, 1)
 
+        for body in self.visible_body_orbits:
+            if self.target is not None and self.target_type == 0 and self.target == body:
+                if not self.disable_labels:
                     if body != 0:
+                        parent = self.ref[body]
                         parent_scr = self.screen_coords(self.pos[parent])
+                        ta, pe, pe_t, ap, ap_t, distance, speed_orb, speed_hor, speed_vert = physics_body.selected(body)
                         # ap and pe
                         if self.ap_d[body] > 0:
                             ap_scr = self.screen_coords(ap)
@@ -1438,8 +1447,8 @@ class Game():
 
                 # parent circle of influence
                 if not self.disable_labels:
+                    parent_scr = self.screen_coords(self.pos[ref])
                     if ref != 0 and ref in self.visible_coi:
-                        parent_scr = self.screen_coords(self.pos[ref])
                         graphics.draw_circle(screen, rgb.gray2, parent_scr, self.coi[ref] * self.zoom, 1)
 
                     # ap and pe

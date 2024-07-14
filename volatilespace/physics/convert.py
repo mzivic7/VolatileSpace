@@ -32,7 +32,7 @@ def kepler_to_velocity(rel_pos, a, ecc, pe_arg, u, dr):
         f = a * ecc
         f_rot = [f * math.cos(pe_arg), f * math.sin(pe_arg)]
         b = math.sqrt(f**2 - a**2)
-        p_x, p_y = rel_pos[0] - f * np.cos(pe_arg), rel_pos[1] - f * np.sin(pe_arg)
+        p_x, p_y = rel_pos[0] - f * np.cosh(pe_arg), rel_pos[1] - f * np.sinh(pe_arg)
         rel_vel_angle = impl_derivative_rot_hyp(p_x, p_y, a, b, pe_arg)
         try:
             x_max = math.sqrt(a**2 * math.cos(2*pe_arg) + a**2 + b**2 * math.cos(2*pe_arg) - b**2)/math.sqrt(2) - 10**-6
@@ -52,9 +52,11 @@ def kepler_to_velocity(rel_pos, a, ecc, pe_arg, u, dr):
     return np.array([rel_vel_x, rel_vel_y])
 
 
-def velocity_to_kepler(rel_pos, rel_vel, u, failsafe=False):
+def velocity_to_kepler(rel_pos, rel_vel, u, failsafe=0):
     """Converts from relative velocity vector to keplerian parameters, given that relative position vector is known.
-    Failsafe option will check if new position is same as before, because newton root may fail"""
+    failsafe=1 option will check if new position is same as before, because newton root may fail
+    failsafe=2 will apply failsafe=1 and will check if body velocity is pointing towrards reference.
+    This is happening because of orbital model simplification, when entering COI."""
     a = -1 * u / (2*(dot_2d(rel_vel, rel_vel) / 2 - u / mag(rel_pos)))   # mag(x)^2 = x dot x
     momentum = cross_2d(rel_pos, rel_vel)    # orbital momentum, since this is 2d, momentum is scalar
     rel_vel[0], rel_vel[1] = rel_vel[1], -rel_vel[0]
@@ -65,12 +67,13 @@ def velocity_to_kepler(rel_pos, rel_vel, u, failsafe=False):
     ta = (pe_arg - (math.atan2(rel_pos[1], rel_pos[0]) - np.pi)) % (2*np.pi)
     if dr > 0:
         ta = 2*np.pi - ta   # invert Ta to be calculated in opposite direction !? WHY ?!
+
     if ecc < 1:
         ea = math.acos((ecc + math.cos(ta))/(1 + (ecc * math.cos(ta))))
         if np.pi < ta < 2*np.pi:   # quadrant problems
             ea = 2*np.pi - ea
         ma = (ea - ecc * math.sin(ea)) % (2*np.pi)
-        # failsafe check in case position is wrong due to wrong ma calculation in newton root
+        # firsf failsafe if position is wrong due to wrong ma calculation in newton root
         if failsafe:
             new_ea = newton_root_kepler_ell(ecc, ma, ma)
             f = a * ecc
@@ -79,22 +82,41 @@ def velocity_to_kepler(rel_pos, rel_vel, u, failsafe=False):
             if compare_coord(rel_pos, new_pos) > 1:
                 ea = 2*np.pi - ea
                 ma = (ea - ecc * math.sin(ea)) % (2*np.pi)
+
     else:
         ea = math.acosh((ecc + math.cos(ta))/(1 + (ecc * math.cos(ta))))
         ma = ecc * math.sinh(ea) - ea
-        # failsafe check in case position is wrong due to wrong ma calculation in newton root
         if failsafe:
             new_ea = newton_root_kepler_hyp(ecc, ma, ma)
             f = a * ecc
             b = math.sqrt(abs(f**2 - a**2))
             new_pos = orb2xy(a, b, f, ecc, pe_arg, [0, 0], new_ea)
             if compare_coord(rel_pos, new_pos) > 1:
+                ea = -ea
                 ma = -ma
+
+    # second failsafe for when entering-coi direction is outwards coi
+    if failsafe == 2:
+        rel_vel[0], rel_vel[1] = -rel_vel[1], rel_vel[0]   # undoing rel_vel change used for ecc_v
+        velocity_angle = math.atan2(rel_vel[1], rel_vel[0]) % (2*np.pi)
+        position_angle = math.atan2(rel_pos[1], rel_pos[0]) % (2*np.pi)
+        if math.sin(3*np.pi/2 + velocity_angle - position_angle) < 0:
+            if ecc < 1:
+                ea = 2*np.pi - ea
+                ma = (ea - ecc * math.sin(ea)) % (2*np.pi)
+            else:
+                ea = -ea
+                ma = -ma
+            pe_arg = (pe_arg + np.pi) % (2*np.pi)
+            new_pos = orb2xy(a, b, f, ecc, pe_arg, [0, 0], ea)
+            new_position_angle = math.atan2(new_pos[1], new_pos[0]) % (2*math.pi)
+            correction_angle = new_position_angle - position_angle
+            pe_arg = pe_arg - correction_angle
     return a, ecc, pe_arg, ma, dr
 
 
 def to_newton(mass, orb_data, gc, coi_coef):
-    """Converts form keplerian orbit parameters to newtonian (position, velocity) """
+    """Converts form keplerian orbit parameters to newtonian (position, velocity)."""
     semi_major_l = orb_data["a"]
     ecc_l = orb_data["ecc"]
     pe_arg_l = orb_data["pe_arg"]

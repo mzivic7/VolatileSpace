@@ -43,7 +43,7 @@ if direction < 0:
 # and finally return ea_point by indices of first and last sorted angle
 
 
-### Predicting vessel and body ma at the moment when vessel LEAVE body COI ###
+### Predicting vessel and body ma at the moment when vessel ENTER body COI ###
 # this is easy:
 # just find intersection points of vessel orbit (ellipse/hyperbola) and body COI (circle)
 # methods explained here:
@@ -54,4 +54,4 @@ other-physics/04-hyperbola-circle.txt
 ### Predicting vessel and body ma at the moment when vessel ENTER body COI ###
 # this is very hard to do with just math and newton solver
 # custom algorithm pseudocode is provided here:
-orbital-physics/13-leave-coi-point.txt
+orbital-physics/13-enter-coi-point.txt

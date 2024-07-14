@@ -1,5 +1,6 @@
 from ast import literal_eval as leval
 import math
+import pygame
 from itertools import repeat
 import numpy as np
 try:   # to allow building without numba
@@ -93,6 +94,7 @@ class Physics():
         self.atm_pres0 = np.array([])
         self.atm_scale_h = np.array([])
         self.atm_den0 = np.array([])
+        self.atm_h = np.array([])
         # body orbit main
         self.a = np.array([])
         self.ecc = np.array([])
@@ -120,6 +122,7 @@ class Physics():
 
     def reload_settings(self):
         """Reload all settings, should be run every time game is entered"""
+        self.screen_x, self.screen_y = pygame.display.get_surface().get_size()
         self.curve_points = int(fileops.load_settings("graphics", "curve_points"))   # number of points from which curve is drawn
         self.curves = np.zeros((len(self.mass), self.curve_points, 2))
         self.t = np.linspace(-np.pi, np.pi, self.curve_points)   # parameter
@@ -161,12 +164,14 @@ class Physics():
         - Bodies whose COI is visible on screen,
         - Bodies that are visible on screen (atmosphere incl),
         - Bodies whose orbits are inside COI that is visible on screen and COI is larger than N pixels"""
-        visible_bodies_truth = culling(self.pos, self.size, sim_screen, zoom)
-        visible_bodies = np.concatenate(([0], np.arange(len(self.mass))[visible_bodies_truth]))
+        atm_size = (self.size + self.atm_h) * zoom
+        visible_bodies_truth = culling(self.pos, atm_size, sim_screen, zoom)
+        visible_bodies = np.arange(len(self.mass))[visible_bodies_truth]
         visible_coi_truth = culling(self.pos, self.coi, sim_screen, zoom)
         visible_coi = np.concatenate(([0], np.arange(len(self.mass))[visible_coi_truth]))
         visible_orbits_truth = np.logical_and(visible_coi_truth[self.ref], self.coi[self.ref] > 8 / zoom)
         visible_orbits_truth = np.logical_or(visible_orbits_truth, self.ref == 0)   # incl all orbits around main ref
+        visible_orbits_truth = np.logical_and(visible_orbits_truth, self.a * zoom < self.screen_x*15)
         visible_orbits = np.arange(len(self.mass))[visible_orbits_truth]
         # not returning truth values so "for vessel in visible_bodies" can easily be done
         return visible_bodies, visible_coi, visible_orbits
@@ -183,10 +188,10 @@ class Physics():
         rad_sc = 2 * self.mass * self.gc / c**2   # Schwarzschild radius
         color = temp_color(temp, self.base_color)
         surf_grav = self.gc * self.mass / self.size**2
-        atm_h = np.zeros(len(self.mass))
+        self.atm_h = np.zeros(len(self.mass))
         for body, _ in enumerate(self.mass):
             if all(x != 0 for x in [self.atm_pres0[body], self.atm_scale_h[body], self.atm_den0[body]]):
-                atm_h[body] = - self.atm_scale_h[body] * math.log(0.001 / self.atm_den0[body]) * self.rad_mult
+                self.atm_h[body] = - self.atm_scale_h[body] * math.log(0.001 / self.atm_den0[body]) * self.rad_mult
 
         # CLASSIFICATION #
         self.types = np.zeros(len(self.mass))  # it is moon
@@ -208,7 +213,7 @@ class Physics():
                      "atm_pres0": self.atm_pres0,
                      "atm_scale_h": self.atm_scale_h,
                      "atm_den0": self.atm_den0,
-                     "atm_h": atm_h}
+                     "atm_h": self.atm_h}
 
         # ORBIT DATA #
         values = list(map(calc_orb_one, list(range(len(self.mass))), self.ref, repeat(self.mass), repeat(self.gc), repeat(self.coi_coef), self.a, self.ecc))

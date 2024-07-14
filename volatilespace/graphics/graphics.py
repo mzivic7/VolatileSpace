@@ -11,7 +11,7 @@ class Graphics():
         self.timed_text_enable = False   # for drawing timed text on screen
         self.timer = 0   # timer for drawing timed text on screen
         self.reload_settings()
-        self.color, self.font, self.text_str, self.pos, self.time, self.center = (0, 0, 0), 0, 0, [0, 0], 0, 0
+        self.color, self.font, self.text_str, self.pos, self.time, self.center = (0, 0, 0), None, "", [0, 0], 0, [0, 0]
         self.fade = 0.2
         self.fontbt = pygame.font.Font("fonts/LiberationSans-Regular.ttf", 22)   # button text font
         self.fontmd = pygame.font.Font("fonts/LiberationSans-Regular.ttf", 16)   # medium text font
@@ -41,7 +41,7 @@ class Graphics():
     def reload_settings(self):
         """Reload all settings, should be run every time settings are applied"""
         self.antial = leval(fileops.load_settings("graphics", "antialiasing"))
-        self.spacing_min = int(fileops.load_settings("graphics", "grid_spacing_min"))   # minimum and maximum size spacing of grid
+        self.spacing_min = int(fileops.load_settings("graphics", "grid_spacing_min"))   # minimum and maximum spacing of grid
         self.spacing_max = int(fileops.load_settings("graphics", "grid_spacing_max"))
 
 
@@ -70,8 +70,8 @@ class Graphics():
 
 
     def draw_circle_fill(self, surface, color, center, radius):
-        """Draw a filled circle.
-        Transparency is supported."""
+        """Draw a filled circle with optional transparency.
+        Warning: transparency is slow for large circles!"""
         if len(color) > 3 and color[3] != 255:
             # adding transparency
             raw_pos = center - radius

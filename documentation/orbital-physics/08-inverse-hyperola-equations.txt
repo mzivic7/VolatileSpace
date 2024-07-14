@@ -1,15 +1,15 @@
 ### Inverse equations from orbital parameters to positional and velocity vectors ###
 # ecc > 1
-# Inputs: ecc, omega_deg, Pe, Ma, direction
+# Inputs: ecc, pe_arg_deg, Pe, Ma, direction
 # Ma can be negative, and can go over 2pi
 
 u = G * m   # standard gravitational parameter
 a = abs(- Pe / (e - 1))   # semi-major axis from periapsis
 f = a * ecc   # focus distance from center of hyperbola [13]
 b = sqrt(f^2 - a^2)   # semi-minor [13]
-omega = omega_deg * pi / 180   # periapsis argument from deg to rad
+pe_arg = pe_arg_deg * pi / 180   # periapsis argument from deg to rad
 if e = 0:   # if eccentricity is set to 0 (it is circle):
-    omega = 0   # disable omega input
+    pe_arg = 0   # disable pe_arg input
 
 # Note:
 # When changing direction, mean anomaly must change sign.
@@ -28,12 +28,12 @@ ea = acosh((ecc + cos(ta))/(1 + (ecc * cos(ta))))   # eccentric anomaly from tru
 # Find position of body from parametric equations
 Pr_x = a * cos(Ea) - f
 Pr_y = b * sin(Ea)
-Pr = [Pr_x * cos(omega - pi) - Pr_y * sin(omega - pi), Pr_x * sin(omega - pi) + Pr_y * cos(omega - pi)]   # rotate point by argument of Pe
+Pr = [Pr_x * cos(pe_arg - pi) - Pr_y * sin(pe_arg - pi), Pr_x * sin(pe_arg - pi) + Pr_y * cos(pe_arg - pi)]   # rotate point by argument of Pe
 
 
 
 # -Calculate angle of velocity vector (vr_angle)- #
-# omega is written as p in further equations for simplicity (also Pr[0] = x, Pr[1] = y)
+# pe_arg is written as p in further equations for simplicity (also Pr[0] = x, Pr[1] = y)
 # angle of velocity vector is calculated from slope of tangent on rotated hyperbola, in point Pr, from implicit derivative
 (((x*cos(p)+y*sin(p))^2)/a^2) - (((x*sin(p)-y*cos(p))^2)/b^2) = 1   # Rotated ellipse implicit formula
 # Implicit derivative in respect to x:
@@ -61,8 +61,8 @@ if ((x_max2 - x_max1) * (pr_y - y_max1)) - ((y_max2 - y_max1) * (pr_x - x_max1))
 
 # NOTE:
 # in some cases hyperbola has no positive and negative side, and this will cause error (sqrt of negative value)
-When that occur, just check if p (omega) is in negative side:
-if pi < omega < 2pi:
+When that occur, just check if p (pe_arg) is in negative side:
+if pi < pe_arg < 2pi:
     vr_angle = vr_angle + pi   # add pi to angle to put it in (-1/2pi, 3/2pi) range
 
 vr_angle = vr_angle % 2pi   # put it in (0, 2pi) range

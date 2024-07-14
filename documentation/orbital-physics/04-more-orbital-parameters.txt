@@ -1,8 +1,8 @@
 ### more orbital parameters ###
 Pe = a * (1 - e)   # periapsis distance from planet center
 Ap = a * (1 + e)   # apoapsis distance from planet center
-Pev = [Pe * cos(omega + pi) + P1_x, Pe * sin(omega + pi) + P1_y]   # periapsis vector
-Apv = [Ap * cos(omega), Ap * sin(omega)]   # apoapsis vector
+Pev = [Pe * cos(pe_arg + pi) + P1_x, Pe * sin(pe_arg + pi) + P1_y]   # periapsis vector
+Apv = [Ap * cos(pe_arg), Ap * sin(pe_arg)]   # apoapsis vector
 T = 2 * pi * sqrt(a^3 / u)   # orbital period [7]
 Ta = acos((cos(Ea) - ecc)/(1 - ecc * cos(Ea)))  # true anomaly from eccentric anomaly [15]
 if ea > np.pi:   #  this puts true anomaly in right quadrants since it is symmetrical
@@ -11,11 +11,11 @@ h = Pr x Vr   # orbital momentum, since simulation is 2D, momentum is scalar
 direction = sign(moment)   # if moment is negative, rotation is clockwise (-1)
 if direction is -1:
     Ta = 2pi - Ta   # invert Ta to be calculated in opposite direction
-Lat = (Ta - omega) * 180 / pi   # latitude
+Lat = (Ta - pe_arg) * 180 / pi   # latitude
 d = |Pr|   # distance
 
 vo = |vr|   # orbit speed
-angle = 2pi - Ta + omega
+angle = 2pi - Ta + pe_arg
 vv = (vr_x * cos(angle) + vr_y * sin(angle))   # vertical speed
 vh = abs(vr_x * sin(angle) - vr_y * cos(angle))   # horizontal speed
 # Vertical and horizontal speeds are calculated as components of vr, but coordinate system is rotated by pi/2-true_anomaly - to be normal with body position vector relative to orbiting mass.

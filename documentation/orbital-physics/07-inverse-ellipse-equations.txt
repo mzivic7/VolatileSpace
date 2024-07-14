@@ -1,15 +1,15 @@
 ### Inverse equations from orbital parameters to positional and velocity vectors ###
 # ecc < 1
-# Inputs: ecc, omega_deg, Pe, Ma, Ap, direction
+# Inputs: ecc, pe_arg_deg, Pe, Ma, Ap, direction
 
 u = G * m   # standard gravitational parameter
 a = - Pe / (ecc - 1)   # semi-major axis from periapsis
 e = (Ap / a) - 1   # eccentricity from apoapsis
 b = a * sqrt(1-e^2)   # semi minor axis
 f = sqrt(a^2 - b^2)   # focus distance from center of ellipse
-omega = omega_deg * pi / 180   # periapsis argument from deg to rad
+pe_arg = pe_arg_deg * pi / 180   # periapsis argument from deg to rad
 if e = 0:   # if eccentricity is set to 0 (it is circle):
-    omega = 0   # disable omega input
+    pe_arg = 0   # disable pe_arg input
 
 # Note:
 # When changing direction, mean anomaly must change sign.
@@ -28,7 +28,7 @@ ea = acos((ecc + cos(ta))/(1 + (ecc * cos(ta))))   # eccentric anomaly from true
 # Find position of body from parametric equations
 Pr_x = a * cos(Ea) - f
 Pr_y = b * sin(Ea)
-Pr = [Pr_x * cos(omega - pi) - Pr_y * sin(omega - pi), Pr_x * sin(omega - pi) + Pr_y * cos(omega - pi)]   # rotate point by argument of Pe
+Pr = [Pr_x * cos(pe_arg - pi) - Pr_y * sin(pe_arg - pi), Pr_x * sin(pe_arg - pi) + Pr_y * cos(pe_arg - pi)]   # rotate point by argument of Pe
 
 
 

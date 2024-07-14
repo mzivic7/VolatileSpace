@@ -26,8 +26,7 @@ u = standard gravitational parameter
 a = semi-major axis
 b = semi-minor axis
 f = focus
-omega = argument of periapsis
-p = omega   # to save space
+pe_arg = argument of periapsis
 
 Pe = periapsis
 Ap = apoapsis

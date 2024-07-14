@@ -5,6 +5,8 @@
 - Physical warp - movement is accelerated by running movement warp number times per frame
 # Physical warp is used when there is about to happen impact, or while in atmospheric conditions
 
+# intersections are obtained in orbital_physics/13-enter-leave-coi.txt
+
 # using math from other-physics/4-ellipse-circle.txt
 # to get Ea and global point of intersection
 
@@ -17,7 +19,6 @@
 for each vessel:
 first find what is next intersection, if there is any
 then calculate vessel ea for next iteration
-compare next intersection ea with vessel ea for next iteration
 check if vessel will have greater ea than intersection in next iteration (see bellow)
 then depending on what is that intersection switch warp
 if it is impact / enter atmosphere and this vessel is NOT in physical_hold: switch to physical and add vessel to physical_hold list
@@ -30,7 +31,8 @@ if there are no intersections, if vessel is in list, it will be removed
 
 
 # checking if vessel will have greater ea than intersection in next iteration
-
+ea_vessel_1 is in this iteration
+ea_vessel_2 is in next iteration
 # calculate two angles:
 # one from vessel ea in this iteration to intersection:
 angle_1 = abs(ea_vessel_1 - ea_intersect)
@@ -45,4 +47,4 @@ if ea_vessel_1 > ea_vessel_2:
 # if direction is clockwise, swap angle_1 and angle_2
 # and finally if intersection angle is smaller than vessels in next iteration,
 # vessel will pass that point in next iteration
-# it is made this way so it will work wih edge case when passing 0pi/2pi point on orbit
+# it is made this way so it will work with edge case when passing 0pi/2pi point on orbit

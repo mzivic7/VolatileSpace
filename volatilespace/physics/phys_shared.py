@@ -71,13 +71,13 @@ def orbit_time_to(source_angle, target_angle, period, dr, neg_time=False):
 
 def newton_root(function, derivative, root_guess, variables={}):
     """General case newton root solver"""
-    root = root_guess   # take guessed root input
+    root = root_guess
     for _ in range(50):
         delta_x = function(root, variables) / derivative(root, variables)   # guess correction
         root -= delta_x   # better guess
         if abs(delta_x) < 1e-10:   # if correction is small enough:
-            return root   # return root
-    return root   # if it is not returned above (it has too high correction) return it anyway
+            return root
+    return root   # if it is not returned above (it has too high correction)
 
 
 def newton_root_kepler_ell(ecc, ma, ea_guess):
