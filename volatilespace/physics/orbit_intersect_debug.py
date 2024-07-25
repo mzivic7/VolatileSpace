@@ -87,7 +87,8 @@ def gen_probe_points_ell(t1, t2, num):
     if t1 < t2 or t2 == 0:
         probe_points = np.linspace(t1, t2, int(num))
     else:
-        ratio = (2*np.pi - t1) / t2
+        total = 2*np.pi - t1 + t2
+        ratio = (2*np.pi - t1) / total
         num_1 = int(num * ratio)
         num_2 = int(num - num_1)
         probe_points_1 = np.linspace(t1, 2*np.pi, num_1)
@@ -115,7 +116,7 @@ else:
 default_probe_points_ell = np.round(default_probe_points_ell, 6)
 
 
-def predict_enter_coi(vessel_data, body_data, vessel_orbit_center, hint_ma=np.nan):
+def predict_enter_coi(vessel_data, body_data, vessel_orbit_center, hint_ma=np.nan, just_left=False):
     """Given body and vessel orbital parameters, that orbit same reference,
     searches for entering COI in one next full orbit.
     Returns vessel Ea, body Ea, vessel Ma, body Ma and time when that will happen.
@@ -163,16 +164,16 @@ def predict_enter_coi(vessel_data, body_data, vessel_orbit_center, hint_ma=np.na
         print(f"Probe points type: {
             "Raveled" if default_probe_points_ravel
             else "Stacked"
-        }")
+            }")
         probe_points = default_probe_points_ell
     else:
-        print("Using truncated probe points")
         intersections = ell_hyp_intersect(a, b, ecc, f, 0, b_ap + coi)
         if np.all(np.isnan(intersections)):
             print()
             print("-------------------------END-------------------------")
             print("Vessel can't enter body COI")
             return np.array([np.nan] * 5)
+        print("Using truncated probe points")
         if ecc < 1:
             if ap < ref_coi:   # using both sides of ellipse
                 range_point_1 = next_point(ea, intersections, dr)[0]
@@ -183,8 +184,8 @@ def predict_enter_coi(vessel_data, body_data, vessel_orbit_center, hint_ma=np.na
                 probe_points_2 = gen_probe_points_ell(range_point_2_ma, ma, probe_points_num/2)
                 probe_points = np.concatenate((probe_points_1, probe_points_2))[:-1]
                 print("Using both sides of ellipse")
-                print(f"Range (ma):{range_point_1_ma} - {range_point_2_ma}")
-                print(f"Range (ea):{range_point_1} - {range_point_2}")
+                print(f"Range (ma): {range_point_1_ma} - {range_point_2_ma}")
+                print(f"Range (ea): {range_point_1} - {range_point_2}")
             else:   # using only "first" side of ellipse
                 range_point = next_point(ea, intersections, dr)[0]
                 range_point_ma = (range_point - ecc * np.sin(range_point)) % (2 * np.pi)
@@ -274,7 +275,8 @@ def predict_enter_coi(vessel_data, body_data, vessel_orbit_center, hint_ma=np.na
                 else:
                     intersect_ma = ecc * np.sinh(intersect_ea) - intersect_ea
                 corr = intersect_ma - new_ma
-                actual_corr = corr   # correction without backing when there are no itersection
+                actual_corr = corr   # correction without backing when there are no intersection
+                new_ea = np.nan   # in case correction is small enough
                 print(f"new_ma = {new_ma}; OK")
                 print()
                 print("-----------------INTERSECTION FOUND------------------")
@@ -314,7 +316,7 @@ def predict_enter_coi(vessel_data, body_data, vessel_orbit_center, hint_ma=np.na
                     dist = np.where(dist > np.pi, 2*np.pi - dist, dist)
                     if np.argmin(dist) == 1:
                         corr = -corr
-                actual_corr = corr   # correction without backing when there are no itersection
+                actual_corr = corr   # correction without backing when there are no intersections
                 print()
                 print(f"--------------------ITERATION {i}--------------------")
 
@@ -399,7 +401,7 @@ def predict_enter_coi(vessel_data, body_data, vessel_orbit_center, hint_ma=np.na
                 print(f"correction is {"INVERTED" if corr_invert else "NORMAL"}")
 
         # break when correction gets too small
-        if abs(actual_corr) < 1e-4:
+        if abs(actual_corr) < 1e-4 and not np.isnan(new_ea):
             print()
             print("-------------------------END-------------------------")
             print(f"finished in {i+1} iterations")
@@ -427,7 +429,7 @@ def predict_enter_coi(vessel_data, body_data, vessel_orbit_center, hint_ma=np.na
             print(f"new_ea = {new_ea} rad, {new_ea * 180/np.pi} deg")
             print(f"new_b_ma = {new_b_ma} rad, {new_b_ma * 180/np.pi} deg")
             print(f"new_b_ea = {new_b_ea} rad, {new_b_ea * 180/np.pi} deg")
-            print(f"time_to_new_ma = {time_to_new_ma / 60} s")
+            print(f"time_to_new_ma = {time_to_new_ma} ticks")
             return np.array([new_ea, new_b_ea, new_ma, new_b_ma, time_to_new_ma])
         else:
             print()

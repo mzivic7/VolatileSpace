@@ -1,7 +1,7 @@
 import math
 
 
-up_prefix = ['k', 'M', 'G', 'T', 'P', 'E', 'Z', 'Y']
+up_prefix = ['K', 'M', 'G', 'T', 'P', 'E', 'Z', 'Y']
 down_prefix = ['m', 'µ', 'n', 'p', 'f', 'a', 'z', 'y']
 
 
@@ -50,8 +50,8 @@ def parse_si(value_string):
         try:   # if prefix is on end of number
             value = float(value_string[:-1])
             prefix = value_string[-1]
-            if prefix == "K":
-                prefix = "k"
+            if prefix == "k":
+                prefix = "K"
             try:
                 size = up_prefix.index(prefix) + 1
             except ValueError:

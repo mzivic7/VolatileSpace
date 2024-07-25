@@ -1590,7 +1590,9 @@ class Editor():
                                 if pe_scr_dist[0] > 8 or pe_scr_dist[1] > 8:   # dont draw Pe if it is too close to parent
                                     # periapsis location marker, text: distance and time to it
                                     graphics.draw_circle_fill(screen, rgb.lime1, pe_scr, 3)   # periapsis marker
-                                    graphics.text(screen, rgb.lime1, self.fontsm, "Periapsis: " + str(round(pe_d, 1)), (pe_scr[0], pe_scr[1] + 7), True)
+                                    graphics.text(screen, rgb.lime1, self.fontsm,
+                                                  "Periapsis: " + metric.format_si(pe_d, 2),
+                                                  (pe_scr[0], pe_scr[1] + 7), True)
                                     graphics.text(screen, rgb.lime1, self.fontsm,
                                                   "T - " + format_time.to_date(int(pe_t/self.ptps)),
                                                   (pe_scr[0], pe_scr[1] + 17), True)
@@ -1598,7 +1600,9 @@ class Editor():
                                 if ecc < 1:   # if orbit is ellipse
                                     # apoapsis location marker, text: distance and time to it
                                     graphics.draw_circle_fill(screen, rgb.lime1, ap_scr, 3)   # apoapsis marker
-                                    graphics.text(screen, rgb.lime1, self.fontsm, "Apoapsis: " + str(round(ap_d, 1)), (ap_scr[0], ap_scr[1] + 7), True)
+                                    graphics.text(screen, rgb.lime1, self.fontsm,
+                                                  "Apoapsis: " + metric.format_si(ap_d, 2),
+                                                  (ap_scr[0], ap_scr[1] + 7), True)
                                     graphics.text(screen, rgb.lime1, self.fontsm,
                                                   "T - " + format_time.to_date(int(ap_t/self.ptps)),
                                                   (ap_scr[0], ap_scr[1] + 17), True)

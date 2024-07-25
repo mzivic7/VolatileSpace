@@ -219,8 +219,12 @@ class Game():
         self.vessel_img = graphics.fill(pygame.image.load_sized_svg("img/vessel.svg", (24, 24)), rgb.gray)
         self.target_img = pygame.image.load("img/target.png")
         self.impact_img = pygame.image.load("img/impact.png")
-        self.orb_leave_img = graphics.fill(pygame.image.load("img/orb_leave.png"), rgb.cyan)
-        self.orb_enter_img = graphics.fill(pygame.image.load("img/orb_enter.png"), rgb.cyan)
+        orb_leave_img = pygame.image.load("img/orb_leave.png")
+        self.orb_leave_img_cyan = graphics.fill(orb_leave_img, rgb.cyan)
+        self.orb_leave_img_gray = graphics.fill(orb_leave_img, rgb.gray)
+        orb_enter_img = pygame.image.load("img/orb_enter.png")
+        self.orb_enter_img_cyan = graphics.fill(orb_enter_img, rgb.cyan)
+        self.orb_enter_img_gray = graphics.fill(orb_enter_img, rgb.gray)
 
         bg_stars.set_screen()
         graphics.set_screen()
@@ -1315,7 +1319,7 @@ class Game():
 
 
         # bodies stuff drawing, WITHOUT bodies - bodies are drawn aftter vessel orbit lines
-        # draw orbit curve lines
+        # draw body orbit curve lines
         for body in self.visible_body_orbits:
             curve = self.screen_coords_array(self.curves[body])
             if body != 0:
@@ -1374,15 +1378,17 @@ class Game():
                         else:   # in case of hyperbola/parabola (ap_d is negative)
                             ap_scr = self.screen_coords(pe)
                         scr_dist = abs(parent_scr - ap_scr)
-                        if scr_dist[0] > 8 or scr_dist[1] > 8:   # don't draw Ap and Pe if Ap is too close to parent
+                        if scr_dist[0] > 18 or scr_dist[1] > 15:   # don't draw Ap and Pe if Ap is too close to parent
 
                             pe_scr = self.screen_coords(pe)
                             pe_scr_dist = abs(parent_scr - pe_scr)
-                            if pe_scr_dist[0] > 8 or pe_scr_dist[1] > 8:   # don't draw Pe if it is too close to parent
+                            if pe_scr_dist[0] > 18 or pe_scr_dist[1] > 18:   # don't draw Pe if it is too close to parent
                                 # periapsis location marker, text: distance and time to it
                                 pe_scr = self.screen_coords(pe)
                                 graphics.draw_circle_fill(screen, rgb.lime1, pe_scr, 3)   # periapsis marker
-                                graphics.text(screen, rgb.lime1, self.fontsm, "Periapsis: " + str(round(self.pe_d[body], 1)), (pe_scr[0], pe_scr[1] + 7), True)
+                                graphics.text(screen, rgb.lime1, self.fontsm,
+                                              "Periapsis: " + metric.format_si(self.pe_d[body], 2),
+                                              (pe_scr[0], pe_scr[1] + 7), True)
                                 graphics.text(screen, rgb.lime1, self.fontsm,
                                               "T - " + format_time.to_date(int(pe_t/self.ptps)),
                                               (pe_scr[0], pe_scr[1] + 17), True)
@@ -1390,12 +1396,14 @@ class Game():
                             if self.ecc[body] < 1:   # if orbit is ellipse
                                 # apoapsis location marker, text: distance and time to it
                                 graphics.draw_circle_fill(screen, rgb.lime1, ap_scr, 3)   # apoapsis marker
-                                graphics.text(screen, rgb.lime1, self.fontsm, "Apoapsis: " + str(round(self.ap_d[body], 1)), (ap_scr[0], ap_scr[1] + 7), True)
+                                graphics.text(screen, rgb.lime1, self.fontsm,
+                                              "Apoapsis: " + metric.format_si(self.ap_d[body], 2),
+                                              (ap_scr[0], ap_scr[1] + 7), True)
                                 graphics.text(screen, rgb.lime1, self.fontsm,
                                               "T - " + format_time.to_date(int(ap_t/self.ptps)),
                                               (ap_scr[0], ap_scr[1] + 17), True)
 
-        # vessel orbit lines drawing
+        # draw vessel orbit curve lines
         for vessel in self.visible_vessel_orbits:
             # get curve intersections and ranges
             curve_light = self.screen_coords_array(self.curve_light[vessel])
@@ -1438,15 +1446,19 @@ class Game():
             intersect_type = self.intersect_type[vessel]
             vessel_pos = self.screen_coords(self.v_pos[vessel])
             vessel_rot = self.v_rot_angle[vessel]
+            target = self.target_type == 1 and self.target == vessel
+            active = self.active_vessel is not None and self.active_vessel == vessel
 
-            # active vessel
-            if self.active_vessel is not None and self.active_vessel == vessel:
+            if active:
                 graphics.draw_img(screen, self.vessel_img, vessel_pos, angle=vessel_rot-np.pi/2, scale=0.75, center=True)
-                ta, pe, pe_t, ap, ap_t, distance, speed_orb, speed_hor, speed_vert = physics_vessel.selected(vessel)
-                ref = self.v_ref[vessel]
+
+            # active vessel and target vessel
+            if active or target:
 
                 # parent circle of influence
                 if not self.disable_labels:
+                    ta, pe, pe_t, ap, ap_t, distance, speed_orb, speed_hor, speed_vert = physics_vessel.selected(vessel)
+                    ref = self.v_ref[vessel]
                     parent_scr = self.screen_coords(self.pos[ref])
                     if ref != 0 and ref in self.visible_coi:
                         graphics.draw_circle(screen, rgb.gray2, parent_scr, self.coi[ref] * self.zoom, 1)
@@ -1488,13 +1500,19 @@ class Game():
                                 graphics.draw_img(screen, self.impact_img, intersect, center=True)
                         elif intersect_type == 2:   # enter COI
                             if self.coi[ref] * self.zoom >= 10:
-                                graphics.draw_img(screen, self.orb_enter_img, intersect, center=True)
+                                if active:
+                                    graphics.draw_img(screen, self.orb_enter_img_cyan, intersect, center=True)
+                                else:
+                                    graphics.draw_img(screen, self.orb_enter_img_gray, intersect, center=True)
                         elif intersect_type == 3:   # leave COI
                             if self.coi[ref] * self.zoom >= 10:
-                                graphics.draw_img(screen, self.orb_leave_img, intersect, center=True)
+                                if active:
+                                    graphics.draw_img(screen, self.orb_leave_img_cyan, intersect, center=True)
+                                else:
+                                    graphics.draw_img(screen, self.orb_leave_img_gray, intersect, center=True)
 
             # target vessel
-            elif self.target is not None and self.target_type == 1 and self.target == vessel:
+            if self.target is not None and self.target_type == 1 and self.target == vessel:
                 graphics.draw_img(screen, self.vessel_img, vessel_pos, angle=vessel_rot-np.pi/2, scale=0.75, center=True)
                 graphics.draw_img(screen, self.target_img, vessel_pos, center=True)
                 ta, pe, pe_t, ap, ap_t, distance, speed_orb, speed_hor, speed_vert = physics_vessel.selected(vessel)

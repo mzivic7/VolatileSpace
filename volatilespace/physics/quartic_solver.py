@@ -3,7 +3,7 @@ import cmath
 try:
     from numba import njit, float64, complex128
     from numba.types import UniTuple
-    numba_avail = True
+    numba_avail = False
 except ImportError:
     numba_avail = False
 
@@ -13,7 +13,7 @@ def solve_cubic_one(a, b, c):
     z^3 + az^2 + bz + c = 0
     Uses modified Cardano's method from 'Numerical Recipes' and Viète’s trigonometric method to avoid large error in ceratin cases.
     https://quarticequations.com/Cubic.pdf"""
-    
+
     q = b/3 - a**2/9
     r = (b*a-3*c)/6 - a**3/27
     rq = r**2 + q**3
@@ -54,10 +54,14 @@ def solve_quartic(a, b, c, d, e):
     if y < 0:
         y = 0
 
-    if b1 < 0:
-        r = -math.sqrt(y**2 + b2*y + b2**2/4 - b0)
+    s = y**2 + b2*y + b2**2/4 - b0
+    if s > 0:   # compatibility for no-numba mode
+        if b1 < 0:
+            r = -math.sqrt(s)
+        else:
+            r = math.sqrt(s)
     else:
-        r = math.sqrt(y**2 + b2*y + b2**2/4 - b0)
+        r = float("nan")
 
     # repeating stuff
     p = cmath.sqrt(y/2) - cc

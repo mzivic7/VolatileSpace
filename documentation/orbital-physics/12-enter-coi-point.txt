@@ -16,7 +16,7 @@ then generate and select probe points
             Raveled - point on one side of curve then on other side
             Stacked - First one side, then other side of ellipse
     else:
-        # there is no need to probe where vessel cant enter body COI
+        # there is no need to probe at the place where vessel can't enter body COI
         # so generate probe points excluding orbit piece outside circle: r=body_Ap+COI
         get intersections of vessel orbit with r=body_Ap+COI in orbit focus
         # Note: intersections are in Ea, but bellow is used Ma, so they must be converted
@@ -41,9 +41,10 @@ At start, correction is not inverted
 (loop) search for initial intersection:
     take one probe point and make it new Ma
     calculate time to move vessel from current Ma to new Ma (orbital-physics/5-orbit-shape-parameters.txt)
+        # short: time_to_new_Ma
     If correction is inverted use negative time
-    calculate body new Ma at that time (Ma + dr * n * time_to_new_ma)
-    from it, calculate body position relative to its reference (orbital-physics/6-parametric-equations.txt)
+    calculate body new Ma at time_to_new_Ma (Ma + dr * n * time_to_new_ma)
+    from new Ma, calculate body position relative to its reference (orbital-physics/6-parametric-equations.txt)
     make body position relative to vessel orbit center:
         (b_x_n and b_y_n are calculated above)
         first, get center of ellipse/hyperbola relative to reference
@@ -125,3 +126,17 @@ At start, correction is not inverted
                 # backing is NOT affected by correction direction
     if actual correction is small enough:
         stop loop and return body new Ma, vessel new Ma, and time to intersection
+
+
+!!! WARNING !!!
+If vessel has just left COI of body checked in this algorithm, false positive can occur when truncated test points are used
+In that case time_to_new_ma will be very small or very close to period
+This case should be externally handled:
+    If time_to_new_Ma < period / (500-1000)
+        # Number depends on and what is minimal acceptable correction
+        # Can be determined experimentally
+    Or if time_to_new_Ma - period < period / (500-1000)
+        # Because predicted point on orbit can be before current position
+    If one of above statement is true:
+        there will be no intersections with this body in next ~half vessel orbits
+        so this check should be re-ran every half vessel orbit

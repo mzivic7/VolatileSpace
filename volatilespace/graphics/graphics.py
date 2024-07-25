@@ -2,7 +2,9 @@ from ast import literal_eval as leval
 import math
 import pygame
 from volatilespace import fileops
+from volatilespace import metric
 from volatilespace.graphics import rgb
+
 
 
 class Graphics():
@@ -43,6 +45,11 @@ class Graphics():
         self.antial = leval(fileops.load_settings("graphics", "antialiasing"))
         self.spacing_min = int(fileops.load_settings("graphics", "grid_spacing_min"))   # minimum and maximum spacing of grid
         self.spacing_max = int(fileops.load_settings("graphics", "grid_spacing_max"))
+
+
+    def update_mouse(self, mouse, click, disable):
+        """Updates dynamically changing values"""
+        self.mouse, self.click, self.disable_buttons = mouse, click, disable
 
 
     def draw_line(self, surface, color, point_1, point_2, thickness):
@@ -182,7 +189,7 @@ class Graphics():
 
 
     def draw_grid(self, screen, origin, zoom):
-        """Draw grid of lines expanding from origin"""
+        """Draw grid of lines expanding from origin with size labels"""
         spacing = 10 * zoom   # initial spacing
         while spacing < self.spacing_min:   # if spacing gets smaller than limit
             spacing *= 2   # double increase spacing
@@ -206,11 +213,15 @@ class Graphics():
             elif abs(line + moved) % 5 == 0:   # every fifth line, but include line index movement
                 self.draw_line(screen, rgb.gray1, (pos_x, 0), (pos_x, self.screen_y), 1)   # gray line
                 sim_pos_x = round(((line + moved) * spacing) / zoom)   # calculate simulation coordinate
-                self.text(screen, rgb.gray1, self.fontsm, str(sim_pos_x), (pos_x, self.screen_y - 10), True, rgb.black)
+                self.text(screen, rgb.gray1, self.fontsm,
+                          metric.format_si(sim_pos_x, 2),
+                          (pos_x, self.screen_y - 10), True, rgb.black)
             else:   # every other line
                 sim_pos_x = round(((line + moved) * spacing) / zoom)
                 self.draw_line(screen, rgb.gray2, (pos_x, 0), (pos_x, self.screen_y), 1)   # dark gray line
-                self.text(screen, rgb.gray2, self.fontsm, str(sim_pos_x), (pos_x, self.screen_y - 10), True, rgb.black)
+                self.text(screen, rgb.gray2, self.fontsm,
+                          metric.format_si(sim_pos_x, 2),
+                          (pos_x, self.screen_y - 10), True, rgb.black)
 
         for line in range(line_num_y):
             pos_y = origin[1] + (spacing * line)
@@ -227,16 +238,15 @@ class Graphics():
             elif abs(line + moved) % 5 == 0:
                 self.draw_line(screen, rgb.gray1, (0, pos_y), (self.screen_x, pos_y), 1)
                 sim_pos_y = round(-((line + moved) * spacing) / zoom)
-                self.text(screen, rgb.gray1, self.fontsm, str(sim_pos_y), (5+self.btn_s, pos_y-5), False, rgb.black)
+                self.text(screen, rgb.gray1, self.fontsm,
+                          metric.format_si(sim_pos_y, 2),
+                          (5+self.btn_s, pos_y-5), False, rgb.black)
             else:   # every other line
                 self.draw_line(screen, rgb.gray2, (0, pos_y), (self.screen_x, pos_y), 1)
                 sim_pos_y = round(-((line + moved) * spacing) / zoom)
-                self.text(screen, rgb.gray2, self.fontsm, str(sim_pos_y), (5+self.btn_s, pos_y-5), False, rgb.black)
-
-
-    def update_mouse(self, mouse, click, disable):
-        """Updates dynamically changing values"""
-        self.mouse, self.click, self.disable_buttons = mouse, click, disable
+                self.text(screen, rgb.gray2, self.fontsm,
+                          metric.format_si(sim_pos_y, 2),
+                          (5+self.btn_s, pos_y-5), False, rgb.black)
 
 
     def buttons_vertical(self, screen, buttons_txt, pos, prop=None, safe=False):

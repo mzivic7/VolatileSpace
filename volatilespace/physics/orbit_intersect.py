@@ -237,7 +237,8 @@ def predict_enter_coi(vessel_data, body_data, vessel_orbit_center, hint_ma=np.na
                 else:
                     intersect_ma = ecc * np.sinh(intersect_ea) - intersect_ea
                 corr = intersect_ma - new_ma
-                actual_corr = corr   # correction without backing when there are no itersection
+                actual_corr = corr   # correction without backing when there are no intersection
+                new_ea = np.nan   # in case correction is small enough
             else:
                 lost = False
                 if ecc < 1:
@@ -272,7 +273,7 @@ def predict_enter_coi(vessel_data, body_data, vessel_orbit_center, hint_ma=np.na
                     dist = np.where(dist > np.pi, 2*np.pi - dist, dist)
                     if np.argmin(dist) == 1:
                         corr = -corr
-                actual_corr = corr   # correction without backing when there are no itersection
+                actual_corr = corr   # correction without backing when there are no intersection
 
             if not last_iteration_inverted:
                 if np.sign(actual_corr) == np.sign(actual_corr_old):
@@ -302,7 +303,7 @@ def predict_enter_coi(vessel_data, body_data, vessel_orbit_center, hint_ma=np.na
                 corr = back * abs(corr) / 2   # go back by half
 
         # break when correction gets too small
-        if abs(actual_corr) < 1e-4:
+        if abs(actual_corr) < 1e-4 and not np.isnan(new_ea):
             return np.array([new_ea, new_b_ea, new_ma, new_b_ma, time_to_new_ma])
 
     if search:

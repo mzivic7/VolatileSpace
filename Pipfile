@@ -9,6 +9,7 @@ pyinstaller = ">=6"
 pygame-ce = ">=2.5"
 numba = "*"
 pre-commit = "*"
+tk = "*"
 
 [dev-packages]
 pyinstaller = "*"

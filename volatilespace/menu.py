@@ -1022,9 +1022,10 @@ class Menu():
 
         # about
         elif self.menu == 5:
-            graphics.text(screen, rgb.white, self.fontbt, "Created by: " + "Marko Zivic", (self.screen_x/2, self.about_y - self.btn_h*2), True)
-            graphics.text(screen, rgb.white, self.fontbt, "Version: " + version, (self.screen_x/2, self.about_y - self.btn_h), True)
+            graphics.text(screen, rgb.white, self.fontbt, "Created by: Marko Zivic", (self.screen_x/2, self.about_y - self.btn_h*2), True)
+            graphics.text(screen, rgb.white, self.fontbt, f"Version: {version}", (self.screen_x/2, self.about_y - self.btn_h), True)
             graphics.buttons_vertical(screen, buttons_about, (self.about_x, self.about_y), [2, 2, 2, 2, None])
+            graphics.text(screen, rgb.gray0, self.fontmd, "Powered by: Python, pygame-ce, NumPy, Numba", (self.screen_x/2, self.about_y + self.btn_h*(len(buttons_about)+2)), True)
 
 
         # version number

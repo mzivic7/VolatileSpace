@@ -1,6 +1,6 @@
 # Volatile Space
 2D physics-based universe and spaceflight simulator.  
-Written in Python with PyGame.  
+Written in Python with pygame-ce.  
 [Download](https://mzivic.itch.io/volatile-space) (itch.io)  
 [Wiki](documentation/wiki.md)  
 
@@ -22,6 +22,7 @@ Written in Python with PyGame.
 6. Run build script: `python build.py`
 
 ### About numba
+Numba will add ~3-60s to first launch, and ~5-10s to every after (if numba is enabled in settings).  
 build.py script by default builds with numba, to build without numba use: `python build.py nonumba`  
 Or just uninstall numba: `pipenv uninstall numba`  
 This also disables 'Numba' and 'FastMath' options in settings.  
