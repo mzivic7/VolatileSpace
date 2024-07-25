@@ -6,6 +6,7 @@ from volatilespace import fileops
 
 def main():
     ###### --Start pygame-- ######
+    pygame.mixer.pre_init(buffer=2048)
     pygame.init()
     pygame.display.set_caption('Volatile Space')
     pygame.display.set_icon(pygame.image.load('img/icon.png'))
