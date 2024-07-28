@@ -1,7 +1,7 @@
 from ast import literal_eval as leval
 import numpy as np
 try:
-    from numba import njit, float64, bool_
+    from numba import njit, float64
     from numba.types import UniTuple
     from numba.types.misc import Omitted
     numba_avail = True
@@ -9,7 +9,7 @@ except ImportError:
     numba_avail = False
 from volatilespace import fileops
 from volatilespace.physics.phys_shared import orbit_time_to, \
-    newton_root_kepler_ell, newton_root_kepler_hyp
+    newton_root_kepler_ell, newton_root_kepler_hyp, point_between
 from volatilespace.physics.quartic_solver import solve_quartic
 
 
@@ -80,13 +80,6 @@ def sort_intersect_indices(ea_vessel, ea_points, direction):
         return ea_points_sorted
     else:
         return np.array([np.nan])
-
-
-def point_between(p1, p2, p3):
-    """Returns True if angle p1 is between angles p2 and p3 on circle"""
-    p1_p2 = np.fmod(p2 - p1 + np.pi, np.pi)
-    p1_p3 = np.fmod(p3 - p1 + np.pi, np.pi)
-    return (p1_p2 <= np.pi) != (p1_p3 > p1_p2)
 
 
 def gen_probe_points_ell(t1, t2, num):
@@ -249,7 +242,7 @@ def predict_enter_coi(vessel_data, body_data, vessel_orbit_center, hint_ma=np.na
                 sorted_intersections = next_point(ea, intersections, dr)
                 if corr_invert:
                     sorted_intersections = sorted_intersections[::-1]
-                inside_coi = point_between(new_ea, sorted_intersections[0], sorted_intersections[1])
+                inside_coi = point_between(new_ea, sorted_intersections[0], sorted_intersections[1], 1)
                 # pick target
                 if corr_invert and not inside_coi and furthest_once:
                     # selecting furthest because it will bring vessel closer to first point of intersect
@@ -324,7 +317,6 @@ if numba_avail and use_numba:
     jitkw_nofast = {"cache": True, "fastmath": False}
     ell_hyp_intersect = njit(float64[:](float64, float64, float64, float64, float64, float64), **jitkw)(ell_hyp_intersect)
     next_point = njit(float64[:](float64, float64[:], float64), **jitkw_nofast)(next_point)
-    point_between = njit(bool_(float64, float64, float64), **jitkw)(point_between)
     gen_probe_points_ell = njit(float64[:](float64, float64, float64), **jitkw)(gen_probe_points_ell)
     predict_enter_coi = njit([
         float64[:](UniTuple(float64, 11), UniTuple(float64, 11), UniTuple(float64, 2), Omitted(np.nan)),

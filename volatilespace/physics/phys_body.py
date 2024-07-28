@@ -200,36 +200,40 @@ class Physics():
         self.types = np.where(self.mass > 5000, 3, self.types)   # ### temporarily ###
         # self.types = np.where(self.temp > 1000, 3, self.types)    # if temperature is over 1000 degrees: it is a star
         # self.types = np.where(self.rad_sc > self.rad, 4, self.types)   # if schwarzschild radius is greater than radius: it is black hole
-        body_data = {"name": self.names,
-                     "type": self.types,
-                     "mass": self.mass,
-                     "den": self.den,
-                     "temp": temp,
-                     "color_b": self.base_color,
-                     "color": color,
-                     "size": self.size,
-                     "rad_sc": rad_sc,
-                     "surf_grav": surf_grav,
-                     "atm_pres0": self.atm_pres0,
-                     "atm_scale_h": self.atm_scale_h,
-                     "atm_den0": self.atm_den0,
-                     "atm_h": self.atm_h}
+        body_data = {
+            "name": self.names,
+            "type": self.types,
+            "mass": self.mass,
+            "den": self.den,
+            "temp": temp,
+            "color_b": self.base_color,
+            "color": color,
+            "size": self.size,
+            "rad_sc": rad_sc,
+            "surf_grav": surf_grav,
+            "atm_pres0": self.atm_pres0,
+            "atm_scale_h": self.atm_scale_h,
+            "atm_den0": self.atm_den0,
+            "atm_h": self.atm_h
+        }
 
         # ORBIT DATA #
         values = list(map(calc_orb_one, list(range(len(self.mass))), self.ref, repeat(self.mass), repeat(self.gc), repeat(self.coi_coef), self.a, self.ecc))
         self.b, self.f, self.coi, self.pe_d, self.ap_d, self.period, self.n, self.u = list(map(np.array, zip(*values)))
-        body_orb = {"a": self.a,
-                    "b": self.b,
-                    "f": self.f,
-                    "coi": self.coi,
-                    "ref": self.ref,
-                    "ecc": self.ecc,
-                    "pe_d": self.pe_d,
-                    "ap_d": self.ap_d,
-                    "pea": self.pea,
-                    "n": self.n,
-                    "dir": self.dr,
-                    "per": self.period}
+        body_orb = {
+            "a": self.a,
+            "b": self.b,
+            "f": self.f,
+            "coi": self.coi,
+            "ref": self.ref,
+            "ecc": self.ecc,
+            "pe_d": self.pe_d,
+            "ap_d": self.ap_d,
+            "pea": self.pea,
+            "n": self.n,
+            "dir": self.dr,
+            "per": self.period
+        }
 
         # MOVE #
         self.move(warp)

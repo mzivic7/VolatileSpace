@@ -660,16 +660,18 @@ class Physics():
             if value > 255:
                 color[num] = 255
 
-        precalculated_data = {"radius": radius,
-                              "type": body_type,
-                              "temp": temp,
-                              "real_color": color,
-                              "rad_sc": rad_sc,
-                              "surf_grav": surf_grav,
-                              "atm_pres0": atm_pres0,
-                              "atm_scale_h": atm_scale_h,
-                              "atm_den0": atm_den0,
-                              "atm_h": atm_h}
+        precalculated_data = {
+            "radius": radius,
+            "type": body_type,
+            "temp": temp,
+            "real_color": color,
+            "rad_sc": rad_sc,
+            "surf_grav": surf_grav,
+            "atm_pres0": atm_pres0,
+            "atm_scale_h": atm_scale_h,
+            "atm_den0": atm_den0,
+            "atm_h": atm_h
+        }
         return precalculated_data
 
 

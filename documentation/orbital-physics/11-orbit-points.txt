@@ -27,7 +27,10 @@
 # orbit line parameter is limited to range: (ea_vessel, ea_point_next)
 # other range is invisible
 # body is not in focus, its position must be predicted, since it is moving too
-
+# this prediction must be ran periodically, because used algorithm predicts only up to one full orbit
+# it is advised to run it every half orbit, and every time something changes on orbit
+# here, prediction is re-run each time when vessel passes Pe and Ap
+# passage is checked same way as in other-physics/3-warp.txt
 
 ### Finding next and previous point on orbit ###
 # first calculate angle between points in CCW direction

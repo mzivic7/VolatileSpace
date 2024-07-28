@@ -24,31 +24,37 @@ textinput = textinput.Textinput()
 
 version = "0.5.2"
 
-buttons_main = ["Play",
-                "Multiplayer - WIP",
-                "Map Editor",
-                "Settings",
-                "About",
-                "Quit"]
+buttons_main = [
+    "Play",
+    "Multiplayer - WIP",
+    "Map Editor",
+    "Settings",
+    "About",
+    "Quit"
+]
 buttons_play_ui = ["Back", "New game", "Import game"]
 buttons_play_sel = ["Play", "Rename", "Delete", "Export"]
 buttons_new_game = ["Back", "New game", "Import map"]
 buttons_map_sel = ["Open in editor", "Rename", "Delete", "Export"]
 buttons_map_ui = ["Back", "New map", "Import map"]
-buttons_set_vid = ["Fullscreen",
-                   "Resolution",
-                   "Antialiasing",
-                   "Vsync",
-                   "Mouse warp",
-                   "Background stars"]
+buttons_set_vid = [
+    "Fullscreen",
+    "Resolution",
+    "Antialiasing",
+    "Vsync",
+    "Mouse warp",
+    "Background stars"
+]
 buttons_set_aud = ["WIP"]
 buttons_set_gam = ["Keybindings", "Autosave:"]
-buttons_set_adv = ["Curve:",
-                   "New star color",
-                   "Star clusters",
-                   "New clusters",
-                   "Numba",
-                   "FastMath"]
+buttons_set_adv = [
+    "Curve:",
+    "New star color",
+    "Star clusters",
+    "New clusters",
+    "Numba",
+    "FastMath"
+]
 buttons_set_ui = ["Accept", "Apply", "Cancel", "Load default"]
 buttons_about = ["Wiki", "Github", "Itch.io", "Report a bug", "Back"]
 buttons_rename = ["Cancel", "Rename"]

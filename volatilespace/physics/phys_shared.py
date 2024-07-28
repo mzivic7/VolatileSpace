@@ -69,6 +69,24 @@ def orbit_time_to(source_angle, target_angle, period, dr, neg_time=False):
     return time_to
 
 
+def point_between(n, a, b, direction):
+    """Returns True if angle n is between angles a and b in specified direction"""
+    n = n % (2*np.pi)
+    a = a % (2*np.pi)
+    b = b % (2*np.pi)
+    if direction < 0:
+        a, b = b, a
+    if a == b:
+        if a == n:
+            return True
+        else:
+            return False
+    if a < b:
+        return a <= n and n <= b
+    else:
+        return a <= n or n <= b
+
+
 def newton_root(function, derivative, root_guess, variables={}):
     """General case newton root solver"""
     root = root_guess
@@ -233,6 +251,7 @@ if numba_avail and use_numba:
     orbit_time_to = njit([float64(float64, float64, float64, float64, Omitted(False)),
                           float64(float64, float64, float64, float64, bool_)],
                          **jitkw)(orbit_time_to)
+    point_between = njit(bool_(float64, float64, float64, int64), **jitkw)(point_between)
     newton_root_kepler_ell = njit(float64(float64, float64, float64), **jitkw)(newton_root_kepler_ell)
     newton_root_kepler_hyp = njit(float64(float64, float64, float64), **jitkw)(newton_root_kepler_hyp)
     rot_ellipse_by_y = njit(float64(float64, float64, float64, float64), **jitkw)(rot_ellipse_by_y)

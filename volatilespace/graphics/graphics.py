@@ -213,15 +213,19 @@ class Graphics():
             elif abs(line + moved) % 5 == 0:   # every fifth line, but include line index movement
                 self.draw_line(screen, rgb.gray1, (pos_x, 0), (pos_x, self.screen_y), 1)   # gray line
                 sim_pos_x = round(((line + moved) * spacing) / zoom)   # calculate simulation coordinate
-                self.text(screen, rgb.gray1, self.fontsm,
-                          metric.format_si(sim_pos_x, 2),
-                          (pos_x, self.screen_y - 10), True, rgb.black)
+                self.text(
+                    screen, rgb.gray1, self.fontsm,
+                    metric.format_si(sim_pos_x, 2),
+                    (pos_x, self.screen_y - 10), True, rgb.black
+                )
             else:   # every other line
                 sim_pos_x = round(((line + moved) * spacing) / zoom)
                 self.draw_line(screen, rgb.gray2, (pos_x, 0), (pos_x, self.screen_y), 1)   # dark gray line
-                self.text(screen, rgb.gray2, self.fontsm,
-                          metric.format_si(sim_pos_x, 2),
-                          (pos_x, self.screen_y - 10), True, rgb.black)
+                self.text(
+                    screen, rgb.gray2, self.fontsm,
+                    metric.format_si(sim_pos_x, 2),
+                    (pos_x, self.screen_y - 10), True, rgb.black
+                )
 
         for line in range(line_num_y):
             pos_y = origin[1] + (spacing * line)
@@ -238,15 +242,19 @@ class Graphics():
             elif abs(line + moved) % 5 == 0:
                 self.draw_line(screen, rgb.gray1, (0, pos_y), (self.screen_x, pos_y), 1)
                 sim_pos_y = round(-((line + moved) * spacing) / zoom)
-                self.text(screen, rgb.gray1, self.fontsm,
-                          metric.format_si(sim_pos_y, 2),
-                          (5+self.btn_s, pos_y-5), False, rgb.black)
+                self.text(
+                    screen, rgb.gray1, self.fontsm,
+                    metric.format_si(sim_pos_y, 2),
+                    (5+self.btn_s, pos_y-5), False, rgb.black
+                )
             else:   # every other line
                 self.draw_line(screen, rgb.gray2, (0, pos_y), (self.screen_x, pos_y), 1)
                 sim_pos_y = round(-((line + moved) * spacing) / zoom)
-                self.text(screen, rgb.gray2, self.fontsm,
-                          metric.format_si(sim_pos_y, 2),
-                          (5+self.btn_s, pos_y-5), False, rgb.black)
+                self.text(
+                    screen, rgb.gray2, self.fontsm,
+                    metric.format_si(sim_pos_y, 2),
+                    (5+self.btn_s, pos_y-5), False, rgb.black
+                )
 
 
     def buttons_vertical(self, screen, buttons_txt, pos, prop=None, safe=False):

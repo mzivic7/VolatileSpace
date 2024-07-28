@@ -15,6 +15,17 @@ def main_text(screen, color, font, text, pos):
     screen.blit(text_surf, text_rect)
 
 
+stage_texts = [
+    "Loading menus",
+    "Compiling quartic solver",
+    "Compiling shared physics",
+    "Compiling COI physics",
+    "Compiling game physics",
+    "Compiling editor physics",
+    "Finishing up"
+    ]
+
+
 class Loading:
     def __init__(self, screen):
         self.screen = screen
@@ -33,19 +44,8 @@ class Loading:
         main_text(self.screen, rgb.white, fonthd, "Loading...",
                   (self.screen_x/2, self.screen_y/2 + fonthd.get_height()/1.5))
         main_text(self.screen, rgb.gray1, fontmd, "v" + version, (self.screen_x - 25, self.screen_y - 10))
-        match stage:
-            case 1:
-                text = "Loading menus"
-            case 2:
-                text = "Compiling shared physics"
-            case 3:
-                text = "Compiling COI physics"
-            case 4:
-                text = "Compiling game physics"
-            case 5:
-                text = "Compiling editor physics"
-            case 6:
-                text = "Finishing up"
+
+        text = stage_texts[stage]
         main_text(self.screen, rgb.gray, fontmd, text, self.loading_pos)
 
         if self.last_stage:
@@ -53,7 +53,7 @@ class Loading:
 
         for i, prev_text in enumerate(self.prev_stages[::-1]):
             pos = (self.loading_pos[0], self.loading_pos[1]+30*(i+1))
-            color = [max(rgb.gray0[0] - 25*(i+1), 0)]*3
+            color = [max(rgb.gray0[0] - rgb.gray0[0]/len(stage_texts)*(i+1), 0)]*3
             main_text(self.screen, color, fontmd, prev_text, pos)
 
         self.last_stage = text

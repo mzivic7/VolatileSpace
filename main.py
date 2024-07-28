@@ -31,8 +31,10 @@ def main():
     ###### --Load classes-- ######
     from volatilespace.graphics import loading_screen
     loading = loading_screen.Loading(screen)
-    loading.stage(1)
+    loading.stage(0)
     from volatilespace import menu
+    loading.stage(1)
+    from volatilespace.physics import quartic_solver
     loading.stage(2)
     from volatilespace.physics import phys_shared
     loading.stage(3)

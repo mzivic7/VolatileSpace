@@ -3,7 +3,7 @@ import cmath
 try:
     from numba import njit, float64, complex128
     from numba.types import UniTuple
-    numba_avail = False
+    numba_avail = True
 except ImportError:
     numba_avail = False
 
