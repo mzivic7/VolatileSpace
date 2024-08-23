@@ -6,4 +6,4 @@ g_h = G * m / (h+r)^2   # gravity at height from surface [1]
 
 
 References:
-[1] https://en.wikipedia.org/wiki/Surface_gravity
+[5] https://en.wikipedia.org/wiki/Surface_gravity

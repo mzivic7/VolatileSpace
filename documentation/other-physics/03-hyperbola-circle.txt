@@ -49,7 +49,7 @@ x = (x_n * math.cos(omega) - y_n * math.sin(omega)) + P_x
 y = (x_n * math.sin(omega) + y_n * math.cos(omega)) + P_y
 
 References:
-[3] https://en.wikipedia.org/wiki/Tangent_half-angle_substitution#The_substitution
-[4] https://en.wikipedia.org/wiki/Ellipse#Parametric_representation
-[5] https://en.wikipedia.org/wiki/Quartic_equation
-[7] https://en.wikipedia.org/wiki/Eccentric_anomaly#From_the_true_anomaly
+[1] https://en.wikipedia.org/wiki/Tangent_half-angle_substitution#The_substitution
+[2] https://en.wikipedia.org/wiki/Ellipse#Parametric_representation
+[3] https://en.wikipedia.org/wiki/Quartic_equation
+[5] https://en.wikipedia.org/wiki/Eccentric_anomaly#From_the_true_anomaly

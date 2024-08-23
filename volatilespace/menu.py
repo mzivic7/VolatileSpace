@@ -7,6 +7,7 @@ import time
 import numpy as np
 import pygame
 
+from volatilespace.utils import responsive_blocking
 from volatilespace import fileops
 from volatilespace.graphics import rgb
 from volatilespace.graphics import graphics
@@ -105,6 +106,7 @@ class Menu():
         self.screen_change = False
         self.res_change = False
         self.restart = False   # if restart is needed for settings
+        self.no_filedialog = False
         graphics.antial = self.antial
         graphics.set_screen()
         self.gen_map_list()
@@ -203,8 +205,6 @@ class Menu():
             new_text = graphics.limit_text(text, self.fontbt, self.btn_w_l)
             if new_text != text:
                 self.games[num, 1] = new_text
-
-
 
     ###### --Keys-- ######
     def input_keys(self, e, from_game=False):
@@ -402,9 +402,15 @@ class Menu():
                                         self.are_you_sure = True
                                         self.disable_buttons = True
                                     elif num == 3:   # export
-                                        save_path = fileops.export_file(self.games[self.selected_item, 1], [("Text Files", "*.ini")])
-                                        if save_path != "":
-                                            shutil.copy2(self.selected_path, save_path)
+                                        save_path = responsive_blocking(
+                                            fileops.export_file,
+                                            (self.games[self.selected_item, 1], ["*.ini"])
+                                        )
+                                        if save_path:
+                                            if save_path == "ERROR_NO_DIALOG":
+                                                self.no_filedialog = True
+                                            else:
+                                                shutil.copy2(self.selected_path, save_path)
                             y_pos += self.btn_h + self.space
 
                         # ui
@@ -421,10 +427,13 @@ class Menu():
                                     self.selected_ng_item = 0
                                     self.selected_ng_path = "Maps/" + self.maps[0, 0]
                                 elif num == 2:   # import game
-                                    file_path = fileops.import_file([("Text Files", "*.ini")])
-                                    if file_path != "":
-                                        shutil.copy2(file_path, "Saves")
-                                        self.gen_game_list()
+                                    file_path = responsive_blocking(fileops.import_file, (["*.ini"], ))
+                                    if file_path:
+                                        if file_path == "ERROR_NO_DIALOG":
+                                            self.no_filedialog = True
+                                        else:
+                                            shutil.copy2(file_path, "Saves")
+                                            self.gen_game_list()
                             x_pos += self.btn_w_h + self.space
 
                     # rename
@@ -492,10 +501,14 @@ class Menu():
                                     except Exception:
                                         pass
                                 elif num == 2:   # import map
-                                    file_path = fileops.import_file([("Text Files", "*.ini")])
-                                    if file_path != "":
-                                        shutil.copy2(file_path, "Maps")
-                                        self.gen_map_list()
+                                    file_path = responsive_blocking(fileops.import_file, (["*.ini"], ))
+                                    if file_path:
+                                        if file_path == "ERROR_NO_DIALOG":
+                                            self.no_filedialog = True
+                                        else:
+                                            shutil.copy2(file_path, "Maps")
+                                            self.gen_map_list()
+                                            file_path = None
                             x_pos += self.btn_w_h_3 + self.space
 
                     if self.scrollbar_drag is True:   # disable scrollbar_drag when release click
@@ -562,9 +575,15 @@ class Menu():
                                         self.are_you_sure = True
                                         self.disable_buttons = True
                                     elif num == 3:   # export
-                                        save_path = fileops.export_file(self.maps[self.selected_item, 1], [("Text Files", "*.ini")])
-                                        if save_path != "":
-                                            shutil.copy2(self.selected_path, save_path)
+                                        save_path = responsive_blocking(
+                                            fileops.export_file,
+                                            (self.maps[self.selected_item, 1], ["*.ini"])
+                                        )
+                                        if save_path:
+                                            if save_path == "ERROR_NO_DIALOG":
+                                                self.no_filedialog = True
+                                            else:
+                                                shutil.copy2(self.selected_path, save_path)
                             y_pos += self.btn_h + self.space
 
                         # ui
@@ -579,10 +598,13 @@ class Menu():
                                     self.disable_buttons = True
                                     textinput.initial_text("New Map", selected=True)
                                 elif num == 2:   # import map
-                                    file_path = fileops.import_file([("Text Files", "*.ini")])
-                                    if file_path != "":
-                                        shutil.copy2(file_path, "Maps")
-                                        self.gen_map_list()
+                                    file_path = responsive_blocking(fileops.import_file, (["*.ini"], ))
+                                    if file_path:
+                                        if file_path == "ERROR_NO_DIALOG":
+                                            self.no_filedialog = True
+                                        else:
+                                            shutil.copy2(file_path, "Maps")
+                                            self.gen_map_list()
                             x_pos += self.btn_w_h + self.space
 
                     # rename and new map
@@ -852,7 +874,11 @@ class Menu():
 
         # main menu
         if self.menu == 0:
-            graphics.text(screen, rgb.white, self.fonttl, "Volatile Space", (self.screen_x/2, self.main_y - self.fonttl.get_height()), True)
+            graphics.text(
+                screen, rgb.white, self.fonttl,
+                "Volatile Space",
+                (self.screen_x/2, self.main_y - self.fonttl.get_height()), True
+            )
             graphics.buttons_vertical(screen, buttons_main, (self.main_x, self.main_y), [None, 5, None, None, None, None])
 
 
@@ -869,8 +895,16 @@ class Menu():
             else:
                 selected_name = "No saved games"
                 selected_date = ""
-            graphics.text(screen, rgb.white, self.fontbt, selected_name, (self.map_x_2 + self.btn_w/2, self.map_y_2 - self.btn_h), True)
-            graphics.text(screen, rgb.gray, self.fontmd, selected_date, (self.map_x_2 + self.btn_w/2, self.map_y_2 - self.btn_h/2+3), True)
+            graphics.text(
+                screen, rgb.white, self.fontbt,
+                selected_name,
+                (self.map_x_2 + self.btn_w/2, self.map_y_2 - self.btn_h), True
+            )
+            graphics.text(
+                screen, rgb.gray, self.fontmd,
+                selected_date,
+                (self.map_x_2 + self.btn_w/2, self.map_y_2 - self.btn_h/2+3), True
+            )
             graphics.buttons_vertical(screen, buttons_play_sel, (self.map_x_2, self.map_y_2))
 
             # connector
@@ -897,8 +931,16 @@ class Menu():
                 else:
                     menu_title = "New Map"
                     buttons = buttons_new_map
-                graphics.text(screen, rgb.white, self.fontbt, menu_title, (self.screen_x/2,  self.ask_y-20-self.btn_h), True)
-                textinput.graphics(screen, clock, self.fontbt, (self.ask_x, self.ask_y-self.btn_h), (self.btn_w_h*2+self.space, self.btn_h))
+                graphics.text(
+                    screen, rgb.white, self.fontbt,
+                    menu_title,
+                    (self.screen_x/2,  self.ask_y-20-self.btn_h), True
+                )
+                textinput.graphics(
+                    screen, clock, self.fontbt,
+                    (self.ask_x, self.ask_y-self.btn_h),
+                    (self.btn_w_h*2+self.space, self.btn_h)
+                )
                 graphics.buttons_horizontal(screen, buttons, (self.ask_x, self.ask_y+self.space), safe=True)
 
             if self.new_game:
@@ -908,6 +950,13 @@ class Menu():
                 graphics.buttons_list(screen, self.maps[:, 1], (self.maps_x, self.maps_y), self.maps_list_limit, self.scroll_maps, self.selected_ng_item, safe=not self.scrollbar_drag)
                 graphics.buttons_horizontal(screen, buttons_new_game, (self.maps_x - self.space, self.maps_y_ui), alt_width=self.btn_w_h_3, safe=not self.scrollbar_drag)
                 pygame.draw.rect(screen, rgb.white, border_rect, 1)
+
+            if self.no_filedialog:
+                graphics.text(
+                    screen, rgb.red, self.fontmd,
+                    "Zenity or KDialog packages are requied to display file dialog.",
+                    (self.screen_x/2, self.bot_y_ui-21)
+                )
 
             # double click counter
             # not graphics related, but must be outside of input functions
@@ -936,8 +985,16 @@ class Menu():
             else:
                 selected_name = "No saved maps"
                 selected_date = ""
-            graphics.text(screen, rgb.white, self.fontbt, selected_name, (self.map_x_2 + self.btn_w/2, self.map_y_2 - self.btn_h), True)
-            graphics.text(screen, rgb.gray, self.fontmd, selected_date, (self.map_x_2 + self.btn_w/2, self.map_y_2 - self.btn_h/2+3), True)
+            graphics.text(
+                screen, rgb.white, self.fontbt,
+                selected_name,
+                (self.map_x_2 + self.btn_w/2, self.map_y_2 - self.btn_h), True
+            )
+            graphics.text(
+                screen, rgb.gray, self.fontmd,
+                selected_date,
+                (self.map_x_2 + self.btn_w/2, self.map_y_2 - self.btn_h/2+3), True
+            )
             graphics.buttons_vertical(screen, buttons_map_sel, (self.map_x_2, self.map_y_2))
 
             # connector
@@ -967,6 +1024,13 @@ class Menu():
                 graphics.text(screen, rgb.white, self.fontbt, menu_title, (self.screen_x/2,  self.ask_y-20-self.btn_h), True)
                 textinput.graphics(screen, clock, self.fontbt, (self.ask_x, self.ask_y-self.btn_h), (self.btn_w_h*2+self.space, self.btn_h))
                 graphics.buttons_horizontal(screen, buttons, (self.ask_x, self.ask_y+self.space), safe=True)
+
+            if self.no_filedialog:
+                graphics.text(
+                    screen, rgb.red, self.fontmd,
+                    "Zenity or KDialog packages are requied to display file dialog.",
+                    (self.screen_x/2, self.bot_y_ui-21)
+                )
 
             # double click counter
             # not graphics related, but must be outside of input functions
@@ -1015,10 +1079,18 @@ class Menu():
             graphics.buttons_horizontal(screen, buttons_set_ui, (self.set_x_ui, self.bot_y_ui))
 
             # warnings
-            if self.fullscreen is True and self.selected_res != 0:
-                graphics.text(screen, rgb.red, self.fontmd, "Fullscreen mode may not work when in lower resolutions.", (self.screen_x/2, self.bot_y_ui-28), True)
-            if self.restart is True:
-                graphics.text(screen, rgb.red, self.fontmd, "Restart is required for changes to take effect.", (self.screen_x/2, self.bot_y_ui-12), True)
+            if self.fullscreen and self.selected_res != 0:
+                graphics.text(
+                    screen, rgb.red, self.fontmd,
+                    "Fullscreen mode may not work when in lower resolutions.",
+                    (self.screen_x/2, self.bot_y_ui-28), True
+                )
+            if self.restart:
+                graphics.text(
+                    screen, rgb.red, self.fontmd,
+                    "Restart is required for changes to take effect.",
+                    (self.screen_x/2, self.bot_y_ui-12), True
+                )
 
             # keybinding:
             if self.keybinding is True:
@@ -1028,10 +1100,22 @@ class Menu():
 
         # about
         elif self.menu == 5:
-            graphics.text(screen, rgb.white, self.fontbt, "Created by: Marko Zivic", (self.screen_x/2, self.about_y - self.btn_h*2), True)
-            graphics.text(screen, rgb.white, self.fontbt, f"Version: {version}", (self.screen_x/2, self.about_y - self.btn_h), True)
+            graphics.text(
+                screen, rgb.white, self.fontbt,
+                "Created by: Marko Zivic",
+                (self.screen_x/2, self.about_y - self.btn_h*2), True
+            )
+            graphics.text(
+                screen, rgb.white, self.fontbt,
+                f"Version: {version}",
+                (self.screen_x/2, self.about_y - self.btn_h), True
+            )
             graphics.buttons_vertical(screen, buttons_about, (self.about_x, self.about_y), [2, 2, 2, 2, None])
-            graphics.text(screen, rgb.gray0, self.fontmd, "Powered by: Python, pygame-ce, NumPy, Numba", (self.screen_x/2, self.about_y + self.btn_h*(len(buttons_about)+2)), True)
+            graphics.text(
+                screen, rgb.gray0, self.fontmd,
+                "Powered by: Python, pygame-ce, NumPy, Numba",
+                (self.screen_x/2, self.about_y + self.btn_h*(len(buttons_about)+2)), True
+            )
 
 
         # version number

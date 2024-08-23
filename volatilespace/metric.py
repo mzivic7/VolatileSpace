@@ -13,11 +13,16 @@ def format_si(value, decimal=3):
     if value is None:
         return str(0)
 
-    size = int(math.log10(abs(value)) / 3)   # calculate number size
-    prefix = ''
+    full_size = math.log10(abs(value))   # number size by tens
+    size = int(full_size / 3)   # number size by thousands
+    prefix = ""
 
     if size == 0:
         return str(round(value, decimal))
+    elif full_size < 4:
+        return str(round(value, decimal))
+    elif abs(full_size) > 15:   # use scientific notation for very large numbers
+        return ("{:." + str(decimal) + "e}").format(value)
     else:
 
         # up prefix

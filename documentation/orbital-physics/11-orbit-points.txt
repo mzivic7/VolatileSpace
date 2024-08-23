@@ -1,6 +1,6 @@
 ### Characteristic orbit points ###
 
-# using math from other-physics/4-ellipse-circle.txt
+# using math from other-physics/02-ellipse-circle.txt
 # to get Ea and global point of intersection
 
 # COLLISION WITH PLANET
@@ -30,7 +30,7 @@
 # this prediction must be ran periodically, because used algorithm predicts only up to one full orbit
 # it is advised to run it every half orbit, and every time something changes on orbit
 # here, prediction is re-run each time when vessel passes Pe and Ap
-# passage is checked same way as in other-physics/3-warp.txt
+# passage is checked same way as in other-physics/01-warp.txt
 
 ### Finding next and previous point on orbit ###
 # first calculate angle between points in CCW direction
@@ -50,8 +50,8 @@ if direction < 0:
 # this is easy:
 # just find intersection points of vessel orbit (ellipse/hyperbola) and body COI (circle)
 # methods explained here:
-other-physics/04-ellipse-circle.txt
-other-physics/04-hyperbola-circle.txt
+other-physics/02-ellipse-circle.txt
+other-physics/03-hyperbola-circle.txt
 
 
 ### Predicting vessel and body ma at the moment when vessel ENTER body COI ###

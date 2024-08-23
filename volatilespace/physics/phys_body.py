@@ -15,7 +15,7 @@ from volatilespace.physics.phys_shared import \
     newton_root_kepler_ell, newton_root_kepler_hyp, \
     curve_points, curve_move_to, \
     mag, orbit_time_to, culling, \
-    mp, k, c
+    gc, c, ls, ms, sigma
 
 
 def calc_orb_one(body, ref, mass, gc, coi_coef, a, ecc):
@@ -57,20 +57,51 @@ def calc_orb_one(body, ref, mass, gc, coi_coef, a, ecc):
 
 def temp_color(temp, base_color):
     """Set color depending on temperature."""
-    color = base_color[:]
-    # temperature to 1000 - BASE
-    # temperature from 1000 to 3000 - RE
-    color[:, 0] = np.where(temp > 1000, base_color[:, 0] + ((255 - base_color[:, 0]) * (temp - 1000)) / 2000, base_color[:, 0])   # base red to full red
-    color[:, 1] = np.where(temp > 1000, base_color[:, 1] - ((base_color[:, 1]) * (temp - 1000)) / 2000, base_color[:, 1])   # base green to no green
-    color[:, 2] = np.where(temp > 1000, base_color[:, 2] - ((base_color[:, 2]) * (temp - 1000)) / 2000, base_color[:, 2])   # base blue to no blue
-    # temperature from 3000 to 6000 - YELLOW
-    color[:, 1] = np.where(temp > 3000, (255 * (temp - 3000)) / 3000, color[:, 1])   # no green to full green
-    # temperature from 6000 to 10000 - WHITE
-    color[:, 2] = np.where(temp > 6000, (255 * (temp - 6000)) / 4000, color[:, 2])   # no blue to full blue
-    # temperature from 10000 to 30000 - BLUE
-    color[:, 0] = np.where(temp > 10000, 255 - ((255 * (temp - 10000) / 10000)), color[:, 0])   # full red to no red
-    color[:, 1] = np.where(temp > 10000, 255 - ((135 * (temp - 10000) / 20000)), color[:, 1])   # full green to 120 green
-    color = np.clip(color, 0, 255)
+    # mixed color
+    fg_opacity = np.where(
+        np.logical_and(temp > 1000, temp <= 2300),
+        1 - 1 / (1300 / (temp - 1000)),
+        -1
+    )
+    color = np.copy(base_color)
+    color[:, 0] = np.where(
+        fg_opacity != -1,
+        base_color[:, 0] * fg_opacity + 255 * (1 - fg_opacity),
+        base_color[:, 0]
+    )
+    color[:, 1] = np.where(
+        fg_opacity != -1,
+        base_color[:, 1] * fg_opacity + 184 * (1 - fg_opacity),
+        base_color[:, 1]
+    )
+    color[:, 2] = np.where(
+        fg_opacity != -1,
+        base_color[:, 2] * fg_opacity + 111 * (1 - fg_opacity),
+        base_color[:, 2]
+    )
+
+    # heated color
+    color[:, 0] = np.where(
+        temp > 2300,
+        130 + 125 / (1 + (temp / 5922)**55.525)**0.065,
+        color[:, 0]
+    )
+    color[:, 1] = np.where(
+        np.logical_and(temp > 2300, temp <= 6000),
+        257 - 73 / (1 + (temp / 4742)**6.687),
+        color[:, 1]
+    )
+    color[:, 1] = np.where(
+        temp > 6000,
+        170 + 165766330 / (1 + (temp / 24)**2.651),
+        color[:, 1]
+    )
+    color[:, 2] = np.where(
+        temp > 2300,
+        283 - 176 / (1 + (temp / 4493)**5.792),
+        color[:, 2]
+    )
+    color = np.clip(color.astype(int), 0, 255)
     return color
 
 
@@ -88,7 +119,7 @@ class Physics():
         self.names = np.array([])
         self.mass = np.array([])
         self.den = np.array([])
-        self.size = np.array([])
+        self.radius = np.array([])
         self.base_color = np.empty((0, 3), int)   # original color unaffected by temperature
         self.types = np.array([])
         self.atm_pres0 = np.array([])
@@ -116,6 +147,7 @@ class Physics():
         self.u = np.array([])
         self.gc = defaults.sim_config["gc"]
         self.rad_mult = defaults.sim_config["rad_mult"]
+        self.mass_thermal_mult = defaults.sim_config["mass_thermal_mult"]
         self.coi_coef = defaults.sim_config["coi_coef"]
         self.reload_settings()
 
@@ -134,7 +166,9 @@ class Physics():
         """Loads physics related config."""
         self.gc = conf["gc"]
         self.rad_mult = conf["rad_mult"]
+        self.mass_thermal_mult = conf["mass_thermal_mult"]
         self.coi_coef = conf["coi_coef"]
+        self.min_mass = conf["min_planet_mass"]
 
     def load(self, conf, body_data, body_orb_data):
         """Load new system."""
@@ -164,8 +198,8 @@ class Physics():
         - Bodies whose COI is visible on screen,
         - Bodies that are visible on screen (atmosphere incl),
         - Bodies whose orbits are inside COI that is visible on screen and COI is larger than N pixels"""
-        atm_size = (self.size + self.atm_h) * zoom
-        visible_bodies_truth = culling(self.pos, atm_size, sim_screen, zoom)
+        atm_radius = (self.radius + self.atm_h) * zoom
+        visible_bodies_truth = culling(self.pos, atm_radius, sim_screen, zoom)
         visible_bodies = np.arange(len(self.mass))[visible_bodies_truth]
         visible_coi_truth = culling(self.pos, self.coi, sim_screen, zoom)
         visible_coi = np.concatenate(([0], np.arange(len(self.mass))[visible_coi_truth]))
@@ -182,33 +216,56 @@ class Physics():
 
         # BODY DATA #
         volume = self.mass / self.den
-        self.size = self.rad_mult * np.cbrt(3 * volume / (4 * np.pi))
-        core_temp = (self.gc * mp * self.mass) / ((3/2) * k * self.size * self.rad_mult)
-        temp = 0 / core_temp   # surface temperature # ### temporarily ###
-        rad_sc = 2 * self.mass * self.gc / c**2   # Schwarzschild radius
+        self.radius = self.rad_mult * np.cbrt(3 * volume / (4 * np.pi))
+        thermal_mass = self.mass * self.mass_thermal_mult
+        thermal_volume = thermal_mass / self.den
+        thermal_radius = np.cbrt(3 * thermal_volume / (4 * np.pi))
+        luminosity = ls * (thermal_mass / ms)**3.5   # mass and radius must be adjusted
+        temp = luminosity**(1/4) / (np.sqrt(thermal_radius) * np.sqrt(2) * np.pi**(1/4) * sigma**(1/4))
+        rad_sc = 2 * thermal_mass * gc / c**2   # Schwarzschild radius
+        # because thermal_mass is used, scale rad_sc with proportion to thermal radius
+        rad_sc = rad_sc * self.radius / thermal_radius
         color = temp_color(temp, self.base_color)
-        surf_grav = self.gc * self.mass / self.size**2
+        surf_grav = self.mass / self.radius**2
         self.atm_h = np.zeros(len(self.mass))
         for body, _ in enumerate(self.mass):
             if all(x != 0 for x in [self.atm_pres0[body], self.atm_scale_h[body], self.atm_den0[body]]):
                 self.atm_h[body] = - self.atm_scale_h[body] * math.log(0.001 / self.atm_den0[body]) * self.rad_mult
 
         # CLASSIFICATION #
-        self.types = np.zeros(len(self.mass))  # it is moon
-        self.types = np.where(self.mass > 200, 1, self.types)    # if it has high enough mass: it is solid planet
-        self.types = np.where(self.den < 1, 2, self.types)    # if it is not dense enough: it is gas planet
-        self.types = np.where(self.mass > 5000, 3, self.types)   # ### temporarily ###
-        # self.types = np.where(self.temp > 1000, 3, self.types)    # if temperature is over 1000 degrees: it is a star
-        # self.types = np.where(self.rad_sc > self.rad, 4, self.types)   # if schwarzschild radius is greater than radius: it is black hole
+        self.types = np.zeros(len(self.mass))  # it is a dwarf planet
+        self.types = np.where(self.mass > self.min_mass, 1, self.types)    # if it has high enough mass: it is a solid planet
+        self.types = np.where(self.den < 1500, 2, self.types)    # if it is not dense enough: it is a gas planet
+        self.types = np.where(temp > 1000, 3, self.types)    # if temperature is over 1000 degrees: it is a star
+        self.types = np.where(rad_sc > self.radius, 4, self.types)   # if schwarzschild radius is greater than radius: it is a black hole
+
+        # star classification
+        stars = np.where(self.types == 3, True, False)
+        stellar_class = np.where(stars, "M", "Unknown")
+        stellar_class = np.where(temp > 3900, "K", stellar_class)
+        stellar_class = np.where(temp > 5300, "G", stellar_class)
+        stellar_class = np.where(temp > 6000, "F", stellar_class)
+        stellar_class = np.where(temp > 7300, "A", stellar_class)
+        stellar_class = np.where(temp > 10000, "B", stellar_class)
+        stellar_class = np.where(temp > 33000, "O", stellar_class)
+
+        # recolor black hole
+        bh = np.where(rad_sc > self.radius)
+        color[bh] = [0, 0, 0]
+        # black hole does not have atmosphere [citation needed]
+        self.atm_h = np.where(rad_sc > self.radius, 0, self.atm_h)
+
         body_data = {
             "name": self.names,
             "type": self.types,
             "mass": self.mass,
             "den": self.den,
             "temp": temp,
+            "lum": luminosity,
+            "class": stellar_class,
             "color_b": self.base_color,
             "color": color,
-            "size": self.size,
+            "radius": self.radius,
             "rad_sc": rad_sc,
             "surf_grav": surf_grav,
             "atm_pres0": self.atm_pres0,

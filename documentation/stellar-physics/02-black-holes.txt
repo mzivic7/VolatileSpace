@@ -1,4 +1,16 @@
 ### black holes ###
+
 # Star is BH only if its radius is smaller than its Schwarzschild radius
 R = cbrt((3 * vol) / (4 * pi))
+
+# Schwarzschild radius
 Rs = (2 * m * G) / c^2
+
+# notes:
+# real gravitational constant (G) is used, NOT the one from config,
+# and mass (m) is multiplied with "mass multiplier"
+# both values can be changed in simulation config, and are only used to scale down simulation
+
+
+References:
+[4] https://en.wikipedia.org/wiki/Schwarzschild_radius

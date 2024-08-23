@@ -92,7 +92,6 @@ def gen_probe_points_ell(t1, t2, num):
 
 default_probe_points_ravel = True
 probe_points_num = 16
-extra_optimize_iterations = 10
 
 
 # generate default probe points
@@ -123,6 +122,7 @@ def predict_enter_coi(vessel_data, body_data, vessel_orbit_center, hint_ma=np.na
     ap = a * (1 + ecc)
     b_ap = b_a * (1 + b_ecc)
     b_pe = b_a * (1 - b_ecc)
+    extra_optimize_iterations = 10
 
     print()
     print()

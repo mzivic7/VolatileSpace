@@ -7,15 +7,16 @@ try:   # to allow building without numba
     numba_avail = True
 except ImportError:
     numba_avail = False
+
 from volatilespace import fileops
 
 
 ###### --Constants-- ######
+gc = 6.674 * 10**-11   # real gravitational constant
 c = 299792458   # speed of light in vacuum
-k = 1.381 * 10**-23   # boltzman constant
-m_h = 1.674 * 10**-27    # hydrogen atom mass in kg
-m_he = 6.646 * 10**-27   # helium atom mass in kg
-mp = (m_h * 99 + m_he * 1) / 100   # average particle mass   # depends on star age
+sigma = 5.670374419 * 10**-8   # Stefan-Boltzmann constant
+ls = 3.828 * 10**26   # Sun luminosity
+ms = 1.9884 * 10**30   # Sun mass
 
 
 ###### --Functions-- ######
@@ -85,6 +86,16 @@ def point_between(n, a, b, direction):
         return a <= n and n <= b
     else:
         return a <= n or n <= b
+
+
+def angle_diff(from_angle, to_angle, dr):
+    """Calculates difference between two angles in orbit direction with wrapping at 2pi"""
+    if dr < 0:
+        from_angle, to_angle = to_angle, from_angle
+    if from_angle < to_angle:
+        return to_angle - from_angle
+    else:
+        return 2*np.pi - from_angle + to_angle
 
 
 def newton_root(function, derivative, root_guess, variables={}):
@@ -228,7 +239,7 @@ def curve_move_to(curves, body_pos, ref, f, pea):
 
 
 def culling(coords, radius, screen_bounds, zoom):
-    """Decides wether provided bodies should be drawn on screen,
+    """Decides wether provided objecs should be drawn on screen,
     depending on their position and radius (if any)."""
     # swapping y axis because (0, 0) is in top left
     min_dim = (coords.T + radius).T + 2 / zoom > np.array([screen_bounds[0, 0], screen_bounds[1, 1]])
@@ -252,6 +263,7 @@ if numba_avail and use_numba:
                           float64(float64, float64, float64, float64, bool_)],
                          **jitkw)(orbit_time_to)
     point_between = njit(bool_(float64, float64, float64, int64), **jitkw)(point_between)
+    angle_diff = njit(float64(float64, float64, int64), **jitkw)(angle_diff)
     newton_root_kepler_ell = njit(float64(float64, float64, float64), **jitkw)(newton_root_kepler_ell)
     newton_root_kepler_hyp = njit(float64(float64, float64, float64), **jitkw)(newton_root_kepler_hyp)
     rot_ellipse_by_y = njit(float64(float64, float64, float64, float64), **jitkw)(rot_ellipse_by_y)

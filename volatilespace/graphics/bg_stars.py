@@ -67,10 +67,26 @@ def random_cluster_stars(count_minmax, size_mult, speed, radius_prob, opacity, u
 def new_pos(pos, res, frame, zoom_off, zoom):
     """Cycle stars from extended screen edge to opposite"""
     size = len(pos)
-    pos[:, 0] = np.where(pos[:, 0] >= res[0] + frame, (np.random.randint(-frame, 0, size=size) - zoom_off[0]) / zoom, pos[:, 0])
-    pos[:, 0] = np.where(pos[:, 0] <= - frame, (np.random.randint(res[0], res[0] + frame, size=size) - zoom_off[0]) / zoom, pos[:, 0])
-    pos[:, 1] = np.where(pos[:, 1] >= res[1] + frame, (np.random.randint(-frame, 0, size=size) - zoom_off[1]) / zoom, pos[:, 1])
-    pos[:, 1] = np.where(pos[:, 1] <= - frame, (np.random.randint(res[1], res[1] + frame, size=size) - zoom_off[1]) / zoom, pos[:, 1])
+    pos[:, 0] = np.where(
+        pos[:, 0] >= res[0] + frame,
+        (np.random.randint(-frame, 0, size=size) - zoom_off[0]) / zoom,
+        pos[:, 0]
+    )
+    pos[:, 0] = np.where(
+        pos[:, 0] <= - frame,
+        (np.random.randint(res[0], res[0] + frame, size=size) - zoom_off[0]) / zoom,
+        pos[:, 0]
+    )
+    pos[:, 1] = np.where(
+        pos[:, 1] >= res[1] + frame,
+        (np.random.randint(-frame, 0, size=size) - zoom_off[1]) / zoom,
+        pos[:, 1]
+    )
+    pos[:, 1] = np.where(
+        pos[:, 1] <= - frame,
+        (np.random.randint(res[1], res[1] + frame, size=size) - zoom_off[1]) / zoom,
+        pos[:, 1]
+    )
     return pos
 
 

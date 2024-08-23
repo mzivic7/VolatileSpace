@@ -146,7 +146,7 @@ class Physics():
     def load(self, conf, body_data, body_orb, vessel_data, vessel_orb_data):
         """Load vessels and bodies."""
         self.body_mass = body_data["mass"]
-        self.body_size = body_data["size"]
+        self.body_size = body_data["radius"]
         self.body_ref = body_orb["ref"]
         self.body_a = body_orb["a"]
         self.body_b = body_orb["b"]
@@ -389,7 +389,7 @@ class Physics():
                          self.body_a[body], self.body_b[body], self.body_f[body], 0.0,
                          self.body_dr[body], self.body_coi[body])
             vessel_orbit_center = (center_x, center_y)
-            enter_data_one = predict_enter_coi(vessel_data, body_data, vessel_orbit_center)
+            enter_data_one = predict_enter_coi(vessel_data, body_data, vessel_orbit_center, np.nan)
             if self.left_coi == vessel and self.left_coi_prev_ref == body:
                 # if vessel has just left COI of checked body, false positive can occur
                 # in that case time_to_new_ma will be very small or very close to period
@@ -561,13 +561,14 @@ class Physics():
         because used algorithm predicts only up to one full orbit.
         This service runs predict_enter_coi every half orbit, after vessel passes Pe and Ap."""
         for vessel, _ in enumerate(self.names):
-            ea_vessel_1 = self.prev_ea[vessel]
-            ea_vessel_2 = self.ea[vessel]
-            if self.left_coi is None and self.entered_coi is None:
-                for point in (0, np.pi):   # check both Ap and Pe
-                    if point_between(point, ea_vessel_1, ea_vessel_2, self.dr[vessel]):
-                        # re-run predict_enter_coi
-                        self.points(vessel, True)
+            if np.isnan(self.coi_enter[vessel, 0]):
+                ea_vessel_1 = self.prev_ea[vessel]
+                ea_vessel_2 = self.ea[vessel]
+                if self.left_coi is None and self.entered_coi is None:
+                    for point in (0, np.pi):   # check both Ap and Pe
+                        if point_between(point, ea_vessel_1, ea_vessel_2, self.dr[vessel]):
+                            # re-run predict_enter_coi
+                            self.points(vessel, True)
 
 
     def rotate(self, warp, vessel, direction):

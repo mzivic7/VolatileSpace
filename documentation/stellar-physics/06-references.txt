@@ -1,0 +1,8 @@
+### references ###
+[1] https://en.wikipedia.org/wiki/Stefan%E2%80%93Boltzmann_law#Temperature_of_stars
+[2] https://en.wikipedia.org/wiki/Stellar_classification
+[3] http://www.vendian.org/mncharity/dir3/starcolor/
+[4] https://en.wikipedia.org/wiki/Schwarzschild_radius
+[5] https://en.wikipedia.org/wiki/Surface_gravity
+[6] https://en.wikipedia.org/wiki/Density_of_air#Variation_with_altitude
+[7] https://en.wikipedia.org/wiki/Sigmoid_function

@@ -36,9 +36,16 @@ then generate and select probe points
 
 Hinted vessel Ma can be appended at start of probe points, so it is checked first.
     This is useful when vessel is accelerating and its orbit is smoothly changing, and can speed up algorithm.
-At start, correction is not inverted
+At the beginning, correction is not inverted
 
-(loop) search for initial intersection:
+Now decide what algorithm to use, if vessel and body have same orbit direction, use regular algorithm
+If they have different directions, then use opposed algorithm
+These two algorithms are largely same, except the opposed has one extra "stage"
+Opposed algorithm first runs one iteration of regular algorithm, called first stage,
+and next iteration is mostly same, just correction is calculated differently, its called second stage
+After search, optimize loop starts with second stage, and stages are changing periodically
+
+(loop) search loop - search for initial intersection:
     take one probe point and make it new Ma
     calculate time to move vessel from current Ma to new Ma (orbital-physics/5-orbit-shape-parameters.txt)
         # short: time_to_new_Ma
@@ -57,21 +64,35 @@ At start, correction is not inverted
         b_x_r = -(cos(-pe_arg) * (b_x - center_x) - sin(-pe_arg) * (b_y - center_y))
         b_y_r = -(sin(-pe_arg) * (b_x - center_x) + cos(-pe_arg) * (b_y - center_y))
         (b_x_r and b_y_r are then used in finding intersections)
-    check intersections for vessel orbit and body COI at calculated body position (other-physics/4-ellipse-circle.txt)
+    check intersections for vessel orbit and body COI at calculated body position (other-physics/2-ellipse-circle.txt)
         if there are intersections:
-            if body and vessel directions are SAME:
-                select intersection that is NEXT point on orbit from current vessel Ma (explained above this algorithm)
-            if body and vessel directions are OPPOSITE:
-                select intersection that is PREVIOUS point on orbit from current vessel Ma
+            sort all intersections Ea, based to distance from vessel new Ea in orbit direction
+            if correction is inverted, invert sorted intersections order
+            check if vessel is inside COI
+                calculate minimal angular difference between two sorted intersections:
+                diff = (second_intersection - first_intersection] + pi) % (2pi) - pi
+                in the formula if vessel direction is negative: swap first and second intersection
+                if diff is positive value:
+                    if vessel Ea is between SECOND and FIRST intersection Ea, it is inside COI
+                if diff is negative value:
+                    if vessel Ea is between FIRST and SECOND intersection Ea, it is inside COI
+            select intersection that is next point on orbit from current vessel Ma (explained above search loop pseudocode)
             correction = intersect position - new position
-            stop search and go to next stage
+            if opposed:
+                if vessel is outside COI and BEHIND it:
+                    # save as in optimize loop, there is explained why
+                    correction = -correction
+                prev_ma = new Ma
+                # later used in second stage of opposed algorithm
+                # first optimize iteration after search will be second stage!
+            STOP SEARCH, and go to next stage
             new Ma and correction are obtained from this picked point, those values are used in next stage
         if there are no intersections:
             check next point from probe points
             if all points are checked:
                 then there are no intersections on one full orbit, so just quit
 
-(loop) iterate to lower correction:
+(loop) optimize loop - iterate to lower correction:
     apply correction to new Ma
         new Ma += correction
     everything is same as in search loop from 'calculate time' to 'check intersections'
@@ -80,34 +101,68 @@ At start, correction is not inverted
             # this is the most important part, here is decided where and how much to move vessel in next iteration
             # so vessel gets closer to COI in next iteration, and correction gets significantly smaller
             first calculate new Ea from new Ma
+            if this is first stage of opposed:
+                # save new Ma for second stage
+                prev_ma = new Ma
+            sort all intersections Ea, based to distance from vessel new Ea in orbit direction
+            if correction is inverted, invert sorted intersections order
             check if vessel is inside COI
-                sort all intersections Ea to distance from vessel Ea in orbit direction
-                if correction is inverted, invert sorted intersections order
-                if vessel Ea is between first two intersections Ea, it is inside COI
+                calculate minimal angular difference between two sorted intersections:
+                diff = (second_intersection - first_intersection] + pi) % (2pi) - pi
+                in the formula if vessel direction is negative: swap first and second intersection
+                if diff is positive value:
+                    if vessel Ea is between SECOND and FIRST intersection Ea, it is inside COI
+                if diff is negative value:
+                    if vessel Ea is between FIRST and SECOND intersection Ea, it is inside COI
             pick target
                 distance = abs(intersect Ea - new Ea)
-                if correction is NORMAL:
-                    select CLOSEST intersection Ea to vessel Ea
-                if correction is INVERTED and vessel is OUTSIDE COI:
-                    select FURTHEST intersection Ea to vessel Ea
-                    # selecting furthest because it will bring vessel closer to first point of intersect
-                    # this solves special case when both points are on same side of COI, then there are 2 solutions
-                    # one for enter coi, and other for second point of intersection
-                    # additionally this should be allowed only once, to prevent distancing from intersection
-                    # in case this is wrong, backing will repair damage
-            # get correction
+                if this is not opposed
+                    if correction is NORMAL:
+                        select CLOSEST intersection Ea to vessel Ea
+                    if correction is INVERTED and vessel is INSIDE COI:
+                        select FURTHEST intersection Ea to vessel Ea
+                        # selecting furthest because it will bring vessel closer to first point of intersect
+                        # this solves special case when both points are on same side of COI, then there are 2 solutions
+                        # one for enter coi, and other for second point of intersection
+                        # additionally this should be allowed only once, to prevent distancing from intersection
+                        # in case this is wrong, backing will repair damage
+                if this is opposed:
+                    select first intersection in orbit direction, relative to point outside of COI
+                    # because that is only point vessel can enter COI when opposed
+            # get intersection Ma
                 ellipse:
                     intersect_ma = (intersect_ea - ecc * sin(intersect_ea)) % (2 * pi)
                 hyperbola:
                     intersect_ma = ecc * sinh(intersect_ea) - intersect_ea
-                corr = -abs(intersect_ma - new_ma)
-            # then decide whether to move forward or backward (skip if correction is inverted)
-            # if vessel is outside COI and in front of it:
-                correction = -correction
-                # when new position is in front of closest intersection, but outside COI,
-                # if new position keeps moving towards intersection, it will get further
-                # because of that correction must be inverted
-            if correction was not inverted IN LAST INTERSECTION:
+            if this is not opposed or is FIRST STAGE of opposed:
+                # get correction
+                    corr = -abs(intersect_ma - new_ma)
+                # then decide whether to move forward or backward (skip if correction is inverted)
+                if opposed algorithm:
+                    if new position is outside COI and in BEHIND it:
+                        # when new position is behind closest intersection, but outside COI,
+                        # if new position keeps moving towards intersection, it will get further
+                        # because of that correction must be inverted
+                        correction = -correction
+            if this is SECOND STAGE of opposed:
+                prev_ma <- vessel Ma from first stage (initial is from search)
+                new_ma <- vessel Ma from second stage
+                intersect_ma <- selected intersection from second stage
+                # point C will be in opposite direction of B relative to A
+                # adiff is angular difference in same direction as correction from first stage
+                p = |adiff(prev_ma, new_ma)|
+                q = |adiff(intersect_ma, new_ma)|
+                # proportion to get approximate correction when vessel Ea and intersection Ea will converge:
+                corr_2 = p^2/q
+                # corr_2 must be same sign as correction from first stage
+                if vessel direction is negative and new position is outside COI:
+                    # because direction is inverted, correction now must be positive
+                    # but keep negative sign from correction direction when outside coi
+                    corr_2 = |corr_2|
+                # corr_2 is then used as "correction" in next iteration, which is again first stage
+                # now return mew Ma to previous state, so only correction from second stage is applied is next first stage
+                new Ma = prev_ma
+            if correction was not inverted IN LAST INTERSECTION, and (this is NOT OPPOSED or SECOND STAGE):
                 # check if correction is increasing:
                 compare last actual correction, not affected by backing, and current actual correction,
                 but only if both values have same sing
@@ -124,6 +179,7 @@ At start, correction is not inverted
                 correction = back * abs(correction) / 2
                 back is either 1 or -1 and it is opposite sign of correction when intersection is lost
                 # backing is NOT affected by correction direction
+                # for opposed, always return to first stage after blacking
     if actual correction is small enough:
         stop loop and return body new Ma, vessel new Ma, and time to intersection
 

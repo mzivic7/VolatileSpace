@@ -13,7 +13,7 @@ from volatilespace import defaults
 from volatilespace.physics.phys_shared import rot_ellipse_by_y, orbit_time_to, \
     newton_root_kepler_ell, \
     mag, dot_2d, cross_2d, \
-    mp, k, c
+    gc, c, ls, ms, sigma
 
 
 ###### --Functions-- ######
@@ -114,6 +114,8 @@ class Physics():
         self.mass = np.array([])
         self.den = np.array([])
         self.temp = np.array([])
+        self.luminosity = np.array([])
+        self.stellar_class = np.array([])
         self.color = np.empty((0, 3), int)   # dynamic color
         self.base_color = np.empty((0, 3), int)   # original color unaffected by temperature
         self.rad = np.array([])
@@ -138,7 +140,9 @@ class Physics():
         self.ecc_v = np.empty((0, 2), int)
         self.gc = defaults.sim_config["gc"]   # newtonian constant of gravitation
         self.rad_mult = defaults.sim_config["rad_mult"]
+        self.mass_thermal_mult = defaults.sim_config["mass_thermal_mult"]
         self.coi_coef = defaults.sim_config["coi_coef"]
+        self.min_mass = defaults.sim_config["min_planet_mass"]
         self.reload_settings()
 
 
@@ -154,7 +158,9 @@ class Physics():
         """Loads physics related config."""
         self.gc = conf["gc"]
         self.rad_mult = conf["rad_mult"]
+        self.mass_thermal_mult = conf["mass_thermal_mult"]
         self.coi_coef = conf["coi_coef"]
+        self.min_mass = conf["min_planet_mass"]
 
 
     def load_system(self, conf, body_data, body_orb_data):
@@ -165,6 +171,8 @@ class Physics():
         self.mass = mass
         self.den = body_data["den"]
         self.temp = np.zeros(len(mass))
+        self.luminosity = np.zeros(len(mass))
+        self.stellar_class = np.array(["Unknown"] * len(mass))
         self.color = np.zeros((len(body_data["color"]), 3), int)
         self.base_color = body_data["color"]
         volume = self.mass / self.den
@@ -197,11 +205,15 @@ class Physics():
         self.mass = np.append(self.mass, data["mass"])
         self.den = np.append(self.den, data["density"])
         self.temp = np.append(self.temp, 0)
+        self.luminosity = np.append(self.luminosity, 0)
+        self.stellar_class = np.append(self.stellar_class, "Unknown")
         self.color = np.vstack((self.color, (0, 0, 0)))
         self.base_color = np.vstack((self.base_color, data["color"]))
         self.atm_h = np.append(self.atm_h, 0)
+        self.types = np.append(self.types, 0)
         volume = self.mass / self.den
         self.rad = self.rad_mult * np.cbrt(3 * volume / (4 * np.pi))
+        self.rad_sc = np.append(self.rad_sc, 0)
         self.atm_pres0 = np.append(self.atm_pres0, data["atm_pres0"])
         self.atm_scale_h = np.append(self.atm_scale_h, data["atm_scale_h"])
         self.atm_den0 = np.append(self.atm_den0, data["atm_den0"])
@@ -239,9 +251,14 @@ class Physics():
             self.mass = np.delete(self.mass, delete)
             self.den = np.delete(self.den, delete)
             self.temp = np.delete(self.temp, delete)
+            self.luminosity = np.delete(self.luminosity, delete)
+            self.stellar_class = np.delete(self.stellar_class, delete)
             self.color = np.delete(self.color, delete, axis=0)
             self.base_color = np.delete(self.base_color, delete, axis=0)
+            self.atm_h = np.delete(self.atm_h, delete)
+            self.types = np.delete(self.types, delete)
             self.rad = np.delete(self.rad, delete)
+            self.rad_sc = np.delete(self.rad_sc, delete)
             self.atm_pres0 = np.delete(self.atm_pres0, delete)
             self.atm_scale_h = np.delete(self.atm_scale_h, delete)
             self.atm_den0 = np.delete(self.atm_den0, delete)
@@ -278,9 +295,14 @@ class Physics():
         swap_with_first(self.mass, body)
         swap_with_first(self.den, body)
         swap_with_first(self.temp, body)
+        swap_with_first(self.luminosity, body)
+        swap_with_first(self.stellar_class, body)
         swap_with_first(self.color, body)
         swap_with_first(self.base_color, body)
+        swap_with_first(self.atm_h, body)
+        swap_with_first(self.types, body)
         swap_with_first(self.rad, body)
+        swap_with_first(self.rad_sc, body)
         swap_with_first(self.pos, body)
         swap_with_first(self.vel, body)
         swap_with_first(self.rel_vel, body)
@@ -553,7 +575,7 @@ class Physics():
 
 
     def body(self):
-        """Body related physics (size, thermal, bh...)"""
+        """Body related physics (radius, thermal, bh...)"""
         # radius
         volume = self.mass / self.den   # volume from mass and density
         self.rad = self.rad_mult * np.cbrt(3 * volume / (4 * np.pi))   # radius from volume
@@ -565,39 +587,87 @@ class Physics():
                 self.atm_h[body] = - self.atm_scale_h[body] * math.log(0.001 / self.atm_den0[body]) * self.rad_mult
 
         # thermal
-        core_temp = (self.gc * mp * self.mass) / ((3/2) * k * self.rad * self.rad_mult)   # core temperature
-        self.temp = 0 / core_temp   # surface temperature # ### temporarily ###
+        thermal_mass = self.mass * self.mass_thermal_mult
+        thermal_volume = thermal_mass / self.den
+        thermal_radius = np.cbrt(3 * thermal_volume / (4 * np.pi))
+        self.luminosity = ls * (thermal_mass / ms)**3.5   # mass and radius must be adjusted
+        self.temp = self.luminosity**(1/4) / (np.sqrt(thermal_radius) * np.sqrt(2) * np.pi**(1/4) * sigma**(1/4))
 
-        # black hole
-        self.rad_sc = 2 * self.mass * self.gc / c**2   # Schwarzschild radius
+        self.rad_sc = 2 * thermal_mass * gc / c**2   # Schwarzschild radius
+        # because thermal_mass is used, scale rad_sc with proportion to thermal radius
+        self.rad_sc *= self.rad / thermal_radius
+        self.atm_h = np.where(self.rad_sc > self.rad, 0, self.atm_h)
 
 
-    def body_color(self):
-        """Set color depending on temperature."""
-        # temperature to 1000 - BASE
-        # temperature from 1000 to 3000 - RED
-        self.color[:, 0] = np.where(self.temp > 1000, self.base_color[:, 0] + ((255 - self.base_color[:, 0]) * (self.temp - 1000)) / 2000, self.base_color[:, 0])   # base red to full red
-        self.color[:, 1] = np.where(self.temp > 1000, self.base_color[:, 1] - ((self.base_color[:, 1]) * (self.temp - 1000)) / 2000, self.base_color[:, 1])   # base green to no green
-        self.color[:, 2] = np.where(self.temp > 1000, self.base_color[:, 2] - ((self.base_color[:, 2]) * (self.temp - 1000)) / 2000, self.base_color[:, 2])   # base blue to no blue
-        # temperature from 3000 to 6000 - YELLOW
-        self.color[:, 1] = np.where(self.temp > 3000, (255 * (self.temp - 3000)) / 3000, self.color[:, 1])   # no green to full green
-        # temperature from 6000 to 10000 - WHITE
-        self.color[:, 2] = np.where(self.temp > 6000, (255 * (self.temp - 6000)) / 4000, self.color[:, 2])   # no blue to full blue
-        # temperature from 10000 to 30000 - BLUE
-        self.color[:, 0] = np.where(self.temp > 10000, 255 - ((255 * (self.temp - 10000) / 10000)), self.color[:, 0])   # full red to no red
-        self.color[:, 1] = np.where(self.temp > 10000, 255 - ((135 * (self.temp - 10000) / 20000)), self.color[:, 1])   # full green to 120 green
-        self.color = np.clip(self.color, 0, 255)
+    def temp_color(self):
+        """Set self.color depending on self.temperature."""
+        # mixed color
+        fg_opacity = np.where(
+            np.logical_and(self.temp > 1000, self.temp <= 2300),
+            1 - 1 / (1300 / (self.temp - 1000)),
+            -1
+        )
+        self.color = np.copy(self.base_color)
+        self.color[:, 0] = np.where(
+            fg_opacity != -1,
+            self.base_color[:, 0] * fg_opacity + 255 * (1 - fg_opacity),
+            self.base_color[:, 0]
+        )
+        self.color[:, 1] = np.where(
+            fg_opacity != -1,
+            self.base_color[:, 1] * fg_opacity + 184 * (1 - fg_opacity),
+            self.base_color[:, 1]
+        )
+        self.color[:, 2] = np.where(
+            fg_opacity != -1,
+            self.base_color[:, 2] * fg_opacity + 111 * (1 - fg_opacity),
+            self.base_color[:, 2]
+        )
+
+        # heated color
+        self.color[:, 0] = np.where(
+            self.temp > 2300,
+            130 + 125 / (1 + (self.temp / 5922)**55.525)**0.065,
+            self.color[:, 0]
+        )
+        self.color[:, 1] = np.where(
+            np.logical_and(self.temp > 2300, self.temp <= 6000),
+            257 - 73 / (1 + (self.temp / 4742)**6.687),
+            self.color[:, 1]
+        )
+        self.color[:, 1] = np.where(
+            self.temp > 6000,
+            170 + 165766330 / (1 + (self.temp / 24)**2.651),
+            self.color[:, 1]
+        )
+        self.color[:, 2] = np.where(
+            self.temp > 2300,
+            283 - 176 / (1 + (self.temp / 4493)**5.792),
+            self.color[:, 2]
+        )
+        bh = np.where(self.rad_sc > self.rad)
+        self.color[bh] = [0, 0, 0]
+        self.color = np.clip(self.color.astype(int), 0, 255)
         return self.color
 
 
     def classify(self):
         """Body classification."""
-        self.types = np.zeros(len(self.mass))  # it is moon
-        self.types = np.where(self.mass > 200, 1, self.types)    # if it has high enough mass: it is solid planet
-        self.types = np.where(self.den < 1, 2, self.types)    # if it is not dense enough: it is gas planet
-        self.types = np.where(self.mass > 5000, 3, self.types)   # ### temporarily ###
-        # self.types = np.where(self.temp > 1000, 3, self.types)    # if temperature is over 1000 degrees: it is a star
-        # self.types = np.where(self.rad_sc > self.rad, 4, self.types)   # if schwarzschild radius is greater than radius: it is black hole
+        self.types = np.zeros(len(self.mass))  # it is a dwarf planet
+        self.types = np.where(self.mass > self.min_mass, 1, self.types)    # if it has high enough mass: it is a solid planet
+        self.types = np.where(self.den < 1500, 2, self.types)    # if it is not dense enough: it is a gas planet
+        self.types = np.where(self.temp > 1000, 3, self.types)    # if temperature is over 1000 degrees: it is a star
+        self.types = np.where(self.rad_sc > self.rad, 4, self.types)   # if schwarzschild radius is greater than radius: it is a black hole
+
+        # star classification
+        stars = np.where(self.types == 3, True, False)
+        self.stellar_class = np.where(stars, "M", "Unknown")
+        self.stellar_class = np.where(self.temp > 3900, "K", self.stellar_class)
+        self.stellar_class = np.where(self.temp > 5300, "G", self.stellar_class)
+        self.stellar_class = np.where(self.temp > 6000, "F", self.stellar_class)
+        self.stellar_class = np.where(self.temp > 7300, "A", self.stellar_class)
+        self.stellar_class = np.where(self.temp > 10000, "B", self.stellar_class)
+        self.stellar_class = np.where(self.temp > 33000, "O", self.stellar_class)
 
 
     def precalculate(self, body_data):
@@ -622,48 +692,75 @@ class Physics():
             atm_h = 0.0
 
         # thermal
-        core_temp = (self.gc * mp * mass) / ((3/2) * k * radius * self.rad_mult)   # core temperature
-        temp = 0 / core_temp   # surface temperature # ### temporarily ###
-
-        # bh
-        rad_sc = 2 * mass * self.gc / c**2   # Schwarzschild radius
+        thermal_mass = mass * self.mass_thermal_mult
+        thermal_volume = thermal_mass / density
+        thermal_radius = np.cbrt(3 * thermal_volume / (4 * np.pi))
+        luminosity = ls * (thermal_mass / ms)**3.5   # mass and radius must be adjusted
+        temp = luminosity**(1/4) / (np.sqrt(thermal_radius) * np.sqrt(2) * np.pi**(1/4) * sigma**(1/4))
+        rad_sc = 2 * thermal_mass * gc / c**2   # Schwarzschild radius
+        # because thermal_mass is used, scale rad_sc with proportion to thermal radius
+        rad_sc *= radius / thermal_radius
 
         # classify
-        body_type = 0  # it is moon
-        if mass > 200:
+        body_type = 0  # it is dwarf planet
+        if mass > self.min_mass:
             body_type = 1   # soid planet
-        if density < 1:
+        if density < 1500:
             body_type = 2   # gas planet
-        if mass > 5000:   # ### temporarily ###
+        if temp > 1000:
             body_type = 3   # star
-        # if temp > 1000:
-        #     body_type = 3   # star
-        # if rad_sc > rad:
-        #     body_type = 4   # bh
+        if rad_sc > radius:
+            body_type = 4   # bh
 
         # star color
         color = list(base_color)
         if temp > 1000:
-            color[:, 0] = base_color[:, 0] + ((255 - base_color[:, 0]) * (temp - 1000)) / 2000   # transition from base red to full red
-            color[:, 1] = base_color[:, 1] - ((base_color[:, 1]) * (temp - 1000)) / 2000   # transition from base green to no green
-            color[:, 2] = base_color[:, 2] - ((base_color[:, 2]) * (temp - 1000)) / 2000   # transition from base blue to no blue
-        if temp > 3000:
-            color[:, 1] = (255 * (temp - 3000)) / 3000   # transition from no green to full green
-        if temp > 6000:
-            color[:, 2] = (255 * (temp - 6000)) / 4000   # transition from no blue to full blue
-        if temp > 10000:
-            color[:, 0] = 255 - ((255 * (temp - 10000) / 10000))   # transition from full red to no red
-            color[:, 1] = 255 - ((135 * (temp - 10000) / 20000))   # transition from full green to 120 green
-        for num, value in enumerate(color):   # limit color from 0 to 255
-            if value < 0:
-                color[num] = 0
-            if value > 255:
-                color[num] = 255
+            # mixed color
+            if temp <= 2300:
+                fg_opacity = 1 - 1 / (1300 / (temp - 1000))
+                color[0] = base_color[0] * fg_opacity + 255 * (1 - fg_opacity)
+                color[1] = base_color[1] * fg_opacity + 184 * (1 - fg_opacity)
+                color[2] = base_color[2] * fg_opacity + 111 * (1 - fg_opacity)
+            # heated color
+            if temp > 2300:
+                color[0] = 130 + 125 / (1 + (temp / 5922)**55.525)**0.065
+                if temp <= 6000:
+                    color[1] = 257 - 73 / (1 + (temp / 4742)**6.687)
+                else:
+                    color[1] = 170 + 165766330 / (1 + (temp / 24)**2.651)
+                color[2] = 283 - 176 / (1 + (temp / 4493)**5.792)
+            color = [int(i) for i in color]
+            color = np.clip(color, 0, 255)
+        if rad_sc > radius:
+            color = [0, 0, 0]
+            atm_h = 0
+
+
+        # star classification
+        if body_type == 3:
+            stellar_class = "M"
+            if temp > 3900:
+                stellar_class = "K"
+            if temp > 5300:
+                stellar_class = "G"
+            if temp > 6000:
+                stellar_class = "F"
+            if temp > 7300:
+                stellar_class = "A"
+            if temp > 10000:
+                stellar_class = "B"
+            if temp > 33000:
+                stellar_class = "O"
+        else:
+            stellar_class = "Unknown"
+
 
         precalculated_data = {
             "radius": radius,
             "type": body_type,
             "temp": temp,
+            "lum": luminosity,
+            "class": stellar_class,
             "real_color": color,
             "rad_sc": rad_sc,
             "surf_grav": surf_grav,
@@ -724,7 +821,7 @@ class Physics():
 
     def get_bodies(self):
         """Get bodies information."""
-        return self.names, self.types, self.mass, self.den, self.temp, self.pos, self.vel, self.color, self.rad, self.rad_sc, self.surf_grav
+        return self.names, self.types, self.mass, self.den, self.temp, self.luminosity, self.stellar_class, self.pos, self.vel, self.color, self.rad, self.rad_sc, self.surf_grav
 
 
     def get_atmosphere(self):
@@ -783,7 +880,7 @@ class Physics():
         self.simplified_orbit_coi()
 
 
-    def set_body_color(self, body, color):   # set body base color
+    def set_body_base_color(self, body, color):   # set body base color
         """Change body base color (original color unaffected by temperature)."""
         self.base_color[body] = color
 

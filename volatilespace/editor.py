@@ -36,7 +36,7 @@ buttons_pause_menu = [
 buttons_save = ["Cancel", "Save", "New save"]
 buttons_load = ["Cancel", "Load"]
 buttons_new_map = ["Cancel", "Create"]
-body_types = ["Moon", "Solid planet", "Gas planet", "Star", "Black Hole"]
+body_types = ["Dwarf planet", "Solid planet", "Gas planet", "Star", "Black Hole"]
 text_edit_orb = [
     "Selected body: ",
     "Ref body: ",
@@ -64,10 +64,11 @@ text_edit_planet = [
     "Surface gravity: "
 ]
 text_edit_star = [
-    "(Surface temp): ",
-    "(Luminosity): ",
+    "Effective temp: ",
+    "Luminosity: ",
+    "Stellar Class: ",
     "Color: ",
-    "(H/He ratio): "
+    "Heat color: "
 ]
 text_edit_bh = ["Schwarzschild radius: "]
 text_edit_delete = "Delete body"
@@ -75,7 +76,7 @@ text_load_default = "Load default values"
 prop_edit_orb = [0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0]
 prop_edit_body = [1, 0, 1, 1, 0, 0]
 prop_edit_planet = [1, 2, 1, 1, 1, 0, 0]
-prop_edit_star = [0, 0, 0, 1]
+prop_edit_star = [0, 0, 0, 2, 0]
 prop_edit_bh = [0]
 text_insert_body = ["Body name: ", "Type: ", "Mass: ", "Density: ", "Radius: "]
 prop_insert_body = [1, 5, 1, 1, 0]
@@ -160,7 +161,7 @@ class Editor():
         self.zoom_step = 0.05
         self.orbit_data = []   # additional data for right_menu
         self.sim_conf = {}   # simulation related config loaded from save file
-        self.new_body_data = defaults.new_body_moon   # body related data when inserting new body
+        self.new_body_data = copy.deepcopy(defaults.new_body_dwarf)   # body related data when inserting new body
         self.precalc_data = physics.precalculate(self.new_body_data)   # body physics without adding it to sim
         self.vessel_data = None
         self.vessel_orb_data = None
@@ -199,12 +200,12 @@ class Editor():
         grid_disabled_img = graphics.fill(grid_global_img, rgb.gray0)
         self.top_ui_img_grid = [grid_disabled_img, grid_global_img, grid_vessel_img, grid_ref_img]
         self.top_ui_imgs = [warp_1_img, follow_vessel_img, grid_disabled_img]
-        body_moon = pygame.image.load("img/moon.png")
+        body_dwarf = pygame.image.load("img/moon.png")
         body_planet_solid = pygame.image.load("img/planet_solid.png")
         body_planet_gas = pygame.image.load("img/planet_gas.png")
         body_star = pygame.image.load("img/star.png")
         body_bh = pygame.image.load("img/bh.png")
-        self.body_imgs = [body_moon, body_planet_solid, body_planet_gas, body_star, body_bh]
+        self.body_imgs = [body_dwarf, body_planet_solid, body_planet_gas, body_star, body_bh]
 
         bg_stars.set_screen()
         graphics.set_screen()
@@ -292,7 +293,7 @@ class Editor():
         self.names = body_data["name"]
         self.mass = body_data["mass"]
         self.density = body_data["den"]
-        self.color = body_data["color"]
+        self.colors = body_data["color"]
         self.atm_pres0 = body_data["atm_pres0"]
         self.atm_scale_h = body_data["atm_scale_h"]
         self.atm_den0 = body_data["atm_den0"]
@@ -319,10 +320,17 @@ class Editor():
         self.focus_point([0, 0], 0.5)
         self.selected = 0
         self.top_ui_imgs = [self.top_ui_img_warp[1], self.top_ui_img_follow[1], self.top_ui_img_grid[0]]
+        min_mass = self.sim_conf["min_planet_mass"]
+        new_body_dwarf = copy.deepcopy(defaults.new_body_dwarf)   # body related data when inserting new body
+        if new_body_dwarf["mass"] > min_mass:
+            new_body_dwarf["mass"] = min_mass * 0.5
+        self.new_body_data = new_body_dwarf
+        self.precalc_data = physics.precalculate(self.new_body_data)   # body physics without adding it to sim
 
         # userevent may not been run in first iteration, but this values are needed in graphics section:
-        self.names, self.types, self.mass, self.density, self.temp, self.position, self.velocity, self.colors, self.size, self.rad_sc, self.surf_grav = physics.get_bodies()
+        self.names, self.types, self.mass, self.density, self.temp, self.luminosity, self.stellar_class, self.position, self.velocity, self.colors, self.radius, self.rad_sc, self.surf_grav = physics.get_bodies()
         self.atm_pres0, self.atm_scale_h, self.atm_den0, self.atm_h = physics.get_atmosphere()
+        self.base_colors = physics.get_base_color()
 
 
     ###### --Help functions-- ######
@@ -566,7 +574,7 @@ class Editor():
                                     if self.input_value == 9:
                                         self.new_body_data["atm_den0"] = abs(new_value)
                             elif self.input_value is not None:   # if input value is string (for color)
-                                color = self.new_body_data["color"]
+                                color = np.copy(self.new_body_data["color"])
                                 if self.input_value[-1] == "a":   # R
                                     color[0] = int(new_value)
                                 elif self.input_value[-1] == "b":   # G
@@ -616,7 +624,7 @@ class Editor():
                                     physics.set_body_mass(self.selected, abs(new_value))
                                 elif self.input_value == 3:   # density
                                     physics.set_body_den(self.selected, abs(new_value))
-                                elif int(self.types[self.selected]) in [0, 1, 2]:   # moon, planet, gas
+                                elif int(self.types[self.selected]) in [0, 1, 2]:   # dwarf, planet, gas
                                     if self.input_value == 6:   # rotation period
                                         pass
                                     if self.input_value == 8:   # atmosphere
@@ -625,11 +633,11 @@ class Editor():
                                         physics.set_body_atmos(self.selected, self.atm_pres0, abs(new_value), self.atm_den0)
                                     if self.input_value == 10:
                                         physics.set_body_atmos(self.selected, self.atm_pres0, self.atm_scale_h, abs(new_value))
-                                elif int(self.types[self.selected]) == 3:   # star
-                                    if self.input_value == 9:   # H/He ratio
-                                        pass
                             elif self.input_value is not None:   # if input value is string (for color)
-                                color = self.colors[self.selected]
+                                if int(self.types[self.selected]) == 3:
+                                    color = np.copy(self.base_colors[self.selected])
+                                else:
+                                    color = np.copy(self.colors[self.selected])
                                 if self.input_value[-1] == "a":   # R
                                     color[0] = int(new_value)
                                 elif self.input_value[-1] == "b":   # G
@@ -637,10 +645,10 @@ class Editor():
                                 else:   # B
                                     color[2] = int(new_value)
                                 color = np.clip(color, 0, 255)
-                                physics.set_body_color(self.selected, color)
+                                physics.set_body_base_color(self.selected, color)
                         elif self.right_menu == 5:   # sim config
                             if self.input_value is not None:   # just in case
-                                self.sim_conf[list(self.sim_conf.keys())[self.input_value]] = abs(int(new_value))
+                                self.sim_conf[list(self.sim_conf.keys())[self.input_value]] = abs(new_value)
                                 physics.load_conf(self.sim_conf)
                     else:
                         graphics.timed_text_init(
@@ -653,6 +661,7 @@ class Editor():
         # in game
         elif e.type == pygame.KEYDOWN:
             if e.key == pygame.K_ESCAPE:
+                self.move = False   # disable screen movement
                 if self.ask is None:
                     if self.pause_menu:
                         self.pause_menu = False
@@ -760,8 +769,9 @@ class Editor():
                             (self.screen_x/2, self.screen_y-70), 2, True
                         )
                     else:
-                        self.names, self.types, self.mass, self.density, self.temp, self.position, self.velocity, self.colors, self.size, self.rad_sc, self.surf_grav = physics.get_bodies()
+                        self.names, self.types, self.mass, self.density, self.temp, self.luminosity, self.stellar_class, self.position, self.velocity, self.colors, self.radius, self.rad_sc, self.surf_grav = physics.get_bodies()
                         self.atm_pres0, self.atm_scale_h, self.atm_den0, self.atm_h = physics.get_atmosphere()
+                        self.base_colors = physics.get_base_color()
                         self.selected = None
                         if self.right_menu in [3, 4]:
                             self.right_menu = None
@@ -772,7 +782,7 @@ class Editor():
 
         # add velocity to specific direction
         if self.direction is not None:
-            _, _, _, _, _, _, velocity, _, _, _, _ = physics.get_bodies()   # get body velocity to be increased
+            _, _, _, _, _, _, _, _, velocity, _, _, _, _ = physics.get_bodies()   # get body velocity to be increased
             if self.direction == "up":   # new_velocity = old_velocity + key_sensitivity
                 physics.set_body_vel(self.selected, [velocity[self.selected, 0], velocity[self.selected, 1] + self.key_sens])
             if self.direction == "down":
@@ -840,8 +850,9 @@ class Editor():
             # moving and selecting with lclick, or middle click in insert mode
             if e.type == pygame.MOUSEBUTTONDOWN:
                 if (not self.enable_insert and e.button == 1) or (self.enable_insert and e.button == 2):
-                    self.names, self.types, self.mass, self.density, self.temp, self.position, self.velocity, self.colors, self.size, self.rad_sc, self.surf_grav = physics.get_bodies()
+                    self.names, self.types, self.mass, self.density, self.temp, self.luminosity, self.stellar_class, self.position, self.velocity, self.colors, self.radius, self.rad_sc, self.surf_grav = physics.get_bodies()
                     self.atm_pres0, self.atm_scale_h, self.atm_den0, self.atm_h = physics.get_atmosphere()
+                    self.base_colors = physics.get_base_color()
                     self.move = True
                     self.mouse_old = self.mouse   # initial mouse position for movement
                     self.mouse_raw_old = self.mouse_raw
@@ -858,7 +869,7 @@ class Editor():
                                 curve = np.column_stack(self.screen_coords(curves[:, body]))   # line coords on screen
                                 diff = np.amax(curve, 0) - np.amin(curve, 0)
                                 if body == 0 or diff[0]+diff[1] > 32:   # skip hidden bodies with too small orbits
-                                    scr_radius = self.size[body]*self.zoom
+                                    scr_radius = self.radius[body]*self.zoom
                                     if scr_radius < 5:   # if body is small on screen, there is marker
                                         scr_radius = 8
                                     # if mouse is inside body radius on its location: (body_x - mouse_x)**2 + (body_y - mouse_y)**2 < radius**2
@@ -1065,7 +1076,10 @@ class Editor():
                                 if self.input_value == 9:
                                     self.new_body_data["atm_den0"] = abs(new_value)
                         elif self.input_value is not None:   # if input value is string (for color)
-                            color = self.new_body_data["color"]
+                            if int(self.types[self.selected]) == 3:
+                                color = np.copy(self.base_colors[self.selected])
+                            else:
+                                color = np.copy(self.colors[self.selected])
                             if self.input_value[-1] == "a":   # R
                                 color[0] = int(new_value)
                             elif self.input_value[-1] == "b":   # G
@@ -1116,7 +1130,7 @@ class Editor():
                                 physics.set_body_mass(self.selected, abs(new_value))
                             elif self.input_value == 3:   # density
                                 physics.set_body_den(self.selected, abs(new_value))
-                            elif int(self.types[self.selected]) in [0, 1, 2]:   # moon, planet, gas
+                            elif int(self.types[self.selected]) in [0, 1, 2]:   # dwarf, planet, gas
                                 if self.input_value == 6:   # rotation period
                                     pass
                                 if self.input_value == 8:   # atmosphere
@@ -1125,11 +1139,11 @@ class Editor():
                                     physics.set_body_atmos(self.selected, self.atm_pres0, abs(new_value), self.atm_den0)
                                 if self.input_value == 10:
                                     physics.set_body_atmos(self.selected, self.atm_pres0, self.atm_scale_h, abs(new_value))
-                            elif int(self.types[self.selected]) == 3:   # star
-                                if self.input_value == 9:   # H/He ratio
-                                    pass
                         elif self.input_value is not None:   # if input value is string (for color)
-                            color = self.colors[self.selected]
+                            if int(self.types[self.selected]) == 3:
+                                color = np.copy(self.base_colors[self.selected])
+                            else:
+                                color = np.copy(self.colors[self.selected])
                             if self.input_value[-1] == "a":   # R
                                 color[0] = int(new_value)
                             elif self.input_value[-1] == "b":   # G
@@ -1137,7 +1151,7 @@ class Editor():
                             else:   # B
                                 color[2] = int(new_value)
                             color = np.clip(color, 0, 255)   # limit values to be 0 - 255
-                            physics.set_body_color(self.selected, color)
+                            physics.set_body_base_color(self.selected, color)
                     elif self.right_menu == 5:   # sim config
                         if self.input_value is not None:   # just in case
                             self.sim_conf[list(self.sim_conf.keys())[self.input_value]] = abs(new_value)
@@ -1241,7 +1255,7 @@ class Editor():
                         prop_merged = prop_insert_body.copy()
                         text_merged = text_insert_body.copy()
                         new_body_type = self.new_body_data["type"]
-                        if new_body_type in [0, 1, 2]:   # moon, planet, gas
+                        if new_body_type in [0, 1, 2]:   # dwarf, planet, gas
                             prop_merged = prop_insert_body + prop_edit_planet
                             text_merged = text_insert_body + text_edit_planet
                         elif new_body_type == 3:   # star
@@ -1259,9 +1273,17 @@ class Editor():
                                     for num, _ in enumerate(body_types):
                                         if x_pos <= self.mouse_raw[0]-1 <= x_pos + w_short:
                                             if num == 0:
-                                                self.new_body_data = copy.deepcopy(defaults.new_body_moon)
+                                                min_mass = self.sim_conf["min_planet_mass"]
+                                                new_body_dwarf = copy.deepcopy(defaults.new_body_dwarf)
+                                                if new_body_dwarf["mass"] > min_mass:
+                                                    new_body_dwarf["mass"] = min_mass * 0.5
+                                                self.new_body_data = new_body_dwarf
                                             elif num == 1:
-                                                self.new_body_data = copy.deepcopy(defaults.new_body_planet)
+                                                min_mass = self.sim_conf["min_planet_mass"]
+                                                new_body_planet = copy.deepcopy(defaults.new_body_planet)
+                                                if new_body_planet["mass"] < min_mass:
+                                                    new_body_planet["mass"] = min_mass * 1.2
+                                                self.new_body_data = new_body_planet
                                             elif num == 2:
                                                 self.new_body_data = copy.deepcopy(defaults.new_body_gas)
                                             elif num == 3:
@@ -1282,30 +1304,36 @@ class Editor():
                                         None
                                     ]
                                     if num >= len(prop_insert_body):
-                                        if new_body_type in [0, 1, 2]:   # moon, planet, gas
-                                            init_values += [
-                                                metric.format_si(0, 3),
-                                                None,
-                                                metric.format_si(self.new_body_data["atm_pres0"], 3),
-                                                metric.format_si(self.new_body_data["atm_scale_h"], 3),
-                                                metric.format_si(self.new_body_data["atm_den0"], 3),
-                                                None,
-                                                None
-                                            ]
-                                            if num == 6:   # color
+                                        if new_body_type in [0, 1, 2, 3]:   # dwarf, planet, gas, star
+                                            if new_body_type == 3:
+                                                star = True
+                                                init_values += [None, None, None, None]
+                                            else:
+                                                star = False
+                                                init_values += [
+                                                    metric.format_si(0, 3),
+                                                    None,
+                                                    metric.format_si(self.new_body_data["atm_pres0"], 3),
+                                                    metric.format_si(self.new_body_data["atm_scale_h"], 3),
+                                                    metric.format_si(self.new_body_data["atm_den0"], 3),
+                                                    None,
+                                                    None
+                                                ]
+                                            if (star and num == 8) or (not star and num == 6):   # color
                                                 x_pos = self.r_menu_x_btn + 58
+                                                self.input_value = str(num)
                                                 for num in range(3):
                                                     if x_pos <= self.mouse_raw[0]-1 <= x_pos + 53:
                                                         if num == 0:
-                                                            self.input_value = "6a"
+                                                            self.input_value = +"a"
                                                             fixed_init_text = "R: "
                                                             color_componet = self.new_body_data["color"][0]
                                                         elif num == 1:
-                                                            self.input_value = "6b"
+                                                            self.input_value += "b"
                                                             fixed_init_text = "G: "
                                                             color_componet = self.new_body_data["color"][1]
                                                         elif num == 2:
-                                                            self.input_value = "6c"
+                                                            self.input_value += "c"
                                                             fixed_init_text = "B: "
                                                             color_componet = self.new_body_data["color"][2]
                                                         textinput.initial_text(str(color_componet), fixed_init_text, x_corr=-3, limit_len=3)
@@ -1316,9 +1344,6 @@ class Editor():
                                                     x_pos += 59
                                         if break_flag:
                                             break
-                                        elif new_body_type == 3:   # star
-                                            init_values += [None, None, None,
-                                                            metric.format_si(0, 3)]
                                     self.input_value = num
                                     textinput.initial_text(init_values[num], text_merged[num])
                                     self.click = False
@@ -1361,7 +1386,7 @@ class Editor():
                         y_pos = 38
                         prop_merged = prop_edit_body.copy()
                         text_merged = text_edit_body.copy()
-                        if int(self.types[self.selected]) in [0, 1, 2]:   # moon, planet, gas
+                        if int(self.types[self.selected]) in [0, 1, 2]:   # dwarf, planet, gas
                             prop_merged = prop_edit_body + prop_edit_planet
                             text_merged = text_edit_body + text_edit_planet
                         elif int(self.types[self.selected]) == 3:   # star
@@ -1377,33 +1402,40 @@ class Editor():
                                         None,
                                         metric.format_si(self.mass[self.selected], 3),
                                         metric.format_si(self.density[self.selected], 3),
-                                        metric.format_si(self.size[self.selected], 3),
+                                        metric.format_si(self.radius[self.selected], 3),
                                         metric.format_si(self.coi[self.selected], 3)
                                     ]
                                     if num >= len(prop_edit_body):
-                                        if int(self.types[self.selected]) in [0, 1, 2]:   # moon, planet, gas
-                                            init_values += [
-                                                metric.format_si(0, 3),
-                                                None,
-                                                metric.format_si(self.atm_pres0[self.selected], 3),
-                                                metric.format_si(self.atm_scale_h[self.selected], 3),
-                                                metric.format_si(self.atm_den0[self.selected], 3),
-                                                None,
-                                                None]
-                                            if num == 7:   # color
+                                        if int(self.types[self.selected]) in [0, 1, 2, 3]:   # dwarf, planet, gas, star
+                                            if int(self.types[self.selected]) == 3:
+                                                init_values += [None, None, None, None]
+                                                star = True
+                                            else:
+                                                star = False
+                                                init_values += [
+                                                    metric.format_si(0, 3),
+                                                    None,
+                                                    metric.format_si(self.atm_pres0[self.selected], 3),
+                                                    metric.format_si(self.atm_scale_h[self.selected], 3),
+                                                    metric.format_si(self.atm_den0[self.selected], 3),
+                                                    None,
+                                                    None
+                                                ]
+                                            if (star and num == 9) or (not star and num == 7):   # color
                                                 x_pos = self.r_menu_x_btn + 58
+                                                self.input_value = str(num)
                                                 for num in range(3):
                                                     if x_pos <= self.mouse_raw[0]-1 <= x_pos + 53:
                                                         if num == 0:
-                                                            self.input_value = "7a"
+                                                            self.input_value += "a"
                                                             fixed_init_text = "R: "
                                                             color_componet = self.colors[self.selected, 0]
                                                         elif num == 1:
-                                                            self.input_value = "7b"
+                                                            self.input_value += "b"
                                                             fixed_init_text = "G: "
                                                             color_componet = self.colors[self.selected, 1]
                                                         elif num == 2:
-                                                            self.input_value = "7c"
+                                                            self.input_value += "c"
                                                             fixed_init_text = "B: "
                                                             color_componet = self.colors[self.selected, 2]
                                                         textinput.initial_text(str(color_componet), fixed_init_text, x_corr=-3, limit_len=3)
@@ -1414,9 +1446,6 @@ class Editor():
                                                     x_pos += 59
                                         if break_flag:
                                             break
-                                        elif int(self.types[self.selected]) == 3:   # star
-                                            init_values += [None, None, None,
-                                                            metric.format_si(0, 3)]
                                     self.input_value = num
                                     textinput.initial_text(init_values[num], text_merged[num])
                                     self.click = False
@@ -1432,8 +1461,9 @@ class Editor():
                                             (self.screen_x/2, self.screen_y-70), 2, True
                                         )
                                     else:
-                                        self.names, self.types, self.mass, self.density, self.temp, self.position, self.velocity, self.colors, self.size, self.rad_sc, self.surf_grav = physics.get_bodies()
+                                        self.names, self.types, self.mass, self.density, self.temp, self.luminosity, self.stellar_class, self.position, self.velocity, self.colors, self.radius, self.rad_sc, self.surf_grav = physics.get_bodies()
                                         self.atm_pres0, self.atm_scale_h, self.atm_den0, self.atm_h = physics.get_atmosphere()
+                                        self.base_colors = physics.get_base_color()
                                         self.selected = None
                                         self.right_menu = None
                             y_pos += 26
@@ -1442,7 +1472,8 @@ class Editor():
                         for num, item in enumerate(self.sim_conf.items()):
                             if self.r_menu_x_btn <= self.mouse_raw[0]-1 <= self.r_menu_x_btn + 280 and y_pos <= self.mouse_raw[1]-1 <= y_pos + 21:
                                 self.input_value = num
-                                textinput.initial_text(str(item[1]), item[0] + ": ")
+                                init_text = str(item[1])
+                                textinput.initial_text(init_text, item[0] + ": ")
                                 self.click = False
                                 self.first_click = True
                             y_pos += 26
@@ -1503,11 +1534,12 @@ class Editor():
                     elif body_del < self.selected:   # if body before selected one is deleted
                         self.selected -= 1
                     self.direction = None
-            self.names, self.types, self.mass, self.density, self.temp, self.position, self.velocity, self.colors, self.size, self.rad_sc, self.surf_grav = physics.get_bodies()
+            self.names, self.types, self.mass, self.density, self.temp, self.luminosity, self.stellar_class, self.position, self.velocity, self.colors, self.radius, self.rad_sc, self.surf_grav = physics.get_bodies()
             self.atm_pres0, self.atm_scale_h, self.atm_den0, self.atm_h = physics.get_atmosphere()
+            self.base_colors = physics.get_base_color()
             physics.kepler_basic()
             self.semi_major, self.semi_minor, self.coi, self.parents = physics.get_body_orbits()
-            self.colors = physics.body_color()
+            self.colors = physics.temp_color()
             physics.classify()
 
             self.physics_debug_time = time.time() - debug_time   # ### DEBUG ###
@@ -1607,14 +1639,18 @@ class Editor():
                     graphics.draw_lines(screen, tuple(line_color), curve, 2)
 
                 # draw bodies
-                scr_body_size = self.size[body] * self.zoom
+                scr_body_size = self.radius[body] * self.zoom
                 body_color = tuple(self.colors[body])
                 if scr_body_size >= 5:
                     if self.atm_h[body]:
-                        atm_color = tuple(np.append(self.color[body], 30))
-                        scr_atm_size = (self.size[body] + self.atm_h[body]) * self.zoom
+                        atm_color = tuple(np.append(self.colors[body], 30))
+                        scr_atm_size = (self.radius[body] + self.atm_h[body]) * self.zoom
                         graphics.draw_circle_fill(screen, atm_color, self.screen_coords(self.position[body]), scr_atm_size)
-                    graphics.draw_circle_fill(screen, body_color, self.screen_coords(self.position[body]), scr_body_size)
+                    if self.types[body] != 4:
+                        graphics.draw_circle_fill(screen, body_color, self.screen_coords(self.position[body]), scr_body_size)
+                    else:   # black hole
+                        graphics.draw_circle_fill(screen, rgb.black, self.screen_coords(self.position[body]), scr_body_size)
+                        graphics.draw_circle(screen, rgb.white, self.screen_coords(self.position[body]), scr_body_size, 2)
                 else:   # if body is too small, draw marker with fixed size
                     graphics.draw_circle_fill(screen, rgb.gray1, self.screen_coords(self.position[body]), 6)
                     graphics.draw_circle_fill(screen, rgb.gray2, self.screen_coords(self.position[body]), 5)
@@ -1633,21 +1669,21 @@ class Editor():
                         # target selection
                         if scr_body_size >= 5:
                             # selection circle
-                            scr_atm_size = (self.size[body] + self.atm_h[body]) * self.zoom
+                            scr_atm_size = (self.radius[body] + self.atm_h[body]) * self.zoom
                             graphics.draw_circle(screen, rgb.cyan, self.screen_coords(body_pos), scr_atm_size + 4, 1)
                         else:
                             # marker img
                             graphics.draw_circle(screen, rgb.cyan, self.screen_coords(body_pos), 8, 1)
 
                         # circle of influence
-                        if self.size[body] < self.coi[body]:
+                        if self.radius[body] < self.coi[body]:
                             if self.coi[body] * self.zoom >= 8:
                                 graphics.draw_circle(screen, rgb.gray1, self.screen_coords(body_pos), self.coi[body] * self.zoom, 1)
 
                         if body != 0:
                             parent_scr = self.screen_coords(self.position[parent])
-                            if self.size[parent] * self.zoom >= 5:
-                                graphics.draw_circle(screen, rgb.red1, parent_scr, self.size[parent] * self.zoom + 4, 1)   # parent circle
+                            if self.radius[parent] * self.zoom >= 5:
+                                graphics.draw_circle(screen, rgb.red1, parent_scr, self.radius[parent] * self.zoom + 4, 1)   # parent circle
                             else:
                                 graphics.draw_circle(screen, rgb.red1, parent_scr, 8, 1)   # for body marker
                             if parent != 0:
@@ -1687,7 +1723,27 @@ class Editor():
         # inserting new body
         if self.enable_insert is True:
             if not self.insert_body:
-                graphics.draw_circle_fill(screen, self.precalc_data["real_color"], self.mouse_raw, self.precalc_data["radius"] * self.zoom)
+                if self.precalc_data["type"] != 4:
+                    graphics.draw_circle_fill(
+                        screen,
+                        self.precalc_data["real_color"],
+                        self.mouse_raw,
+                        self.precalc_data["radius"] * self.zoom
+                    )
+                else:   # black hole
+                    graphics.draw_circle_fill(
+                        screen,
+                        rgb.black,
+                        self.mouse_raw,
+                        self.precalc_data["radius"] * self.zoom
+                    )
+                    graphics.draw_circle(
+                        screen,
+                        rgb.white,
+                        self.mouse_raw,
+                        self.precalc_data["radius"] * self.zoom, 2
+                    )
+
             else:
                 if self.follow == 1:
                     self.new_position = [self.position[self.selected, 0] - self.new_position_rel[0],
@@ -1699,7 +1755,27 @@ class Editor():
                                          self.position[ref, 1] - self.new_position_rel[1]]
                     self.new_body_data["position"] = self.new_position
                 # draw new body before released
-                graphics.draw_circle_fill(screen, self.precalc_data["real_color"], self.screen_coords(self.new_position), self.precalc_data["radius"] * self.zoom)
+                if self.precalc_data["type"] != 4:
+                    graphics.draw_circle_fill(
+                        screen,
+                        self.precalc_data["real_color"],
+                        self.screen_coords(self.new_position),
+                        self.precalc_data["radius"] * self.zoom
+                    )
+                else:   # black hole
+                    graphics.draw_circle_fill(
+                        screen,
+                        rgb.black,
+                        self.screen_coords(self.new_position),
+                        self.precalc_data["radius"] * self.zoom
+                    )
+                    graphics.draw_circle(
+                        screen,
+                        rgb.white,
+                        self.screen_coords(self.new_position),
+                        self.precalc_data["radius"] * self.zoom, 2
+                    )
+
                 # draw line connecting body and release point
                 if not self.disable_labels:
                     graphics.draw_line(screen, rgb.red, self.screen_coords(self.new_position), (self.mouse_raw[0], self.mouse_raw[1]), 1)
@@ -1833,7 +1909,7 @@ class Editor():
                 prop_merged = prop_insert_body
                 texts_merged = texts_body[:]
                 new_body_type = self.new_body_data["type"]
-                if new_body_type in [0, 1, 2]:   # moon, planet, gas
+                if new_body_type in [0, 1, 2]:   # dwarf, planet, gas
                     prop_merged = prop_insert_body + prop_edit_planet
                     values_planet = [
                         "WIP",
@@ -1854,14 +1930,18 @@ class Editor():
                 elif new_body_type == 3:   # star
                     prop_merged = prop_insert_body + prop_edit_star
                     values_star = [
-                        "WIP",
-                        "WIP",
-                        "WIP",
-                        "WIP"
+                        metric.format_si(self.precalc_data["temp"], 3) + "°K",
+                        metric.format_si(self.precalc_data["lum"], 3),
+                        self.precalc_data["class"],
+                        self.new_body_data["color"],
+                        f"R: {self.precalc_data["real_color"][0]} G:{self.precalc_data["real_color"][1]} B:{self.precalc_data["real_color"][2]}"
                     ]
                     texts_star = []
                     for i, _ in enumerate(text_edit_star):
-                        texts_star.append(text_edit_star[i] + values_star[i])
+                        if isinstance(values_star[i], (int, str)):
+                            texts_star.append(text_edit_star[i] + values_star[i])
+                        else:
+                            texts_star.append(values_star[i])
                     texts_merged += texts_star
                 elif new_body_type == 4:   # for bh
                     prop_merged = prop_insert_body + prop_edit_bh
@@ -1902,7 +1982,7 @@ class Editor():
                     body_types[int(self.types[self.selected])],
                     metric.format_si(self.mass[self.selected], 3),
                     metric.format_si(self.density[self.selected], 3),
-                    metric.format_si(self.size[self.selected], 3),
+                    metric.format_si(self.radius[self.selected], 3),
                     metric.format_si(self.coi[self.selected], 3)
                 ]
                 texts_body = []
@@ -1910,7 +1990,7 @@ class Editor():
                     texts_body.append(text_edit_body[i] + values_body[i])
                 prop_merged = prop_edit_body
                 texts_merged = texts_body[:]
-                if int(self.types[self.selected]) in [0, 1, 2]:   # moon, planet, gas
+                if int(self.types[self.selected]) in [0, 1, 2]:   # dwarf, planet, gas
                     prop_merged = prop_edit_body + prop_edit_planet
                     values_planet = [
                         "WIP",
@@ -1931,14 +2011,18 @@ class Editor():
                 elif int(self.types[self.selected]) == 3:   # star
                     prop_merged = prop_edit_body + prop_edit_star
                     values_star = [
-                        "WIP",
-                        "WIP",
-                        "WIP",
-                        "WIP"
+                        metric.format_si(self.temp[self.selected], 3) + "°K",
+                        metric.format_si(self.luminosity[self.selected], 3) + "W",
+                        self.stellar_class[self.selected],
+                        self.base_colors[self.selected],
+                        f"R: {self.colors[self.selected][0]} G:{self.colors[self.selected][1]} B:{self.colors[self.selected][2]}"
                     ]
                     texts_star = []
                     for i, _ in enumerate(text_edit_star):
-                        texts_star.append(text_edit_star[i] + values_star[i])
+                        if isinstance(values_star[i], (int, str)):
+                            texts_star.append(text_edit_star[i] + values_star[i])
+                        else:
+                            texts_star.append(values_star[i])
                     texts_merged += texts_star
                 elif int(self.types[self.selected]) == 4:   # for bh
                     prop_merged = prop_edit_body + prop_edit_bh

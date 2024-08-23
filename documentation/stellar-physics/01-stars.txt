@@ -1,0 +1,65 @@
+### basic stars ###
+
+# important notes:
+# "radius multiplier" is not used in following thermal calculations
+# mass (m) is multiplied with "mass multiplier"
+# both values can be changed in simulation config, and are only used to scale down simulation
+
+vol = m / rho   # volume from density
+R = cbrt(3 * vol / (4 * pi))   # sphere radius
+
+# luminosity
+# from relation given in [1]:
+L/Ls = (m/ms)^3.5
+L = Ls * (m/ms)^3.5
+
+Ls = 3.827 * 10^26 - Sun luminosity
+ms = 1.9891 * 10^30 - Sun mass
+
+# Effective temperature (approximate surface temperature)
+# from relation given in [1]:
+L = 4 * pi * R^2 * theta * Te^4
+Te = root_4(L / (4 * pi * R^2 * theta))
+Te = root_4(L) / (sqrt(2) * root_4(pi) * sqrt(R) * root_4(theta))
+
+theta = 5.670374419 * 10^-8   # Stefan-Boltzmann constant
+
+
+# classification and colors [2] [3]
+Class    R   G   B   Te
+  O     155 176 255  ≥ 33,000 K
+  B     170 191 255  10,000–33,000 K
+  A     202 215 255  7,300–10,000 K
+  F     248 247 255  6,000–7,300 K
+  G     255 244 234  5,300–6,000 K
+  K     255 210 161  3,900–5,300 K
+  M     255 204 111  2,300–3,900 K
+
+# those values are then fitted into sigmoid functions [7]
+# to obtain approximate relation between color and temperature
+
+# RED
+# fitting points from Te=5300, into non-symmetric sigmoid function
+r = 130 + 125 / (1 + (Tc / 5922)^55.525)^0.065
+
+# GREEN
+# using 2 sigmoid functions for better fit
+if Tc <= 6000:
+    # fitting all points to Te=6000, into symmetric sigmoid function
+    g = 257 - 73 / (1 + (Tc / 4742^6.687)
+if Tc > 6000:
+    # fitting points from Te=600, into symmetric sigmoid function
+    g = 170 + 165766330 / (1 + (Tc / 24)^2.651)
+
+# BLUE
+# fitting points to Te=6000, into symmetric sigmoid function
+b = 283 - 176 / (1 + (Tc / 4493)^5.792)
+
+# all values are then limited to range [0, 255]
+
+
+References:
+[1] https://en.wikipedia.org/wiki/Stefan%E2%80%93Boltzmann_law#Temperature_of_stars
+[2] https://en.wikipedia.org/wiki/Stellar_classification
+[3] http://www.vendian.org/mncharity/dir3/starcolor/
+[7] https://en.wikipedia.org/wiki/Sigmoid_function

@@ -3,7 +3,6 @@ import numpy as np
 try:
     from numba import njit, float64
     from numba.types import UniTuple
-    from numba.types.misc import Omitted
     numba_avail = True
 except ImportError:
     numba_avail = False
@@ -99,7 +98,6 @@ def gen_probe_points_ell(t1, t2, num):
 
 default_probe_points_ravel = True
 probe_points_num = 16
-extra_optimize_iterations = 10
 
 
 # generate default probe points
@@ -116,7 +114,7 @@ else:
 default_probe_points_ell = np.round(default_probe_points_ell, 6)
 
 
-def predict_enter_coi(vessel_data, body_data, vessel_orbit_center, hint_ma=np.nan):
+def predict_enter_coi(vessel_data, body_data, vessel_orbit_center, hint_ma):
     """Given body and vessel orbital parameters, that orbit same reference,
     searches for entering COI in one next full orbit.
     Returns vessel Ea, body Ea, vessel Ma, body Ma and time when that will happen.
@@ -129,6 +127,7 @@ def predict_enter_coi(vessel_data, body_data, vessel_orbit_center, hint_ma=np.na
     ap = a * (1 + ecc)
     b_ap = b_a * (1 + b_ecc)
     b_pe = b_a * (1 - b_ecc)
+    extra_optimize_iterations = 10
 
     # check if vessel can't enter body COI
     if ecc < 1 and ap < b_pe - coi:
@@ -318,7 +317,6 @@ if numba_avail and use_numba:
     ell_hyp_intersect = njit(float64[:](float64, float64, float64, float64, float64, float64), **jitkw)(ell_hyp_intersect)
     next_point = njit(float64[:](float64, float64[:], float64), **jitkw_nofast)(next_point)
     gen_probe_points_ell = njit(float64[:](float64, float64, float64), **jitkw)(gen_probe_points_ell)
-    predict_enter_coi = njit([
-        float64[:](UniTuple(float64, 11), UniTuple(float64, 11), UniTuple(float64, 2), Omitted(np.nan)),
-        float64[:](UniTuple(float64, 11), UniTuple(float64, 11), UniTuple(float64, 2), float64)],
+    predict_enter_coi = njit(
+        float64[:](UniTuple(float64, 11), UniTuple(float64, 11), UniTuple(float64, 2), float64),
         **jitkw_nofast)(predict_enter_coi)

@@ -4,15 +4,13 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
-numpy = "*"
-pyinstaller = ">=6"
-pygame-ce = ">=2.5"
+numpy = ">=2"
 numba = "*"
 pre-commit = "*"
-tk = "*"
+pygame-ce = ">=2.5"
 
 [dev-packages]
-pyinstaller = "*"
+pyinstaller = ">=6"
 
 [requires]
 python_version = "3.12"

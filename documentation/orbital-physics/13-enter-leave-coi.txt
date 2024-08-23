@@ -5,7 +5,7 @@
 # using orbital-physics/11-orbit-points.txt
 # for calculating position of leave-COI point
 
-# using similar method as in other-physics/3-warp.txt
+# using similar method as in other-physics/01-warp.txt
 # this is for detecting if vessel will pass point in next iteration
 # but here is checked if vessel has passed point in this iteration
 # the difference is:
@@ -40,7 +40,7 @@ a, ecc, pea, ma, dir =   # see notes at end
 # using orbital-physics/11-orbit-points.txt
 # for calculating position of enter-COI point
 
-# using same method as in other-physics/3-warp.txt
+# using same method as in other-physics/01-warp.txt
 # for detecting if vessel will pass point in next iteration
 # but here is checked if vessel has passed point in this iteration
 # only difference is:

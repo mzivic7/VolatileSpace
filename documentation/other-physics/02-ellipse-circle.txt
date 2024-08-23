@@ -68,8 +68,8 @@ y = (x_n * math.sin(omega) + y_n * math.cos(omega)) + P_y
 
 
 References:
-[3] https://en.wikipedia.org/wiki/Tangent_half-angle_substitution#The_substitution
-[5] https://en.wikipedia.org/wiki/Quartic_equation
-[6] https://en.wikipedia.org/wiki/Hyperbola#Parametric_equations
-[8] https://quarticequations.com/Cubic.pdf
-[9] https://quarticequations.com/Quartic2.pdf
+[1] https://en.wikipedia.org/wiki/Tangent_half-angle_substitution#The_substitution
+[3] https://en.wikipedia.org/wiki/Quartic_equation
+[4] https://en.wikipedia.org/wiki/Hyperbola#Parametric_equations
+[6] https://quarticequations.com/Cubic.pdf
+[7] https://quarticequations.com/Quartic2.pdf

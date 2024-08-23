@@ -1,15 +1,19 @@
 ### Constants ###
-mp = 1.7 * 10^-27 - average particle mass
-k = 1.381 * 10^-23 - boltzman constant
+k = 1.381 * 10^-23 - Boltzmann constant
+theta = 5.670374419 * 10**-8   # Stefan-Boltzmann constant
 c = 299792458 - Light speed
 G = 6.674 * 10^-11 - Gravitational constant
 pi = 3.14159265 - pi constant
+Ls = 3.828 * 10^26 - Sun luminosity
+ms = 1.9884 * 10^30 - Sun mass
 
 
 
 ### Variables ###
 m = mass in Kg
 R = radius in m
-Tc = core temperature in K
-rho = density
+g = surface gravity
 vol = volume
+rho = density
+Te = effective temperature in K
+L = luminosity

@@ -1,8 +1,10 @@
 from configparser import ConfigParser
 import os
-import tkinter as tk
-from tkinter import filedialog
+import sys
+import shutil
+import subprocess
 import numpy as np
+
 
 from volatilespace import defaults
 
@@ -11,31 +13,136 @@ keybindings = ConfigParser()
 settings.read("settings.ini")
 home_dir = os.path.expanduser("~")
 
+if sys.platform == "linux":
+    zenity_path = shutil.which("zenity")
+    kdialog_path = shutil.which("kdialog")
+    if zenity_path is not None:
+        filedialog = "zenity"
+    elif kdialog_path is not None:
+        filedialog = "kdialog"
+    else:
+        filedialog = "not_installed"
+elif sys.platform == "win32":
+    import win32gui
+    filedialog = "windows"
+else:
+    filedialog = "mac"
 
-def export_file(file_name, filetype=[("All Files", "*.*")]):
-    """save file with tkinter dialog"""
-    root = tk.Tk()
-    root.withdraw()
-    if file_name == "":
-        file_name = "New Map.ini"
-    save_file = filedialog.asksaveasfile(mode='w', initialfile=file_name, defaultextension=".ini",
-                                         initialdir=home_dir, filetypes=filetype)
-    if save_file is None:   # asksaveasfile return "None" if dialog closed with "cancel"
-        return ""
-    file_path = save_file.name
+
+def export_file(file_name, filter=None):
+    """save file with native dialog"""
+    init_dir = os.getcwd()
+    if filedialog == "zenity":
+        file_name = os.path.join(init_dir, file_name)
+        command = [
+            "zenity", "--file-selection", "--save",
+            "--title", "Export File",
+            "--filename", file_name
+        ]
+        if filter:
+            for one_filter in filter:
+                command.append("--file-filter")
+                command.append(one_filter)
+        data = subprocess.run(command, capture_output=True, text=True)
+        file_path = data.stdout.strip()
+    elif filedialog == "kdialog":
+        command = [
+            "kdialog", "--getsavefilename",
+            init_dir,
+            "--title", "Export File",
+        ]
+        if filter:
+            command.append('"' + "|".join(filter) + '"')
+        data = subprocess.run(command, capture_output=True, text=True)
+        file_path = data.stdout.strip()
+    elif filedialog == "windows":
+        if filter:
+            filter_win = "; ".join(filter).replace("*", "") + "\0" + ";".join(filter) + "\0"
+        else:
+            filter_win = None
+        try:
+            foreground = win32gui.GetForegroundWindow()
+            file_path = win32gui.GetSaveFileNameW(
+                hwndOwner=foreground,
+                InitialDir=init_dir,
+                File=file_name,
+                Title="Save File",
+                Filter=filter_win
+            )[0]
+        except Exception:
+            file_path = None
+    elif filedialog == "mac":
+        command = 'choose file name'
+        command += f' default name "{file_name}" default location "{init_dir}"'
+        command += ' with prompt "Export File"'
+        if filter:
+            filter_mac = "{" + ",".join(['"' + x.replace("*.", "") + '"' for x in filter]) + "}"
+            command += f' of type {filter_mac}'
+        data = subprocess.run(["osascript", "-"], input=command, text=True, capture_output=True)
+        data = data.stdout.strip().split(",")
+        file_path = data[data.find(":"):].replace(":", "/")
+    else:
+        return "ERROR_NO_DIALOG"
+    if file_path == "":
+        file_path = None
     return file_path
 
 
-def import_file(filetype=[("All Files", "*.*")]):
-    """load file with tkinter dialog"""
-    root = tk.Tk()
-    root.withdraw()
-    file_path = filedialog.askopenfilename(initialdir=home_dir, filetypes=filetype)   # open load file dialog and get path
-    try:   # try to open file to see if it exists
-        with open(file_path) as f:
-            _ = f.read()
-    except Exception:
-        file_path = ""
+def import_file(filter=None):
+    """load file with native dialog"""
+    init_dir = os.getcwd()
+    if filedialog == "zenity":
+        command = [
+            "zenity", "--file-selection",
+            "--title", "Import File",
+            "--filename", init_dir
+        ]
+        if filter:
+            for one_filter in filter:
+                command.append("--file-filter")
+                command.append(one_filter)
+        data = subprocess.run(command, capture_output=True, text=True)
+        file_path = data.stdout.strip()
+    elif filedialog == "kdialog":
+        command = [
+            "kdialog", "--getopenfilename",
+            init_dir,
+            "--title", "Import File",
+        ]
+        if filter:
+            command.append('"' + "|".join(filter) + '"')
+        data = subprocess.run(command, capture_output=True, text=True)
+        file_path = data.stdout.strip()
+    elif filedialog == "windows":
+        if filter:
+            filter_win = "; ".join(filter).replace("*", "") + "\0" + ";".join(filter) + "\0"
+        else:
+            filter_win = None
+        try:
+            foreground = win32gui.GetForegroundWindow()
+            file_path = win32gui.GetOpenFileNameW(
+                hwndOwner=foreground,
+                InitialDir=init_dir,
+                Title="Save File",
+                Filter=filter_win
+            )[0]
+        except Exception:
+            file_path = None
+    elif filedialog == "mac":
+        filter_mac = "{" + ",".join(['"' + x.replace("*.", "") + '"' for x in filter]) + "}"
+        command = 'choose file'
+        command += f' default location "{init_dir}"'
+        command += ' with prompt "Import File"'
+        if filter:
+            filter_mac = "{" + ",".join(['"' + x.replace("*.", "") + '"' for x in filter]) + "}"
+            command += f' of type {filter_mac}'
+        data = subprocess.run(["osascript", "-"], input=command, text=True, capture_output=True)
+        data = data.stdout.strip().split(",")
+        file_path = data[data.find(":"):].replace(":", "/")
+    else:
+        return "ERROR_NO_DIALOG"
+    if file_path == "":
+        file_path = None
     return file_path
 
 
@@ -278,7 +385,10 @@ def save_file(path, game_data, conf, body_data, body_orb_data, vessel_data={}, v
 
     system.add_section("config")   # special section for config
     for key in conf.keys():   # physics related config
-        value = str(conf[key])
+        if len(str(conf[key])) < 10:
+            value = str(conf[key])
+        else:
+            value = "{:.5e}".format(conf[key])
         system.set("config", key, value)
 
     body_names = body_data["name"]
@@ -511,7 +621,7 @@ def save_settings(header, key, value):
 
 def load_settings(header, key):
     """load one or multiple settings from same header in settings file.
-    Key must be str, tuple or list. If loading failed, create that header/setting."""
+    Key must be str, tuple or list. If loading failed, create that header/setting from defaults."""
     try:
         if isinstance(key, str):   # if key is string (there is only one key)
             setting = settings.get(header, key)

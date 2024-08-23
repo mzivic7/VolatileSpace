@@ -4,10 +4,25 @@ import pygame
 from volatilespace import fileops
 
 
+# these functions are used to import physics which is then compiled
+# but pygame is kept responsive, and able to quit
+def import_quartic_solver():
+    from volatilespace.physics import quartic_solver
+
+
+def import_phys_shared():
+    from volatilespace.physics import phys_shared
+
+
+def import_orbit_intersect():
+    from volatilespace.physics import orbit_intersect
+
+
 def main():
-    ###### --Start pygame-- ######
-    pygame.mixer.pre_init(buffer=2048)
-    pygame.init()
+    # pygame.mixer.pre_init(buffer=2048)
+    # pygame.init()   # not using to save resources and to not start mixer at all
+    pygame.display.init()
+    pygame.font.init()
     pygame.display.set_caption('Volatile Space')
     pygame.display.set_icon(pygame.image.load('img/icon.png'))
     if leval(fileops.load_settings("graphics", "first_run")) is True:
@@ -28,17 +43,17 @@ def main():
     pygame.time.set_timer(pygame.USEREVENT, int(round(1000/60)))
 
 
-    ###### --Load classes-- ######
+    from volatilespace.utils import responsive_blocking
     from volatilespace.graphics import loading_screen
     loading = loading_screen.Loading(screen)
     loading.stage(0)
     from volatilespace import menu
     loading.stage(1)
-    from volatilespace.physics import quartic_solver
+    responsive_blocking(target=import_quartic_solver)
     loading.stage(2)
-    from volatilespace.physics import phys_shared
+    responsive_blocking(target=import_phys_shared)
     loading.stage(3)
-    from volatilespace.physics import orbit_intersect
+    responsive_blocking(target=import_orbit_intersect)
     loading.stage(4)
     from volatilespace import game
     loading.stage(5)
@@ -49,7 +64,6 @@ def main():
     editor = editor.Editor()
 
 
-    ###### --Main loop-- ######
     state = 1   # enter main menu on startup
     run = True
     while run:

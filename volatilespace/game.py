@@ -16,7 +16,7 @@ from volatilespace.graphics import bg_stars
 from volatilespace import textinput
 from volatilespace import metric
 from volatilespace import format_time
-
+from volatilespace.physics.phys_shared import point_between
 
 physics_body = phys_body.Physics()
 physics_vessel = phys_vessel.Physics()
@@ -36,7 +36,7 @@ buttons_pause_menu = [
 buttons_save = ["Cancel", "Save", "New save"]
 buttons_load = ["Cancel", "Load"]
 buttons_new_game = ["Cancel", "Create"]
-body_types = ["Moon", "Solid planet", "Gas planet", "Star", "Black Hole"]
+body_types = ["Dwarf planet", "Solid planet", "Gas planet", "Star", "Black Hole"]
 text_data_orb = [
     "Target: ",
     "Ref body: ",
@@ -61,27 +61,13 @@ text_data_planet = [
     "Surface gravity: "
 ]
 text_data_star = [
-    "(Surface temp):",
-    "(Luminosity): ",
-    "Color: ",
-    "(H/He ratio): "
+    "Effective temp: ",
+    "Luminosity: ",
+    "Stellar class: "
 ]
 text_data_bh = ["Schwarzschild radius: "]
 text_follow_mode = ["Disabled", "Active vessel", "Orbited body"]
 text_grid_mode = ["Disabled", "Global", "Active vessel", "Orbited body"]
-
-
-def angle_in_range(n, angle_range, dr=1):
-    """Checks if given angle is between two angle range with wrapping at 0pi and 2pi, counterclockwise"""
-    angle_1 = abs(n - angle_range[0])
-    angle_2 = abs(n - angle_range[1])
-    if n > angle_range[0]:
-        angle_1 = 2*np.pi - angle_1
-    if n > angle_range[1]:
-        angle_2 = 2*np.pi - angle_2
-    if dr < 0:
-        angle_1, angle_2 = angle_2, angle_1
-    return angle_1 > angle_2
 
 
 class Game():
@@ -220,12 +206,12 @@ class Game():
         grid_disabled_img = graphics.fill(grid_global_img, rgb.gray0)
         self.top_ui_img_grid = [grid_disabled_img, grid_global_img, grid_vessel_img, grid_ref_img]
         self.top_ui_imgs = [warp_1_img, follow_vessel_img, grid_disabled_img]
-        body_moon = pygame.image.load("img/moon.png")
+        body_dwarf = pygame.image.load("img/moon.png")
         body_planet_solid = pygame.image.load("img/planet_solid.png")
         body_planet_gas = pygame.image.load("img/planet_gas.png")
         body_star = pygame.image.load("img/star.png")
         body_bh = pygame.image.load("img/bh.png")
-        self.body_imgs = [body_moon, body_planet_solid, body_planet_gas, body_star, body_bh]
+        self.body_imgs = [body_dwarf, body_planet_solid, body_planet_gas, body_star, body_bh]
         self.vessel_img = graphics.fill(pygame.image.load_sized_svg("img/vessel.svg", (24, 24)), rgb.gray)
         self.target_img = pygame.image.load("img/target.png")
         self.impact_img = pygame.image.load("img/impact.png")
@@ -428,12 +414,14 @@ class Game():
         self.mass = body_data["mass"]
         self.density = body_data["den"]
         self.temp = body_data["temp"]
+        self.luminosity = body_data["lum"]
+        self.stellar_class = body_data["class"]
         self.base_color = body_data["color_b"]
         self.color = body_data["color"]
         self.atm_h = body_data["atm_h"]
         self.atm_data = [body_data["atm_pres0"], body_data["atm_scale_h"], body_data["atm_den0"]]
         self.surf_grav = body_data["surf_grav"]
-        self.size = body_data["size"]
+        self.radius = body_data["radius"]
         self.rad_sc = body_data["rad_sc"]
         # ORBIT DATA #
         self.a = body_orb["a"]
@@ -667,6 +655,7 @@ class Game():
         # in game
         elif e.type == pygame.KEYDOWN:
             if e.key == pygame.K_ESCAPE:
+                self.move = False   # disable screen movement
                 if self.ask is None:
                     if self.pause_menu:
                         self.pause_menu = False
@@ -836,20 +825,28 @@ class Game():
                                     if sum(np.square(self.screen_coords(vessel_pos) - self.mouse_raw)) < (scr_radius)**2:
                                         self.vessel_potential_target = vessel   # if clicked only once, timer must change target
                                         if self.first_click:
+                                            prev_active_vessel = self.active_vessel
                                             self.active_vessel = vessel
                                             self.follow = 1
                                             self.vessel_potential_target = None
                                             self.target = self.v_ref[self.active_vessel]   # set new active vessel's parent to be target
                                             self.target_type = 0
-                                            self.follow_offset_x = self.screen_x / 2   # reset follow offset
-                                            self.follow_offset_y = self.screen_y / 2
+                                            if self.ref[prev_active_vessel] == self.ref[vessel]:
+                                                # calculate new follow offset so view does not move
+                                                diff = self.v_pos[prev_active_vessel] - self.v_pos[self.active_vessel]
+                                                self.follow_offset_x -= diff[0]
+                                                self.follow_offset_y -= diff[1]
+                                            else:
+                                                # reset follow offset
+                                                self.follow_offset_x = self.screen_x / 2
+                                                self.follow_offset_y = self.screen_y / 2
                                         self.first_click = True
                             if not self.first_click:   # if vessel is selected: don't check for bodies
                                 for body, body_pos in enumerate(self.pos):
                                     curve = self.screen_coords_array(self.curves[body])   # line coords on screen
                                     diff = np.amax(curve, 0) - np.amin(curve, 0)
                                     if body == 0 or diff[0]+diff[1] > 32:   # skip hidden bodies with too small orbits
-                                        scr_radius = self.size[body]*self.zoom
+                                        scr_radius = self.radius[body]*self.zoom
                                         if scr_radius < 5:   # if body is small on screen, there is marker
                                             scr_radius = 8
                                         # if mouse is inside body radius on its location: (body_x - mouse_x)**2 + (body_y - mouse_y)**2 < radius**2
@@ -1352,15 +1349,15 @@ class Game():
 
         # draw body atmosphere (before everything else because it is fake transparent)
         for body in self.visible_bodies:
-            scr_body_size = self.size[body] * self.zoom
-            if scr_body_size >= 5:
+            scr_body_radius = self.radius[body] * self.zoom
+            if scr_body_radius >= 5:
                 if self.atm_h[body]:
                     atm_color = np.array(self.color[body]) * 30 / 255   # fake transparency
                     # atm_color = tuple(np.append(self.color[body], 30))   # real transparency - slow
-                    scr_atm_size = (self.size[body] + self.atm_h[body]) * self.zoom
-                    if scr_atm_size > scr_body_size + 2:
+                    scr_atm_radius = (self.radius[body] + self.atm_h[body]) * self.zoom
+                    if scr_atm_radius > scr_body_radius + 2:
                         screen_coords = self.screen_coords(self.pos[body])
-                        graphics.draw_circle_fill(screen, atm_color, screen_coords, scr_atm_size)
+                        graphics.draw_circle_fill(screen, atm_color, screen_coords, scr_atm_radius)
 
         # background stars:
         if self.bg_stars_enable:
@@ -1404,7 +1401,7 @@ class Game():
 
         for body in self.visible_bodies:
             # draw body atmosphere
-            scr_body_size = self.size[body] * self.zoom
+            scr_body_radius = self.radius[body] * self.zoom
 
             # target body
             if self.target is not None and self.target_type == 0 and self.target == body:
@@ -1431,16 +1428,16 @@ class Game():
                 if not self.disable_labels:
                     # target selection
                     if body in self.visible_bodies:
-                        if scr_body_size >= 5:
+                        if scr_body_radius >= 5:
                             # selection circle
-                            scr_atm_size = (self.size[body] + self.atm_h[body]) * self.zoom
-                            graphics.draw_circle(screen, rgb.cyan, self.screen_coords(body_pos), scr_atm_size + 4, 1)
+                            scr_atm_radius = (self.radius[body] + self.atm_h[body]) * self.zoom
+                            graphics.draw_circle(screen, rgb.cyan, self.screen_coords(body_pos), scr_atm_radius + 4, 1)
                         else:
                             # marker img
                             graphics.draw_img(screen, self.target_img, self.screen_coords(body_pos), center=True)
 
                     # circle of influence
-                    if body in self.visible_coi and self.size[body] < self.coi[body]:
+                    if body in self.visible_coi and self.radius[body] < self.coi[body]:
                         graphics.draw_circle(screen, rgb.gray2, self.screen_coords(body_pos), self.coi[body] * self.zoom, 1)
 
         for body in self.visible_body_orbits:
@@ -1513,10 +1510,14 @@ class Game():
 
         # bodies drawing
         for body in self.visible_bodies:
-            scr_body_size = self.size[body] * self.zoom
+            scr_body_radius = self.radius[body] * self.zoom
             body_color = tuple(self.color[body])
-            if scr_body_size >= 5:
-                graphics.draw_circle_fill(screen, body_color, self.screen_coords(self.pos[body]), scr_body_size)
+            if scr_body_radius >= 5:
+                if self.types[body] != 4:
+                    graphics.draw_circle_fill(screen, body_color, self.screen_coords(self.pos[body]), scr_body_radius)
+                else:   # black hole
+                    graphics.draw_circle_fill(screen, rgb.black, self.screen_coords(self.pos[body]), scr_body_radius)
+                    graphics.draw_circle(screen, rgb.white, self.screen_coords(self.pos[body]), scr_body_radius, 2)
             else:   # if body is too small, draw marker with fixed size
                 graphics.draw_circle_fill(screen, rgb.gray1, self.screen_coords(self.pos[body]), 6)
                 graphics.draw_circle_fill(screen, rgb.gray2, self.screen_coords(self.pos[body]), 5)
@@ -1558,11 +1559,17 @@ class Game():
                     if scr_dist[0] > 8 or scr_dist[1] > 8:   # don't draw Ap and Pe if Ap is too close to parent
 
                         pe_scr = self.screen_coords(pe)
-                        parent_rad = [self.size[ref] * self.zoom] * 2
+                        parent_rad = [self.radius[ref] * self.zoom] * 2
                         pe_scr_dist = abs(parent_scr - pe_scr) - parent_rad
                         if pe_scr_dist[0] > 2 or pe_scr_dist[1] > 2:   # don't draw Pe if it is too close to parent
                             # periapsis location marker, text: distance and time to it
-                            if intersect_type != 2 or (intersect_type == 2 and angle_in_range(0, self.select_range[vessel])):
+                            in_range = point_between(
+                                0,
+                                self.select_range[vessel, 0],
+                                self.select_range[vessel, 1],
+                                self.v_dr[vessel]
+                            )
+                            if intersect_type != 2 or (intersect_type == 2 and in_range):
                                 pe_scr = self.screen_coords(pe)
                                 graphics.draw_circle_fill(screen, rgb.lime1, pe_scr, 3)   # periapsis marker
                                 graphics.text(
@@ -1579,7 +1586,13 @@ class Game():
                         if self.v_ecc[vessel] < 1:   # if orbit is ellipse
                             if self.v_ap_d[vessel] <= self.coi[ref]:
                                 # apoapsis location marker, text: distance and time to it
-                                if intersect_type != 2 or (intersect_type == 2 and angle_in_range(np.pi, self.select_range[vessel])):
+                                in_range = point_between(
+                                    np.pi,
+                                    self.select_range[vessel, 0],
+                                    self.select_range[vessel, 1],
+                                    self.v_dr[vessel]
+                                )
+                                if intersect_type != 2 or (intersect_type == 2 and in_range):
                                     graphics.draw_circle_fill(screen, rgb.lime1, ap_scr, 3)   # apoapsis marker
                                     graphics.text(
                                         screen, rgb.lime1, self.fontsm,
@@ -1594,7 +1607,7 @@ class Game():
 
                         # characteristic points
                         if intersect_type == 1:   # impact
-                            if self.size[ref] * self.zoom >= 5:
+                            if self.radius[ref] * self.zoom >= 5:
                                 graphics.draw_img(screen, self.impact_img, intersect, center=True)
                         elif intersect_type == 2:   # enter COI
                             if self.coi[ref] * self.zoom >= 10:
@@ -1779,13 +1792,13 @@ class Game():
                                body_types[int(self.types[self.target])],
                                metric.format_si(self.mass[self.target], 3),
                                metric.format_si(self.density[self.target], 3),
-                               metric.format_si(self.size[self.target], 3),
+                               metric.format_si(self.radius[self.target], 3),
                                metric.format_si(self.coi[self.target], 3)]
                 texts_body = []
                 for i, _ in enumerate(text_data_body):
                     texts_body.append(text_data_body[i] + values_body[i])
                 texts_merged = texts_body[:]
-                if int(self.types[self.target]) in [0, 1, 2]:   # moon, planet, gas
+                if int(self.types[self.target]) in [0, 1, 2]:   # dwarf, planet, gas
                     color = self.color[self.target]
                     values_planet = [
                         "WIP",
@@ -1802,10 +1815,9 @@ class Game():
                     texts_merged += texts_planet
                 elif int(self.types[self.target]) == 3:   # star
                     values_star = [
-                        "WIP",
-                        "WIP",
-                        "WIP",
-                        "WIP"
+                        metric.format_si(self.temp[self.target], 3) + "°K",
+                        metric.format_si(self.luminosity[self.target], 3) + "W",
+                        self.stellar_class[self.target]
                     ]
                     texts_star = []
                     for i, _ in enumerate(text_data_star):

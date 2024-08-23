@@ -1,0 +1,28 @@
+# Body classification
+# these are not realistic classifiers
+
+if mass is higher than threshold, body is a solid planet, otherwise it is a dwarf planet
+if planet has density smaller than 1500 Kg/m^3, it is a gas planet
+if effective temperature is higher than 1000 degK, it is a star
+if Schwarzschild radius is greater than thermal radius: it is a black hole
+
+# notes:
+# effective temperature also has impact on deciding if body is gas planet
+# but it is not implemented yet
+# using thermal radius for black hole because mass multiplier is used in Schwarzschild radius calculation
+
+
+# Star classification [2] [3]
+Class      Te
+  O     ≥ 33,000 K
+  B     10,000–33,000 K
+  A     7,300–10,000 K
+  F     6,000–7,300 K
+  G     5,300–6,000 K
+  K     3,900–5,300 K
+  M     2,300–3,900 K
+
+
+References:
+[2] https://en.wikipedia.org/wiki/Stellar_classification
+[3] http://www.vendian.org/mncharity/dir3/starcolor/

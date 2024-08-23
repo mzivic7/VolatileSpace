@@ -12,7 +12,15 @@ repos:
     hooks:
     -   id: update-version
         name: update-version
-        entry: python version_update.py
+        entry: pipenv run python version_update.py
         language: system
         types: [python]
         pass_filenames: false
+
+    # disabled until enter coi opposed is done
+    # -   id: test-enter-coi
+    #     name: test-enter-coi
+    #     entry: pipenv run python -m unittest
+    #     language: system
+    #     types: [python]
+    #     pass_filenames: false

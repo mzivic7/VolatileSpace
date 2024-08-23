@@ -58,17 +58,19 @@ keybindings = {
 
 sim_config = {
     "gc": 1.0,
-    "rad_mult": 10.0,
-    "coi_coef": 0.4,
-    "vessel_scale": 0.1
+    "rad_mult": 179.0,
+    "mass_thermal_mult": 2*10**26,
+    "coi_coef": 0.7,
+    "vessel_scale": 0.1,
+    "min_planet_mass": 200
 }
 
 
-new_body_moon = {
-    "name": "New moon",
+new_body_dwarf = {
+    "name": "New dwarf planet",
     "type": 0,
     "mass": 10.0,
-    "density": 1.0,
+    "density": 3500.0,
     "position": [0, 0],
     "velocity": [0, 0],
     "color": [255, 255, 255],
@@ -81,50 +83,50 @@ new_body_planet = {
     "name": "New planet",
     "type": 1,
     "mass": 300.0,
-    "density": 1.0,
+    "density": 4000.0,
     "position": [0, 0],
     "velocity": [0, 0],
     "color": [255, 255, 255],
     "atm_pres0": 0,
-    "atm_coef": 0,
-    "atm_den": 0
+    "atm_scale_h": 0,
+    "atm_den0": 0
 }
 
 new_body_gas = {
     "name": "New gas planet",
     "type": 2,
     "mass": 1000.0,
-    "density": 0.3,
+    "density": 800,
     "position": [0, 0],
     "velocity": [0, 0],
     "color": [255, 255, 255],
     "atm_pres0": 0,
-    "atm_coef": 0,
-    "atm_den": 0
+    "atm_scale_h": 0,
+    "atm_den0": 0
 }
 
 new_body_star = {
     "name": "New star",
     "type": 3,
     "mass": 6000.0,
-    "density": 1.0,
+    "density": 2000,
     "position": [0, 0],
     "velocity": [0, 0],
     "color": [255, 255, 255],
     "atm_pres0": 0,
-    "atm_coef": 0,
-    "atm_den": 0
+    "atm_scale_h": 0,
+    "atm_den0": 0
 }
 
 new_body_bh = {
     "name": "New black hole",
     "type": 4,
-    "mass": 500000.0,
-    "density": 100.0,
+    "mass": 5*10**7,
+    "density": 8*10**11,
     "position": [0, 0],
     "velocity": [0, 0],
-    "color": [50, 50, 50],
+    "color": [0, 0, 0],
     "atm_pres0": 0,
-    "atm_coef": 0,
-    "atm_den": 0
+    "atm_scale_h": 0,
+    "atm_den0": 0
 }
