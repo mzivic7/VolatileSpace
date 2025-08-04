@@ -57,4 +57,4 @@ other-physics/03-hyperbola-circle.txt
 ### Predicting vessel and body ma at the moment when vessel ENTER body COI ###
 # this is very hard to do with just math and newton solver
 # custom algorithm pseudocode is provided here:
-orbital-physics/13-enter-coi-point.txt
+orbital-physics/12-enter-coi-point.txt

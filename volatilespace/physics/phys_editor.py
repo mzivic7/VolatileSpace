@@ -1,19 +1,29 @@
-from ast import literal_eval as leval
 import math
+from ast import literal_eval
 from itertools import repeat
+
 import numpy as np
+
 try:   # to allow building without numba
-    from numba import njit, int32, int64, float64
+    from numba import float64, int32, int64, njit
     numba_avail = True
 except ImportError:
     numba_avail = False
 
-from volatilespace import fileops
-from volatilespace import defaults
-from volatilespace.physics.phys_shared import rot_ellipse_by_y, orbit_time_to, \
-    newton_root_kepler_ell, \
-    mag, dot_2d, cross_2d, \
-    gc, c, ls, ms, sigma
+from volatilespace import defaults, peripherals
+from volatilespace.physics.enhanced_kepler_solver import solve_kepler_ell
+from volatilespace.physics.phys_shared import (
+    c,
+    cross_2d,
+    dot_2d,
+    gc,
+    ls,
+    mag,
+    ms,
+    orbit_time_to,
+    rot_ellipse_by_y,
+    sigma,
+)
 
 
 ###### --Functions-- ######
@@ -38,22 +48,19 @@ def find_parent_one(body_s, bodies_sorted, pos, coi):
                 parent = pot_parent   # this body is parent
                 # loop continues until smallest parent body is found
         return parent
-    else:
-        return 0
+    return 0
 
 
 def gravity_one(body, parent, mass, rel_pos, gc):
-    """Calculates acceleration for one body in simplified n-body problem."""
+    """Calculates acceleration vector for one body in simplified n-body problem."""
     if body:   # skip root
         distance = math.sqrt(rel_pos[0]*rel_pos[0] + rel_pos[1]*rel_pos[1])   # x*x is faster than x**2 with small numbers
         force = gc * mass[body] * mass[parent] / distance**2   # Newton's law of universal gravitation
         # angle between 2 bodies and horizon
         angle = math.atan2(rel_pos[1], rel_pos[0])
         acc = force / mass[body]
-        acc_v = np.array([acc * math.cos(angle), acc * math.sin(angle)])
-        return acc_v
-    else:
-        return np.array([0, 0], dtype=np.float64)
+        return np.array([acc * math.cos(angle), acc * math.sin(angle)])
+    return np.array([0, 0], dtype=np.float64)
 
 
 def kepler_basic_one(body, parent, mass, pos, vel, gc, coi_coef):
@@ -76,14 +83,13 @@ def kepler_basic_one(body, parent, mass, pos, vel, gc, coi_coef):
         else:
             coi = 0
         return focus, ecc_v, semi_major, semi_minor, periapsis_arg, coi
-    else:
-        return 0.0, np.zeros(2), 0.0, 0.0, 0.0, 0.0
+    return 0.0, np.zeros(2), 0.0, 0.0, 0.0, 0.0
 
 
 def check_collision_one(body1, mass, pos, rad):
     """Check for collisions between one body and other bodies."""
-    for body2 in range(len(mass[body1+1:])):   # repeat between this and every other body:
-        body2 += body1 + 1
+    for body in range(len(mass[body1+1:])):   # repeat between this and every other body:
+        body2 = body + body1 + 1
         rel_pos = pos[body1] - pos[body2]
         distance = math.sqrt(rel_pos[0]*rel_pos[0] + rel_pos[1]*rel_pos[1])
         if distance <= rad[body1] + rad[body2]:   # if bodies collide
@@ -91,14 +97,13 @@ def check_collision_one(body1, mass, pos, rad):
             mass2 = mass[body2]
             if mass1 <= mass2:   # set smaller object to be deleted
                 return body1, body2
-            else:
-                return body2, body1
+            return body2, body1
 
 
 # if numba is enabled, compile functions ahead of time
-use_numba = leval(fileops.load_settings("game", "numba"))
+use_numba = literal_eval(peripherals.load_settings("game", "numba"))
 if numba_avail and use_numba:
-    enable_fastmath = leval(fileops.load_settings("game", "fastmath"))
+    enable_fastmath = literal_eval(peripherals.load_settings("game", "fastmath"))
     jitkw = {"cache": True, "fastmath": enable_fastmath}   # numba JIT setings
     find_parent_one = njit(int32(int32, int64[:], float64[:, :], float64[:]), **jitkw)(find_parent_one)
     gravity_one = njit(float64[:](int32, int64, float64[:], float64[:], float64), **jitkw)(gravity_one)
@@ -108,6 +113,7 @@ if numba_avail and use_numba:
 
 
 class Physics():
+    """Editor physics class"""
     def __init__(self):
         # body
         self.names = np.array([])
@@ -148,7 +154,7 @@ class Physics():
 
     def reload_settings(self):
         """Reload all settings, should be run every time editor is entered"""
-        self.curve_points = int(fileops.load_settings("graphics", "curve_points"))   # number of points from which curve is drawn
+        self.curve_points = int(peripherals.load_settings("graphics", "curve_points"))   # number of points from which curve is drawn
         # parameters
         self.ell_t = np.linspace(-np.pi, np.pi, self.curve_points)   # ellipse and hyperbola parameter
         self.par_t = np.linspace(- np.pi - 1, np.pi + 1, self.curve_points)   # parabola parameter
@@ -284,8 +290,7 @@ class Physics():
                 if self.largest != 0:   # make sure largest body is first
                     self.set_root(self.largest)
             return 0
-        else:
-            return 1
+        return 1
 
 
     def set_root(self, body):
@@ -474,7 +479,7 @@ class Physics():
             ta = true_anomaly_deg * np.pi / 180
             ea = math.acos((ecc + math.cos(ta))/(1 + (ecc * math.cos(ta))))   # ea from ta
         else:
-            ea = newton_root_kepler_ell(ecc, mean_anomaly, 0.0)
+            ea = solve_kepler_ell(ecc, mean_anomaly, 1e-10)
 
         # calculate position vector
         pr_x = a * math.cos(ea) - f
@@ -511,8 +516,8 @@ class Physics():
         self.rel_vel[body] = vr   # update relative velocity
         # this is copied from simplified_orbit_coi end, to allow changes to take effect smoothly, in this iteration, even if paused
         bodies_sorted = np.argsort(self.mass)[-1::-1]
-        for body in bodies_sorted:
-            self.vel[body] = self.rel_vel[body] + self.vel[self.parents[body]]
+        for body_s in bodies_sorted:
+            self.vel[body_s] = self.rel_vel[body_s] + self.vel[self.parents[body_s]]
 
 
     def curve(self):
@@ -528,12 +533,11 @@ class Physics():
             ecc = mag(self.ecc_v[num])   # eccentricity
             if ecc < 1:   # ellipse
                 curves[:, num, :] = np.array([self.semi_major[num] * np.cos(self.ell_t), self.semi_minor[num] * np.sin(self.ell_t)])   # raw ellipses
-            else:
-                if ecc == 1:   # parabola
-                    curves[:, num, :] = np.array([self.semi_major[num] * self.par_t**2, 2 * self.semi_major[num] * self.par_t])   # raw parabolas
-                    curves[0, num, :] = curves[0, num, :] - self.semi_major[num, np.newaxis]   # translate parabola by semi_major, since its center is not in 0,0
-                elif ecc > 1:   # hyperbola
-                    curves[:, num, :] = np.array([-self.semi_major[num] * np.cosh(self.ell_t), self.semi_minor[num] * np.sinh(self.ell_t)])   # raw hyperbolas
+            elif ecc == 1:   # parabola
+                curves[:, num, :] = np.array([self.semi_major[num] * self.par_t**2, 2 * self.semi_major[num] * self.par_t])   # raw parabolas
+                curves[0, num, :] = curves[0, num, :] - self.semi_major[num, np.newaxis]   # translate parabola by semi_major, since its center is not in 0,0
+            elif ecc > 1:   # hyperbola
+                curves[:, num, :] = np.array([-self.semi_major[num] * np.cosh(self.ell_t), self.semi_minor[num] * np.sinh(self.ell_t)])   # raw hyperbolas
                 # parametric equation for circle is same as for ellipse, just semi_major = semi_minor, thus it is not required
 
         curves_rot = np.zeros((2, curves.shape[1], curves.shape[2]))   # empty array for new rotated curve
@@ -605,45 +609,45 @@ class Physics():
         fg_opacity = np.where(
             np.logical_and(self.temp > 1000, self.temp <= 2300),
             1 - 1 / (1300 / (self.temp - 1000)),
-            -1
+            -1,
         )
         self.color = np.copy(self.base_color)
         self.color[:, 0] = np.where(
             fg_opacity != -1,
             self.base_color[:, 0] * fg_opacity + 255 * (1 - fg_opacity),
-            self.base_color[:, 0]
+            self.base_color[:, 0],
         )
         self.color[:, 1] = np.where(
             fg_opacity != -1,
             self.base_color[:, 1] * fg_opacity + 184 * (1 - fg_opacity),
-            self.base_color[:, 1]
+            self.base_color[:, 1],
         )
         self.color[:, 2] = np.where(
             fg_opacity != -1,
             self.base_color[:, 2] * fg_opacity + 111 * (1 - fg_opacity),
-            self.base_color[:, 2]
+            self.base_color[:, 2],
         )
 
         # heated color
         self.color[:, 0] = np.where(
             self.temp > 2300,
             130 + 125 / (1 + (self.temp / 5922)**55.525)**0.065,
-            self.color[:, 0]
+            self.color[:, 0],
         )
         self.color[:, 1] = np.where(
             np.logical_and(self.temp > 2300, self.temp <= 6000),
             257 - 73 / (1 + (self.temp / 4742)**6.687),
-            self.color[:, 1]
+            self.color[:, 1],
         )
         self.color[:, 1] = np.where(
             self.temp > 6000,
             170 + 165766330 / (1 + (self.temp / 24)**2.651),
-            self.color[:, 1]
+            self.color[:, 1],
         )
         self.color[:, 2] = np.where(
             self.temp > 2300,
             283 - 176 / (1 + (self.temp / 4493)**5.792),
-            self.color[:, 2]
+            self.color[:, 2],
         )
         bh = np.where(self.rad_sc > self.rad)
         self.color[bh] = [0, 0, 0]
@@ -735,7 +739,6 @@ class Physics():
             color = [0, 0, 0]
             atm_h = 0
 
-
         # star classification
         if body_type == 3:
             stellar_class = "M"
@@ -754,8 +757,7 @@ class Physics():
         else:
             stellar_class = "Unknown"
 
-
-        precalculated_data = {
+        return {
             "radius": radius,
             "type": body_type,
             "temp": temp,
@@ -767,9 +769,8 @@ class Physics():
             "atm_pres0": atm_pres0,
             "atm_scale_h": atm_scale_h,
             "atm_den0": atm_den0,
-            "atm_h": atm_h
+            "atm_h": atm_h,
         }
-        return precalculated_data
 
 
     def precalc_curve(self, pos, vel):
@@ -852,8 +853,8 @@ class Physics():
         self.simplified_orbit_coi()   # root is identified by coi=0
         if self.largest != old_largest:
             diff = list(self.pos[self.largest])
-            for body in range(len(self.mass)):
-                self.pos[body] -= diff
+            for body_num in range(len(self.mass)):
+                self.pos[body_num] -= diff
             self.rel_vel[old_largest] = self.rel_vel[self.largest] * -1
             self.vel[self.largest] = [0, 0]
             if self.largest != 0:   # make sure largest body is first
@@ -862,8 +863,7 @@ class Physics():
 
     def set_body_den(self, body, density):
         """Change body density."""
-        if density < 0.05:
-            density = 0.05
+        density = max(density, 0.05)
         self.den[body] = density
         self.simplified_orbit_coi()
 

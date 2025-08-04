@@ -1,20 +1,20 @@
 ### MOUSE ###
-Lclick on body     Select body
-Lclick + drag      Move view / Insert new body (in insert mode)
-Rclick             Disables insert mode
-Mouse_wheel        Zoom in / Zoom out
+Lclick on body      Select body
+Lclick + drag       Move view / Insert new body (in insert mode)
+Rclick              Disables insert mode
+Mouse_wheel         Zoom in / out
 
 ### KEYBOARD ###
-Space              Pause
-W/A/S/D            Add velocity, in that direction, to body
-./,                Time warp increase/decrease
-/                  Stop time warp
-H                  Focus on Home (0, 0) coordinates
-F                  Cycle follow modes (disabled, vessel, orbited body)
-G                  Cycle grid modes (disabled, global, vessel, orbited body)
-Escape             Pause menu
-F1                 Screenshot
-F2                 Toggle UI visibility
-F3                 Toggle labels visibility
-F4                 Quicksave
-Delete             Delete selected body in editor
+Space               Pause
+W/A/S/D             Add velocity, in that direction, to body
+./,                 Time warp increase/decrease
+/                   Stop time warp
+H                   Focus on Home (0, 0) coordinates
+F                   Cycle follow modes (disabled, vessel, orbited body)
+G                   Cycle grid modes (disabled, global, vessel, orbited body)
+Escape              Pause menu
+F1                  Screenshot
+F2                  Toggle UI visibility
+F3                  Toggle labels visibility
+F4                  Quicksave
+Delete              Delete selected body in editor

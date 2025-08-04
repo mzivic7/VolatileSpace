@@ -1,7 +1,19 @@
-import math
+"""
+Modified Ferrari's quartic solver and modified Cardano's cubic solver for Python (4th and 3rd order polynomials)
+Using modified algorithms from: https://quarticequations.com
+Functions can optionally be 'numbarized' by just installing numba
+Python implementation by: mzivic7
+Source code: https://github.com/mzivic7/pyquartic
+Issues: https://github.com/mzivic7/pyquartic/issues
+Licence: GNU General Public License v3.0
+"""
+
+
 import cmath
+import math
+
 try:
-    from numba import njit, float64, complex128
+    from numba import complex128, float64, njit
     from numba.types import UniTuple
     numba_avail = True
 except ImportError:
@@ -51,8 +63,7 @@ def solve_quartic(a, b, c, d, e):
 
     # one real root of Ferrari's resolvent cubic
     y = solve_cubic_one(b2, b2**2/4 - b0, -b1**2/8)
-    if y < 0:
-        y = 0
+    y = max(y, 0)
 
     s = y**2 + b2*y + b2**2/4 - b0
     if s > 0:   # compatibility for no-numba mode

@@ -1,21 +1,28 @@
-from ast import literal_eval as leval
+import importlib.util
 import math
-import pygame
+from ast import literal_eval
 from itertools import repeat
-import numpy as np
-try:   # to allow building without numba
-    from numba import njit
-    numba_avail = True
-except ImportError:
-    numba_avail = False
 
-from volatilespace import fileops
-from volatilespace import defaults
-from volatilespace.physics.phys_shared import \
-    newton_root_kepler_ell, newton_root_kepler_hyp, \
-    curve_points, curve_move_to, \
-    mag, orbit_time_to, culling, \
-    gc, c, ls, ms, sigma
+import numpy as np
+import pygame
+
+from volatilespace import defaults, peripherals
+from volatilespace.physics.enhanced_kepler_solver import solve_kepler_ell
+from volatilespace.physics.phys_shared import (
+    c,
+    culling,
+    curve_move_to,
+    curve_points,
+    gc,
+    ls,
+    mag,
+    ms,
+    newton_root_kepler_hyp,
+    orbit_time_to,
+    sigma,
+)
+
+numba_avail = bool(importlib.util.find_spec("numba"))
 
 
 def calc_orb_one(body, ref, mass, gc, coi_coef, a, ecc):
@@ -51,8 +58,7 @@ def calc_orb_one(body, ref, mass, gc, coi_coef, a, ecc):
             ap_d = 0
             n = 2*np.pi / period
         return b, f, coi, pe_d, ap_d, period, n, u
-    else:
-        return 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
+    return 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
 
 
 def temp_color(temp, base_color):
@@ -61,59 +67,59 @@ def temp_color(temp, base_color):
     fg_opacity = np.where(
         np.logical_and(temp > 1000, temp <= 2300),
         1 - 1 / (1300 / (temp - 1000)),
-        -1
+        -1,
     )
     color = np.copy(base_color)
     color[:, 0] = np.where(
         fg_opacity != -1,
         base_color[:, 0] * fg_opacity + 255 * (1 - fg_opacity),
-        base_color[:, 0]
+        base_color[:, 0],
     )
     color[:, 1] = np.where(
         fg_opacity != -1,
         base_color[:, 1] * fg_opacity + 184 * (1 - fg_opacity),
-        base_color[:, 1]
+        base_color[:, 1],
     )
     color[:, 2] = np.where(
         fg_opacity != -1,
         base_color[:, 2] * fg_opacity + 111 * (1 - fg_opacity),
-        base_color[:, 2]
+        base_color[:, 2],
     )
 
     # heated color
     color[:, 0] = np.where(
         temp > 2300,
         130 + 125 / (1 + (temp / 5922)**55.525)**0.065,
-        color[:, 0]
+        color[:, 0],
     )
     color[:, 1] = np.where(
         np.logical_and(temp > 2300, temp <= 6000),
         257 - 73 / (1 + (temp / 4742)**6.687),
-        color[:, 1]
+        color[:, 1],
     )
     color[:, 1] = np.where(
         temp > 6000,
         170 + 165766330 / (1 + (temp / 24)**2.651),
-        color[:, 1]
+        color[:, 1],
     )
     color[:, 2] = np.where(
         temp > 2300,
         283 - 176 / (1 + (temp / 4493)**5.792),
-        color[:, 2]
+        color[:, 2],
     )
-    color = np.clip(color.astype(int), 0, 255)
-    return color
+    return np.clip(color.astype(int), 0, 255)
 
 
 # if numba is enabled, compile functions ahead of time
-use_numba = leval(fileops.load_settings("game", "numba"))
+use_numba = literal_eval(peripherals.load_settings("game", "numba"))
 if numba_avail and use_numba:
-    enable_fastmath = leval(fileops.load_settings("game", "fastmath"))
+    enable_fastmath = literal_eval(peripherals.load_settings("game", "fastmath"))
     jitkw = {"cache": True, "fastmath": enable_fastmath}   # numba JIT setings
 
 
 
 class Physics():
+    """Body physics class"""
     def __init__(self):
         # body internal
         self.names = np.array([])
@@ -155,7 +161,7 @@ class Physics():
     def reload_settings(self):
         """Reload all settings, should be run every time game is entered"""
         self.screen_x, self.screen_y = pygame.display.get_surface().get_size()
-        self.curve_points = int(fileops.load_settings("graphics", "curve_points"))   # number of points from which curve is drawn
+        self.curve_points = int(peripherals.load_settings("graphics", "curve_points"))   # number of points from which curve is drawn
         self.curves = np.zeros((len(self.mass), self.curve_points, 2))
         self.t = np.linspace(-np.pi, np.pi, self.curve_points)   # parameter
         for body, _ in enumerate(self.names):
@@ -271,7 +277,7 @@ class Physics():
             "atm_pres0": self.atm_pres0,
             "atm_scale_h": self.atm_scale_h,
             "atm_den0": self.atm_den0,
-            "atm_h": self.atm_h
+            "atm_h": self.atm_h,
         }
 
         # ORBIT DATA #
@@ -289,7 +295,7 @@ class Physics():
             "pea": self.pea,
             "n": self.n,
             "dir": self.dr,
-            "per": self.period
+            "per": self.period,
         }
 
         # MOVE #
@@ -319,11 +325,11 @@ class Physics():
             a = self.a[body]
             b = self.b[body]
             if ecc < 1:
-                ea = newton_root_kepler_ell(self.ecc[body], self.ma[body], self.ea[body])
+                ea = solve_kepler_ell(ecc, self.ma[body], 1e-10)
                 pr_x = a * math.cos(ea) - self.f[body]
                 pr_y = b * math.sin(ea)
             else:
-                ea = newton_root_kepler_hyp(self.ecc[body], self.ma[body], self.ea[body])
+                ea = newton_root_kepler_hyp(ecc, self.ma[body], self.ea[body])
                 pr_x = a * np.cosh(ea) - self.f[body]
                 pr_y = b * np.sinh(ea)
             pr = np.array([pr_x * math.cos(pea - np.pi) - pr_y * math.sin(pea - np.pi),
@@ -389,8 +395,7 @@ class Physics():
             pe = np.array([pe_d * math.cos(periapsis_arg - np.pi), pe_d * math.sin(periapsis_arg - np.pi)]) + pos_ref
 
             return ta, pe, pe_t, ap, ap_t, distance, speed_orb, speed_hor, speed_vert
-        else:
-            return 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
+        return 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
 
 
     def curve_move(self):

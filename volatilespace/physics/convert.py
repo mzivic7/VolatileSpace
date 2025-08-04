@@ -1,10 +1,20 @@
 import math
+
 import numpy as np
-from volatilespace.physics.phys_shared import \
-    rot_hyperbola_by_y, rot_ellipse_by_y, \
-    impl_derivative_rot_ell, impl_derivative_rot_hyp, \
-    newton_root_kepler_ell, newton_root_kepler_hyp, \
-    mag, dot_2d, cross_2d, compare_coord, orb2xy
+
+from volatilespace.physics.enhanced_kepler_solver import solve_kepler_ell
+from volatilespace.physics.phys_shared import (
+    compare_coord,
+    cross_2d,
+    dot_2d,
+    impl_derivative_rot_ell,
+    impl_derivative_rot_hyp,
+    mag,
+    newton_root_kepler_hyp,
+    orb2xy,
+    rot_ellipse_by_y,
+    rot_hyperbola_by_y,
+)
 
 
 def kepler_to_velocity(rel_pos, a, ecc, pe_arg, u, dr):
@@ -75,7 +85,7 @@ def velocity_to_kepler(rel_pos, rel_vel, u, failsafe=0):
         ma = (ea - ecc * math.sin(ea)) % (2*np.pi)
         # firsf failsafe if position is wrong due to wrong ma calculation in newton root
         if failsafe:
-            new_ea = newton_root_kepler_ell(ecc, ma, ma)
+            new_ea = solve_kepler_ell(ecc, ma, 1e-10)
             f = a * ecc
             b = math.sqrt(abs(f**2 - a**2))
             new_pos = orb2xy(a, b, f, ecc, pe_arg, [0, 0], new_ea)
@@ -159,7 +169,7 @@ def to_newton(mass, orb_data, gc, coi_coef):
             b = a * math.sqrt(1 - ecc**2)
             f = math.sqrt(a**2 - b**2)
             if ecc < 1:
-                ea = newton_root_kepler_ell(ecc, ma, 0.0)
+                ea = solve_kepler_ell(ecc, ma, 1e-10)
                 rel_pos_x = a * math.cos(ea) - f
                 rel_pos_y = b * math.sin(ea)
             else:

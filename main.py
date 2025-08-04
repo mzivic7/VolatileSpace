@@ -1,39 +1,56 @@
-from ast import literal_eval as leval
-import pygame
+from ast import literal_eval
 
-from volatilespace import fileops
+import pygame
+from numba import njit  # noqa
+
+from volatilespace import peripherals
 
 
 # these functions are used to import physics which is then compiled
 # but pygame is kept responsive, and able to quit
 def import_quartic_solver():
-    from volatilespace.physics import quartic_solver
+    """Import just to compile numba"""
+    from volatilespace.physics import quartic_solver   # noqa
 
 
 def import_phys_shared():
-    from volatilespace.physics import phys_shared
+    """Import just to compile numba"""
+    from volatilespace.physics import phys_shared   # noqa
+    from volatilespace.physics.enhanced_kepler_solver import solve_kepler_ell   # noqa
 
 
 def import_orbit_intersect():
-    from volatilespace.physics import orbit_intersect
+    """Import just to compile numba"""
+    from volatilespace.physics import orbit_intersect   # noqa
+
+
+def import_game():
+    """Import just to compile numba"""
+    from volatilespace import game   # noqa
+
+
+def import_editor():
+    """Import just to compile numba"""
+    from volatilespace import editor   # noqa
 
 
 def main():
+    """Main function"""
     # pygame.mixer.pre_init(buffer=2048)
-    # pygame.init()   # not using to save resources and to not start mixer at all
+    # pygame.init()   # not using to not start mixer at all
     pygame.display.init()
     pygame.font.init()
-    pygame.display.set_caption('Volatile Space')
-    pygame.display.set_icon(pygame.image.load('img/icon.png'))
-    if leval(fileops.load_settings("graphics", "first_run")) is True:
+    pygame.display.set_caption("Volatile Space")
+    pygame.display.set_icon(pygame.image.load("img/icon.png"))
+    if literal_eval(peripherals.load_settings("graphics", "first_run")) is True:
         avail_res = pygame.display.get_desktop_sizes()
         (screen_x, screen_y) = avail_res[0]   # use highest resolution
-        fileops.save_settings("graphics", "resolution", [screen_x, screen_y])
-        fileops.save_settings("graphics", "first_run", False)
+        peripherals.save_settings("graphics", "resolution", [screen_x, screen_y])
+        peripherals.save_settings("graphics", "first_run", False)
     else:
-        (screen_x, screen_y) = fileops.load_settings("graphics", "resolution")
-    fullscreen = leval(fileops.load_settings("graphics", "fullscreen"))
-    vsync = leval(fileops.load_settings("graphics", "vsync"))
+        (screen_x, screen_y) = peripherals.load_settings("graphics", "resolution")
+    fullscreen = literal_eval(peripherals.load_settings("graphics", "fullscreen"))
+    vsync = literal_eval(peripherals.load_settings("graphics", "vsync"))
     if fullscreen is True:
         screen = pygame.display.set_mode((screen_x, screen_y), pygame.FULLSCREEN, vsync=vsync)
     else:
@@ -43,8 +60,8 @@ def main():
     pygame.time.set_timer(pygame.USEREVENT, int(round(1000/60)))
 
 
-    from volatilespace.utils import responsive_blocking
     from volatilespace.graphics import loading_screen
+    from volatilespace.utils import responsive_blocking
     loading = loading_screen.Loading(screen)
     loading.stage(0)
     from volatilespace import menu
@@ -55,8 +72,10 @@ def main():
     loading.stage(3)
     responsive_blocking(target=import_orbit_intersect)
     loading.stage(4)
+    responsive_blocking(target=import_game)
     from volatilespace import game
     loading.stage(5)
+    responsive_blocking(target=import_editor)
     from volatilespace import editor
     loading.stage(6)
     menu = menu.Menu()
@@ -67,7 +86,7 @@ def main():
     state = 1   # enter main menu on startup
     run = True
     while run:
-        for e in pygame.event.get():
+        for event in pygame.event.get():
             if state == 0:   # quit
                 run = False
             elif state == 1:   # main menu
@@ -107,7 +126,7 @@ def main():
                     editor.reload_settings()
                 elif state == 3:
                     game.reload_settings()
-            if e.type == pygame.QUIT:
+            if event.type == pygame.QUIT:
                 run = False
     pygame.quit()
 

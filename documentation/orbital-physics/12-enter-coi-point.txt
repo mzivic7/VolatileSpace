@@ -10,11 +10,8 @@ then generate and select probe points
     probe points are vessel Ma, and they are evenly distributed
     this makes area around vessel apoapsis more dense, because most intersections happens there
     If vessel orbit is ellipse and vessels Ap is lower then body Ap+COI:
-        use default points
-        default points have such order that area around vessel apoapsis is first probed
-        There are 2 ways of ordering default points:
-            Raveled - point on one side of curve then on other side
-            Stacked - First one side, then other side of ellipse
+        use default points:
+        generate points from current body Ma in orbit direction, all the way around
     else:
         # there is no need to probe at the place where vessel can't enter body COI
         # so generate probe points excluding orbit piece outside circle: r=body_Ap+COI
@@ -42,7 +39,7 @@ Now decide what algorithm to use, if vessel and body have same orbit direction, 
 If they have different directions, then use opposed algorithm
 These two algorithms are largely same, except the opposed has one extra "stage"
 Opposed algorithm first runs one iteration of regular algorithm, called first stage,
-and next iteration is mostly same, just correction is calculated differently, its called second stage
+and next iteration is mostly same, except the correction is calculated differently, its called second stage
 After search, optimize loop starts with second stage, and stages are changing periodically
 
 (loop) search loop - search for initial intersection:
@@ -145,10 +142,10 @@ After search, optimize loop starts with second stage, and stages are changing pe
                         # because of that correction must be inverted
                         correction = -correction
             if this is SECOND STAGE of opposed:
-                prev_ma <- vessel Ma from first stage (initial is from search)
-                new_ma <- vessel Ma from second stage
+                prev_ma <-- vessel Ma from first stage (initial is from search)
+                new_ma <-- vessel Ma from second stage
                 intersect_ma <- selected intersection from second stage
-                # point C will be in opposite direction of B relative to A
+                # new point will be in opposite direction of second stage intersection relative to current point
                 # adiff is angular difference in same direction as correction from first stage
                 p = |adiff(prev_ma, new_ma)|
                 q = |adiff(intersect_ma, new_ma)|

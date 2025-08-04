@@ -1,25 +1,35 @@
-from ast import literal_eval as leval
 import math
-import pygame
+from ast import literal_eval
 from itertools import repeat
+
 import numpy as np
+import pygame
+
 try:   # to allow building without numba
-    from numba import njit, int32, float64
+    from numba import float64, int32, njit
     numba_avail = True
 except ImportError:
     numba_avail = False
 
-from volatilespace import fileops
-from volatilespace import defaults
-from volatilespace.physics.phys_shared import \
-    newton_root_kepler_ell, newton_root_kepler_hyp, \
-    curve_points, curve_move_to, point_between, \
-    mag, orbit_time_to, orb2xy, culling
-from volatilespace.physics.orbit_intersect import \
-    ell_hyp_intersect, next_point, sort_intersect_indices, \
-    predict_enter_coi
-from volatilespace.physics.convert import \
-    kepler_to_velocity, velocity_to_kepler
+from volatilespace import defaults, peripherals
+from volatilespace.physics.convert import kepler_to_velocity, velocity_to_kepler
+from volatilespace.physics.enhanced_kepler_solver import solve_kepler_ell
+from volatilespace.physics.orbit_intersect_debug import (
+    ell_hyp_intersect,
+    next_point,
+    predict_enter_coi,
+    sort_intersect_indices,
+)
+from volatilespace.physics.phys_shared import (
+    culling,
+    curve_move_to,
+    curve_points,
+    mag,
+    newton_root_kepler_hyp,
+    orb2xy,
+    orbit_time_to,
+    point_between,
+)
 
 
 def concat_wrap(array, point_start, range_start, range_end, point_end):
@@ -47,7 +57,7 @@ def concat_wrap(array, point_start, range_start, range_end, point_end):
     return out
 
 
-def calc_orb_one(vessel, ref, body_mass, gc, a, ecc):
+def calc_orb_one(ref, body_mass, gc, a, ecc):
     """Additional vessel orbital parameters."""
     u = gc * body_mass[ref]   # standard gravitational parameter
     f = a * ecc
@@ -79,15 +89,16 @@ def calc_orb_one(vessel, ref, body_mass, gc, a, ecc):
 
 
 # if numba is enabled, compile functions ahead of time
-use_numba = leval(fileops.load_settings("game", "numba"))
+use_numba = literal_eval(peripherals.load_settings("game", "numba"))
 if numba_avail and use_numba:
-    enable_fastmath = leval(fileops.load_settings("game", "fastmath"))
+    enable_fastmath = literal_eval(peripherals.load_settings("game", "fastmath"))
     jitkw = {"cache": True, "fastmath": enable_fastmath}   # numba JIT setings
     concat_wrap = njit((float64[:, :], float64[:], int32, int32, float64[:]), **jitkw)(concat_wrap)
 
 
 
 class Physics():
+    """Vessel physics class"""
     def __init__(self):
         # vessel internal
         self.names = np.array([])
@@ -128,7 +139,7 @@ class Physics():
     def reload_settings(self):
         """Reload all settings, should be run every time game is entered, or settings have changed."""
         self.screen_x, self.screen_y = pygame.display.get_surface().get_size()
-        self.curve_points = int(fileops.load_settings("graphics", "curve_points"))   # number of points from which curve is drawn
+        self.curve_points = int(peripherals.load_settings("graphics", "curve_points"))   # number of points from which curve is drawn
         self.curves = np.zeros((len(self.names), self.curve_points, 2))
         self.t = np.linspace(-np.pi, np.pi, self.curve_points)   # parameter
         for vessel, _ in enumerate(self.names):
@@ -176,6 +187,7 @@ class Physics():
         self.ea = np.zeros(len(self.names))
         self.curves = np.zeros((len(self.names), self.curve_points, 2))   # shape: (vessel, points, axes)
         self.curves_mov = np.zeros((len(self.names), self.curve_points, 2))
+        self.pe_d = np.array([])   # clear it for culling
         # orbit points
         self.body_impact = np.zeros((len(self.names), 2)) * np.nan
         self.body_enter_atm = np.zeros((len(self.names), 2)) * np.nan
@@ -184,6 +196,7 @@ class Physics():
         self.entered_coi = None
         self.left_coi = None
         self.left_coi_prev_ref = None
+
 
         # those need to be cleared, in case game with less vessels is loaded
         self.n = np.array([])
@@ -218,9 +231,10 @@ class Physics():
 
 
     def initial(self, warp, body_pos, body_ma):
+        """Generate initial vessel data"""
         # ORBIT DATA #
         if len(self.names):
-            values = list(map(calc_orb_one, list(range(len(self.names))), self.ref, repeat(self.body_mass), repeat(self.gc), self.a, self.ecc))
+            values = list(map(calc_orb_one, self.ref, repeat(self.body_mass), repeat(self.gc), self.a, self.ecc))
             self.b, self.f, self.pe_d, self.ap_d, self.period, self.n, self.u = list(map(np.array, zip(*values)))
         vessel_orb = {
             "a": self.a,
@@ -230,7 +244,7 @@ class Physics():
             "ap_d": self.ap_d,
             "pea": self.pea,
             "dir": self.dr,
-            "per": self.period
+            "per": self.period,
         }
 
         # MOVE #
@@ -290,12 +304,12 @@ class Physics():
             self.ap_d[vessel],
             self.pea[vessel],
             self.dr[vessel],
-            self.period[vessel]
+            self.period[vessel],
         ]
 
         # recalculate ea
         if self.ecc[vessel] < 1:
-            self.ea[vessel] = newton_root_kepler_ell(self.ecc[vessel], self.ma[vessel], self.ma[vessel])
+            self.ea[vessel] = solve_kepler_ell(self.ecc[vessel], self.ma[vessel], 1e-10)
         else:
             self.ea[vessel] = newton_root_kepler_hyp(self.ecc[vessel], self.ma[vessel], self.ma[vessel])
         # recalculate points and curves
@@ -348,7 +362,7 @@ class Physics():
                     # calculate vessel ma and ea for next iteration
                     if ell:
                         next_ma = self.ma[vessel] + self.n[vessel] * dr
-                        next_ea = newton_root_kepler_ell(ecc, next_ma, ea)
+                        next_ea = solve_kepler_ell(ecc, next_ma, 1e-10)
                     else:
                         next_ma = self.ma[vessel] + self.n[vessel] * dr * -1
                         next_ea = newton_root_kepler_hyp(ecc, next_ma, ea)
@@ -367,7 +381,7 @@ class Physics():
             # calculate VESSEL ma and ea for next iteration
             if ell:
                 next_ma = self.ma[vessel] + self.n[vessel] * dr
-                next_ea = newton_root_kepler_ell(ecc, next_ma, ea)
+                next_ea = solve_kepler_ell(ecc, next_ma, 1e-10)
             else:
                 next_ma = self.ma[vessel] + self.n[vessel] * dr * -1
                 next_ea = newton_root_kepler_hyp(ecc, next_ma, ea)
@@ -416,7 +430,7 @@ class Physics():
         self.prev_ea = np.array(self.ea)
         for vessel, _ in enumerate(self.names):
             if self.ecc[vessel] < 1:
-                ea = newton_root_kepler_ell(self.ecc[vessel], self.ma[vessel], self.ea[vessel])
+                ea = solve_kepler_ell(self.ecc[vessel], self.ma[vessel], 1e-10)
             else:
                 ea = newton_root_kepler_hyp(self.ecc[vessel], self.ma[vessel], self.ea[vessel])
             self.pos[vessel] = self.ea2coord(vessel, ea)
@@ -462,7 +476,7 @@ class Physics():
                 # calculate vessel ea for next iteration
                 if ecc < 1:
                     next_ma = self.ma[vessel] + self.n[vessel] * warp * dr * 2
-                    ea_vessel_2 = newton_root_kepler_ell(ecc, next_ma, ea_vessel_1)
+                    ea_vessel_2 = solve_kepler_ell(ecc, next_ma, 1e-10)
                 else:
                     next_ma = self.ma[vessel] + self.n[vessel] * warp * dr * -1 * 2
                     ea_vessel_2 = newton_root_kepler_hyp(ecc, next_ma, ea_vessel_1)
@@ -481,13 +495,12 @@ class Physics():
                         situation = 3
                 else:
                     self.physical_hold = self.physical_hold[self.physical_hold != vessel]
-            else:
-                if vessel in self.physical_hold:
-                    self.physical_hold = self.physical_hold[self.physical_hold != vessel]
+            elif vessel in self.physical_hold:
+                self.physical_hold = self.physical_hold[self.physical_hold != vessel]
         return situation, alarm_vessel, len(self.physical_hold)
 
 
-    def cross_coi(self, warp):
+    def cross_coi(self):
         """Changes vessel orbit reference and orbital parametes when it is leaving or entering COI"""
         for vessel, _ in enumerate(self.names):
             ecc = self.ecc[vessel]
@@ -721,13 +734,12 @@ class Physics():
                         else:
 
                             curves_light[vessel] = concat_wrap(curve_light, coord_next, ea_vessel, ea_point_next, point_vessel)
-                    else:   # CW
-                        if ea < np.pi:
-                            curves_light[vessel] = concat_wrap(curve_light, coord_next, ea_point_next, ea_vessel-1, point_vessel)
-                        else:
-                            if ea_vessel == ea_point_next:
-                                ea_vessel += 1
-                            curves_light[vessel] = concat_wrap(curve_light, coord_next, ea_point_next, ea_vessel-1, point_vessel)
+                    elif ea < np.pi:
+                        curves_light[vessel] = concat_wrap(curve_light, coord_next, ea_point_next, ea_vessel-1, point_vessel)
+                    else:
+                        if ea_vessel == ea_point_next:
+                            ea_vessel += 1
+                        curves_light[vessel] = concat_wrap(curve_light, coord_next, ea_point_next, ea_vessel-1, point_vessel)
                 else:   # for hyperbola
                     ea_vessel = self.curve_points - round((ea+np.pi) * self.curve_points / (2*np.pi))
                     ea_point_next = self.curve_points - round((ea_next+np.pi) * self.curve_points / (2*np.pi))
@@ -805,11 +817,10 @@ class Physics():
                     ea_point_prev = round(ea_prev * self.curve_points / (2*np.pi))
                     if dr > 0:   # CCW
                         curves_dark[vessel] = concat_wrap(curve_dark, coord_next, ea_point_prev, ea_point_next, coord_prev)
-                    else:   # CW
-                        if ea < np.pi:
-                            curves_dark[vessel] = concat_wrap(curve_dark, coord_prev, ea_point_next, ea_point_prev, coord_next)
-                        else:
-                            curves_dark[vessel] = concat_wrap(curve_dark, coord_next, ea_point_next, ea_point_prev, coord_prev)
+                    elif ea < np.pi:
+                        curves_dark[vessel] = concat_wrap(curve_dark, coord_prev, ea_point_next, ea_point_prev, coord_next)
+                    else:
+                        curves_dark[vessel] = concat_wrap(curve_dark, coord_next, ea_point_next, ea_point_prev, coord_prev)
                 else:   # for hyperbola
                     ea_next = self.coi_leave[vessel, 0]
                     ea_prev = self.coi_leave[vessel, 1]

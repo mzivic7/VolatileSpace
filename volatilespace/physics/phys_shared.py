@@ -1,15 +1,16 @@
-from ast import literal_eval as leval
 import math
+from ast import literal_eval
+
 import numpy as np
+
 try:   # to allow building without numba
-    from numba import njit, int64, float64, bool_
+    from numba import bool_, float64, int64, njit
     from numba.types.misc import Omitted
     numba_avail = True
 except ImportError:
     numba_avail = False
 
-from volatilespace import fileops
-
+from volatilespace import peripherals
 
 ###### --Constants-- ######
 gc = 6.674 * 10**-11   # real gravitational constant
@@ -39,16 +40,16 @@ def compare(a, b):
     """Compares 2 values and returns percentage difference"""
     if a == b:
         return 0.0
-    elif 0 in (a, b):
+    if 0 in (a, b):
         return 100.0
-    elif a > 0 and b > 0:
+    if a > 0 and b > 0:
         return abs(a - b) / max(a, b) * 100
-    elif a < 0 and b < 0:
+    if a < 0 and b < 0:
         a = abs(a)
         b = abs(b)
         return abs(a - b) / max(a, b) * 100
-    else:   # skipping negative
-        return 100
+    # skipping negative
+    return 100
 
 
 def compare_coord(a, b):
@@ -80,12 +81,10 @@ def point_between(n, a, b, direction):
     if a == b:
         if a == n:
             return True
-        else:
-            return False
+        return False
     if a < b:
         return a <= n and n <= b
-    else:
-        return a <= n or n <= b
+    return a <= n or n <= b
 
 
 def angle_diff(from_angle, to_angle, dr):
@@ -94,8 +93,7 @@ def angle_diff(from_angle, to_angle, dr):
         from_angle, to_angle = to_angle, from_angle
     if from_angle < to_angle:
         return to_angle - from_angle
-    else:
-        return 2*np.pi - from_angle + to_angle
+    return 2*np.pi - from_angle + to_angle
 
 
 def newton_root(function, derivative, root_guess, variables={}):
@@ -140,7 +138,7 @@ def get_angle(a, b, c):
 
 
 def rot_ellipse_by_y(x, a, b, p):
-    """Rotatted ellipse by y, but only positive half"""
+    """Rotated ellipse by y, but only positive half"""
     sin_p = math.sin(p)
     cos_p = math.cos(p)
     a2 = a**2
@@ -148,13 +146,12 @@ def rot_ellipse_by_y(x, a, b, p):
     x2 = x**2
     sin_p2 = sin_p**2
     cos_p2 = cos_p**2
-    y = (a*b*math.sqrt(-x2 * (cos_p**4 + sin_p**4) - 2 * x2 * cos_p2 * sin_p2 + b2 * sin_p2 + a2 * cos_p2)
-         + a2 * x * sin_p * cos_p - b2 * x * sin_p * cos_p) / (a2 * cos_p2 + b2 * sin_p2)
-    return y
+    return (a*b*math.sqrt(-x2 * (cos_p**4 + sin_p**4) - 2 * x2 * cos_p2 * sin_p2 + b2 * sin_p2 + a2 * cos_p2)
+            + a2 * x * sin_p * cos_p - b2 * x * sin_p * cos_p) / (a2 * cos_p2 + b2 * sin_p2)
 
 
 def rot_hyperbola_by_y(x, a, b, p):
-    """Rotatted hyperbola by y, but only positive half"""
+    """Rotated hyperbola by y, but only positive half"""
     sin_p = math.sin(p)
     cos_p = math.cos(p)
     a2 = a**2
@@ -162,9 +159,8 @@ def rot_hyperbola_by_y(x, a, b, p):
     x2 = x**2
     sin_p2 = sin_p**2
     cos_p2 = cos_p**2
-    y = -((a*b*math.sqrt(-x2 * (cos_p**4 + sin_p**4) + 2 * x2 * cos_p2 * sin_p2 + b2 * sin_p2 - a2 * cos_p2)
-           + a2 * x * sin_p * cos_p + b2 * x * sin_p * cos_p) / (-a2 * cos_p2 + b2 * sin_p2))
-    return y
+    return -((a*b*math.sqrt(-x2 * (cos_p**4 + sin_p**4) + 2 * x2 * cos_p2 * sin_p2 + b2 * sin_p2 - a2 * cos_p2)
+              + a2 * x * sin_p * cos_p + b2 * x * sin_p * cos_p) / (-a2 * cos_p2 + b2 * sin_p2))
 
 
 def impl_derivative_rot_ell(p_x, p_y, a, b, p):
@@ -176,10 +172,9 @@ def impl_derivative_rot_ell(p_x, p_y, a, b, p):
     sin_cos_p = sin_p * cos_p
     sin_p2 = sin_p**2
     cos_p2 = cos_p**2
-    derivative = np.arctan(
+    return np.arctan(
         - (b2 * p_x * cos_p2 + a2 * p_x * sin_p2 + b2 * p_y * sin_cos_p - a2 * p_y * sin_cos_p)
         / (a2 * p_y * cos_p2 + b2 * p_y * sin_p2 + b2 * p_x * sin_cos_p - a2 * p_x * sin_cos_p))
-    return derivative
 
 
 def impl_derivative_rot_hyp(p_x, p_y, a, b, p):
@@ -191,10 +186,9 @@ def impl_derivative_rot_hyp(p_x, p_y, a, b, p):
     sin_cos_p = sin_p * cos_p
     sin_p2 = sin_p**2
     cos_p2 = cos_p**2
-    derivative = np.arctan(
+    return np.arctan(
         - (+ b2 * p_x * cos_p2 - a2 * p_x * sin_p2 + b2 * p_y * sin_cos_p + a2 * p_y * sin_cos_p)
         / (- a2 * p_y * cos_p2 + b2 * p_y * sin_p2 + b2 * p_x * sin_cos_p + a2 * p_x * sin_cos_p))
-    return derivative
 
 
 def orb2xy(a, b, f, ecc, pea, pos, ea):
@@ -209,8 +203,7 @@ def orb2xy(a, b, f, ecc, pea, pos, ea):
         x = (x_n * np.cos(pea - np.pi) - y_n * np.sin(pea - np.pi)) + pos[0]
         y = (x_n * np.sin(pea - np.pi) + y_n * np.cos(pea - np.pi)) + pos[1]
         return np.array(([x, y]))
-    else:
-        return np.array(([None, None]))
+    return np.array(([None, None]))
 
 
 def curve_points(ecc, a, b, pea, t):
@@ -237,7 +230,6 @@ def curve_move_to(curves, body_pos, ref, f, pea):
     focus = np.column_stack((focus_x, focus_y))
     return curves + focus[:, np.newaxis, :] + body_pos[ref, np.newaxis, :]
 
-
 def culling(coords, radius, screen_bounds, zoom):
     """Decides wether provided objecs should be drawn on screen,
     depending on their position and radius (if any)."""
@@ -250,9 +242,9 @@ def culling(coords, radius, screen_bounds, zoom):
 
 
 # if numba is enabled, compile functions ahead of time
-use_numba = leval(fileops.load_settings("game", "numba"))
+use_numba = literal_eval(peripherals.load_settings("game", "numba"))
 if numba_avail and use_numba:
-    enable_fastmath = leval(fileops.load_settings("game", "fastmath"))
+    enable_fastmath = literal_eval(peripherals.load_settings("game", "fastmath"))
     jitkw = {"cache": True, "fastmath": enable_fastmath}   # numba JIT setings
     dot_2d = njit(float64(float64[:], float64[:]), **jitkw)(dot_2d)
     mag = njit(float64(float64[:]), **jitkw)(mag)

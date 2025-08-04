@@ -7,7 +7,7 @@ Calculate second orbit after entering coi
 Draw second orbit (Ap, Pe, times)
 Use delta-time
 Logging
-Faulthandler
+error handling
 Debug console
 documentation
 
@@ -133,6 +133,6 @@ resources
 advanced actions
 icon
 
-??? multiplayer
-??? Localization
-??? Port to android
+### CORE ###
+modding support
+multiplayer

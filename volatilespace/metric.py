@@ -1,8 +1,7 @@
 import math
 
-
-up_prefix = ['K', 'M', 'G', 'T', 'P', 'E', 'Z', 'Y']
-down_prefix = ['m', 'µ', 'n', 'p', 'f', 'a', 'z', 'y']
+up_prefix = ["K", "M", "G", "T", "P", "E", "Z", "Y"]
+down_prefix = ["m", "µ", "n", "p", "f", "a", "z", "y"]
 
 
 def format_si(value, decimal=3):
@@ -19,37 +18,34 @@ def format_si(value, decimal=3):
 
     if size == 0:
         return str(round(value, decimal))
-    elif full_size < 4:
+    if full_size < 4:
         return str(round(value, decimal))
-    elif abs(full_size) > 15:   # use scientific notation for very large numbers
+    if abs(full_size) > 15:   # use scientific notation for very large numbers
         return ("{:." + str(decimal) + "e}").format(value)
-    else:
 
-        # up prefix
-        if size > 0:
-            if size - 1 < len(up_prefix):   # if size is in prefix range
-                prefix = up_prefix[size - 1]
-            else:
-                prefix = up_prefix[-1]   # use largest prefix
-                size = len(up_prefix)   # lower size
-
-        # down prefix
+    # up prefix
+    if size > 0:
+        if size - 1 < len(up_prefix):   # if size is in prefix range
+            prefix = up_prefix[size - 1]
         else:
-            if -size - 1 < len(down_prefix):
-                prefix = down_prefix[-size - 1]
-            else:
-                prefix = down_prefix[-1]
-                size = -len(down_prefix)
+            prefix = up_prefix[-1]   # use largest prefix
+            size = len(up_prefix)   # lower size
 
-        scaled = float(value * math.pow(1000, -size))
-        return str(round(scaled, decimal)) + " " + prefix
+    # down prefix
+    elif -size - 1 < len(down_prefix):
+        prefix = down_prefix[-size - 1]
+    else:
+        prefix = down_prefix[-1]
+        size = -len(down_prefix)
+
+    scaled = float(value * math.pow(1000, -size))
+    return str(round(scaled, decimal)) + " " + prefix
 
 
 def parse_si(value_string):
     """Convert string with SI prefix to number"""
     try:   # if no prefix
-        value = float(value_string)
-        return value
+        return float(value_string)
     except ValueError:   # assume there is prefix
 
         try:   # if prefix is on end of number
@@ -62,8 +58,7 @@ def parse_si(value_string):
             except ValueError:
                 size = down_prefix.index(prefix) + 1
                 size = -size
-            real_value = value * math.pow(1000, size)
-            return real_value
+            return value * math.pow(1000, size)
 
         except ValueError:   # if still failed, return None
             return None

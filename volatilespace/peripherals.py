@@ -1,10 +1,10 @@
-from configparser import ConfigParser
 import os
-import sys
 import shutil
 import subprocess
-import numpy as np
+import sys
+from configparser import ConfigParser
 
+import numpy as np
 
 from volatilespace import defaults
 
@@ -25,25 +25,27 @@ if sys.platform == "linux":
 elif sys.platform == "win32":
     import win32gui
     filedialog = "windows"
-else:
+elif sys.platform == "darwin":
     filedialog = "mac"
+else:
+    filedialog = None
 
 
-def export_file(file_name, filter=None):
-    """save file with native dialog"""
+def export_file(file_name, file_filter=None):
+    """Save file with native dialog"""
     init_dir = os.getcwd()
     if filedialog == "zenity":
         file_name = os.path.join(init_dir, file_name)
         command = [
             "zenity", "--file-selection", "--save",
             "--title", "Export File",
-            "--filename", file_name
+            "--filename", file_name,
         ]
-        if filter:
-            for one_filter in filter:
+        if file_filter:
+            for one_filter in file_filter:
                 command.append("--file-filter")
                 command.append(one_filter)
-        data = subprocess.run(command, capture_output=True, text=True)
+        data = subprocess.run(command, capture_output=True, text=True, check=False)
         file_path = data.stdout.strip()
     elif filedialog == "kdialog":
         command = [
@@ -51,13 +53,13 @@ def export_file(file_name, filter=None):
             init_dir,
             "--title", "Export File",
         ]
-        if filter:
-            command.append('"' + "|".join(filter) + '"')
-        data = subprocess.run(command, capture_output=True, text=True)
+        if file_filter:
+            command.append('"' + "|".join(file_filter) + '"')
+        data = subprocess.run(command, capture_output=True, text=True, check=False)
         file_path = data.stdout.strip()
     elif filedialog == "windows":
-        if filter:
-            filter_win = "; ".join(filter).replace("*", "") + "\0" + ";".join(filter) + "\0"
+        if file_filter:
+            filter_win = "; ".join(file_filter).replace("*", "") + "\0" + ";".join(file_filter) + "\0"
         else:
             filter_win = None
         try:
@@ -67,18 +69,18 @@ def export_file(file_name, filter=None):
                 InitialDir=init_dir,
                 File=file_name,
                 Title="Save File",
-                Filter=filter_win
+                Filter=filter_win,
             )[0]
         except Exception:
             file_path = None
     elif filedialog == "mac":
-        command = 'choose file name'
+        command = "choose file name"
         command += f' default name "{file_name}" default location "{init_dir}"'
         command += ' with prompt "Export File"'
-        if filter:
-            filter_mac = "{" + ",".join(['"' + x.replace("*.", "") + '"' for x in filter]) + "}"
-            command += f' of type {filter_mac}'
-        data = subprocess.run(["osascript", "-"], input=command, text=True, capture_output=True)
+        if file_filter:
+            filter_mac = "{" + ",".join(['"' + x.replace("*.", "") + '"' for x in file_filter]) + "}"
+            command += f" of type {filter_mac}"
+        data = subprocess.run(["osascript", "-"], input=command, text=True, capture_output=True, check=False)
         data = data.stdout.strip().split(",")
         file_path = data[data.find(":"):].replace(":", "/")
     else:
@@ -88,20 +90,20 @@ def export_file(file_name, filter=None):
     return file_path
 
 
-def import_file(filter=None):
-    """load file with native dialog"""
+def import_file(file_filter=None):
+    """Load file with native dialog"""
     init_dir = os.getcwd()
     if filedialog == "zenity":
         command = [
             "zenity", "--file-selection",
             "--title", "Import File",
-            "--filename", init_dir
+            "--filename", init_dir,
         ]
-        if filter:
-            for one_filter in filter:
+        if file_filter:
+            for one_filter in file_filter:
                 command.append("--file-filter")
                 command.append(one_filter)
-        data = subprocess.run(command, capture_output=True, text=True)
+        data = subprocess.run(command, capture_output=True, text=True, check=False)
         file_path = data.stdout.strip()
     elif filedialog == "kdialog":
         command = [
@@ -109,13 +111,13 @@ def import_file(filter=None):
             init_dir,
             "--title", "Import File",
         ]
-        if filter:
-            command.append('"' + "|".join(filter) + '"')
-        data = subprocess.run(command, capture_output=True, text=True)
+        if file_filter:
+            command.append('"' + "|".join(file_filter) + '"')
+        data = subprocess.run(command, capture_output=True, text=True, check=False)
         file_path = data.stdout.strip()
     elif filedialog == "windows":
-        if filter:
-            filter_win = "; ".join(filter).replace("*", "") + "\0" + ";".join(filter) + "\0"
+        if file_filter:
+            filter_win = "; ".join(file_filter).replace("*", "") + "\0" + ";".join(file_filter) + "\0"
         else:
             filter_win = None
         try:
@@ -124,19 +126,19 @@ def import_file(filter=None):
                 hwndOwner=foreground,
                 InitialDir=init_dir,
                 Title="Save File",
-                Filter=filter_win
+                Filter=filter_win,
             )[0]
         except Exception:
             file_path = None
     elif filedialog == "mac":
-        filter_mac = "{" + ",".join(['"' + x.replace("*.", "") + '"' for x in filter]) + "}"
-        command = 'choose file'
+        filter_mac = "{" + ",".join(['"' + x.replace("*.", "") + '"' for x in file_filter]) + "}"
+        command = "choose file"
         command += f' default location "{init_dir}"'
         command += ' with prompt "Import File"'
-        if filter:
-            filter_mac = "{" + ",".join(['"' + x.replace("*.", "") + '"' for x in filter]) + "}"
-            command += f' of type {filter_mac}'
-        data = subprocess.run(["osascript", "-"], input=command, text=True, capture_output=True)
+        if file_filter:
+            filter_mac = "{" + ",".join(['"' + x.replace("*.", "") + '"' for x in file_filter]) + "}"
+            command += f" of type {filter_mac}"
+        data = subprocess.run(["osascript", "-"], input=command, text=True, capture_output=True, check=False)
         data = data.stdout.strip().split(",")
         file_path = data[data.find(":"):].replace(":", "/")
     else:
@@ -172,7 +174,7 @@ def gen_game_list():
 
     # sort by name then by date
     games = games[games[:, 2].argsort()]
-    games = games[games[:, 1].argsort(kind='mergesort')]
+    games = games[games[:, 1].argsort(kind="mergesort")]
 
     # move quicksave and autosave at end
     for savetype in ["quicksave", "autosave"]:
@@ -212,7 +214,7 @@ def gen_map_list():
 
     # sort by name then by date
     maps = maps[maps[:, 2].argsort()]
-    maps = maps[maps[:, 1].argsort(kind='mergesort')]
+    maps = maps[maps[:, 1].argsort(kind="mergesort")]
 
     # move quicksave and autosave at end
     for savetype in ["quicksave", "autosave"]:
@@ -243,7 +245,7 @@ def load_file(path):
     # physics related config
     try:
         config = defaults.sim_config.copy()
-        for key in defaults.sim_config.keys():
+        for key in defaults.sim_config:
             value = float(system.get("config", key))
             config[key] = value
     except Exception:
@@ -384,7 +386,7 @@ def save_file(path, game_data, conf, body_data, body_orb_data, vessel_data={}, v
     system.set("game_data", "vessel", str(vessel))
 
     system.add_section("config")   # special section for config
-    for key in conf.keys():   # physics related config
+    for key in conf:   # physics related config
         if len(str(conf[key])) < 10:
             value = str(conf[key])
         else:
@@ -418,34 +420,35 @@ def save_file(path, game_data, conf, body_data, body_orb_data, vessel_data={}, v
 
         # handle if this body already exists
         num = 1
-        while body_name in system.sections():
-            body_name = body_names[body] + " " + str(num)
+        spec_body_name = body_name
+        while spec_body_name in system.sections():
+            spec_body_name = body_names[body] + " " + str(num)
             num += 1
 
-        system.add_section(body_name)
+        system.add_section(spec_body_name)
 
         if kepler:
-            system.set(body_name, "obj", "body")
+            system.set(spec_body_name, "obj", "body")
 
-        system.set(body_name, "mass", str(body_mass))
-        system.set(body_name, "density", str(density[body]))
-        system.set(body_name, "color", "[" + str(color[body, 0]) + ", " + str(color[body, 1]) + ", " + str(color[body, 2]) + "]")
+        system.set(spec_body_name, "mass", str(body_mass))
+        system.set(spec_body_name, "density", str(density[body]))
+        system.set(spec_body_name, "color", "[" + str(color[body, 0]) + ", " + str(color[body, 1]) + ", " + str(color[body, 2]) + "]")
         if all(x != 0 for x in [atm_pres0[body], atm_scale_h[body], atm_den0[body]]):
-            system.set(body_name, "atm_pres0", str(atm_pres0[body]))
-            system.set(body_name, "atm_scale_h", str(atm_scale_h[body]))
-            system.set(body_name, "atm_den0", str(atm_den0[body]))
+            system.set(spec_body_name, "atm_pres0", str(atm_pres0[body]))
+            system.set(spec_body_name, "atm_scale_h", str(atm_scale_h[body]))
+            system.set(spec_body_name, "atm_den0", str(atm_den0[body]))
 
         if not kepler:
-            system.set(body_name, "position", "[" + str(position[body, 0]) + ", " + str(position[body, 1]) + "]")
-            system.set(body_name, "velocity", "[" + str(velocity[body, 0]) + ", " + str(velocity[body, 1]) + "]")
+            system.set(spec_body_name, "position", "[" + str(position[body, 0]) + ", " + str(position[body, 1]) + "]")
+            system.set(spec_body_name, "velocity", "[" + str(velocity[body, 0]) + ", " + str(velocity[body, 1]) + "]")
 
         else:
-            system.set(body_name, "sma", str(semi_major[body]))
-            system.set(body_name, "ecc", str(ecc[body]))
-            system.set(body_name, "lpe", str(pe_arg[body]))
-            system.set(body_name, "mna", str(ma[body]))
-            system.set(body_name, "ref", str(int(parents[body])))
-            system.set(body_name, "dir", str(int(direction[body])))
+            system.set(spec_body_name, "sma", str(semi_major[body]))
+            system.set(spec_body_name, "ecc", str(ecc[body]))
+            system.set(spec_body_name, "lpe", str(pe_arg[body]))
+            system.set(spec_body_name, "mna", str(ma[body]))
+            system.set(spec_body_name, "ref", str(int(parents[body])))
+            system.set(spec_body_name, "dir", str(int(direction[body])))
 
     if vessel_data:
         semi_major = vessel_orb_data["a"]
@@ -465,25 +468,26 @@ def save_file(path, game_data, conf, body_data, body_orb_data, vessel_data={}, v
 
             # handle if this vessel already exists
             num = 1
-            while v_name in system.sections():
-                v_name = v_name[vessel] + " " + str(num)
+            spec_v_name = v_name
+            while spec_v_name in system.sections():
+                spec_v_name = v_name[vessel] + " " + str(num)
                 num += 1
 
-            system.add_section(v_name)
-            system.set(v_name, "obj", "vessel")
-            system.set(v_name, "sma", str(semi_major[vessel]))
-            system.set(v_name, "ecc", str(ecc[vessel]))
-            system.set(v_name, "lpe", str(pe_arg[vessel]))
-            system.set(v_name, "mna", str(ma[vessel]))
-            system.set(v_name, "ref", str(int(parents[vessel])))
-            system.set(v_name, "dir", str(int(direction[vessel])))
+            system.add_section(spec_v_name)
+            system.set(spec_v_name, "obj", "vessel")
+            system.set(spec_v_name, "sma", str(semi_major[vessel]))
+            system.set(spec_v_name, "ecc", str(ecc[vessel]))
+            system.set(spec_v_name, "lpe", str(pe_arg[vessel]))
+            system.set(spec_v_name, "mna", str(ma[vessel]))
+            system.set(spec_v_name, "ref", str(int(parents[vessel])))
+            system.set(spec_v_name, "dir", str(int(direction[vessel])))
 
-            system.set(v_name, "mass", str(v_mass[vessel]))
-            system.set(v_name, "rot_angle", str(v_rot_angle[vessel]))
-            system.set(v_name, "rot_acc", str(v_rot_acc[vessel]))
-            system.set(v_name, "sprite", str(v_sprite[vessel]))
+            system.set(spec_v_name, "mass", str(v_mass[vessel]))
+            system.set(spec_v_name, "rot_angle", str(v_rot_angle[vessel]))
+            system.set(spec_v_name, "rot_acc", str(v_rot_acc[vessel]))
+            system.set(spec_v_name, "sprite", str(v_sprite[vessel]))
 
-    with open(path, 'w') as f:
+    with open(path, "w") as f:
         system.write(f)
 
 
@@ -516,18 +520,19 @@ def new_map(name, date):
     system.set("game_data", "time", "0")
 
     system.add_section("config")   # special section for config
-    for key in defaults.sim_config.keys():   # physics related config
+    for key in defaults.sim_config:   # physics related config
         value = str(defaults.sim_config[key])
         system.set("config", key, value)
 
-    system.add_section("root")
-    system.set("root", "mass", "10000.0")
-    system.set("root", "density", "1.0")
-    system.set("root", "position", "[0.0, 0.0]")
-    system.set("root", "velocity", "[0.0, 0.0]")
-    system.set("root", "color", "[255, 255, 255]")
+    new_name = str(defaults.new_body_star["name"])
+    system.add_section(new_name)
+    system.set(new_name, "mass", str(defaults.new_body_star["mass"]))
+    system.set(new_name, "density", str(defaults.new_body_star["density"]))
+    system.set(new_name, "position", "[0.0, 0.0]")
+    system.set(new_name, "velocity", "[0.0, 0.0]")
+    system.set(new_name, "color", "[255, 255, 255]")
 
-    with open(path, 'w') as f:
+    with open(path, "w") as f:
         system.write(f)
 
     return path
@@ -549,7 +554,7 @@ def rename_map(path, name):
         num += 1
 
     system.set("game_data", "name", new_name)
-    with open(path, 'w') as f:
+    with open(path, "w") as f:
         system.write(f)
 
 
@@ -582,7 +587,7 @@ def new_game(name, date):
 
     system.add_section("config")   # special section for config
 
-    with open(path, 'w') as f:
+    with open(path, "w") as f:
         system.write(f)
 
     return path
@@ -604,7 +609,7 @@ def rename_game(path, name):
         num += 1
 
     game.set("game_data", "name", new_name)
-    with open(path, 'w') as f:
+    with open(path, "w") as f:
         game.write(f)
 
 
@@ -620,7 +625,7 @@ def save_settings(header, key, value):
 
 
 def load_settings(header, key):
-    """load one or multiple settings from same header in settings file.
+    """Load one or multiple settings from same header in settings file.
     Key must be str, tuple or list. If loading failed, create that header/setting from defaults."""
     try:
         if isinstance(key, str):   # if key is string (there is only one key)

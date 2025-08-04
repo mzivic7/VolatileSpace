@@ -1,14 +1,20 @@
-from ast import literal_eval as leval
+from ast import literal_eval
+
 import numpy as np
+
 try:
-    from numba import njit, float64
+    from numba import float64, njit
     from numba.types import UniTuple
     numba_avail = True
 except ImportError:
     numba_avail = False
-from volatilespace import fileops
-from volatilespace.physics.phys_shared import orbit_time_to, \
-    newton_root_kepler_ell, newton_root_kepler_hyp, point_between
+from volatilespace import peripherals
+from volatilespace.physics.enhanced_kepler_solver import solve_kepler_ell
+from volatilespace.physics.phys_shared import (
+    newton_root_kepler_hyp,
+    orbit_time_to,
+    point_between,
+)
 from volatilespace.physics.quartic_solver import solve_quartic
 
 
@@ -29,26 +35,23 @@ def ell_hyp_intersect(a, b, ecc, c_x, c_y, r):
         if np.any(real_roots):
             ea = np.arctan2(2 * real_roots, 1.0 - real_roots**2)
             return ea % (2*np.pi)
-        else:
-            return np.array([np.nan])
-    else:   # hyperbola
-        a_0 = -a**2 * (c_y**2 + b**2) + b**2 * (c_x + r)**2
-        a_1 = -4 * a**2 * r * c_y
-        a_2 = -2 * (a**2 * (c_y**2 + b**2 + 2*r**2) + b**2 * (r**2 - c_x**2))
-        a_3 = -4 * a**2 * r * c_y
-        a_4 = -a**2 * (c_y**2 + b**2) + b**2 * (c_x - r)**2
-        roots = solve_quartic(a_4, a_3, a_2, a_1, a_0)
-        real_roots = np.array([x.real for x in roots if not x.imag])
-        if np.any(real_roots):
-            x = c_x + r * (1-real_roots**2) / (1 + real_roots**2)   # point coordinates
-            y = c_y + r * 2 * real_roots / (1 + real_roots**2)
-            ta = np.arctan2(y, x - (a * ecc))   # ta from coordinates
-            ea = np.arccosh((ecc + np.cos(ta))/(1 + (ecc * np.cos(ta))))   # ea from ta
-            # ea is in (-pi, pi) range because curve calculations got messed up if it is not
-            ea = np.where(real_roots < 0, -ea, ea)
-            return ea
-        else:
-            return np.array([np.nan])
+        return np.array([np.nan])
+    # hyperbola
+    a_0 = -a**2 * (c_y**2 + b**2) + b**2 * (c_x + r)**2
+    a_1 = -4 * a**2 * r * c_y
+    a_2 = -2 * (a**2 * (c_y**2 + b**2 + 2*r**2) + b**2 * (r**2 - c_x**2))
+    a_3 = -4 * a**2 * r * c_y
+    a_4 = -a**2 * (c_y**2 + b**2) + b**2 * (c_x - r)**2
+    roots = solve_quartic(a_4, a_3, a_2, a_1, a_0)
+    real_roots = np.array([x.real for x in roots if not x.imag])
+    if np.any(real_roots):
+        x = c_x + r * (1-real_roots**2) / (1 + real_roots**2)   # point coordinates
+        y = c_y + r * 2 * real_roots / (1 + real_roots**2)
+        ta = np.arctan2(y, x - (a * ecc))   # ta from coordinates
+        ea = np.arccosh((ecc + np.cos(ta))/(1 + (ecc * np.cos(ta))))   # ea from ta
+        # ea is in (-pi, pi) range because curve calculations got messed up if it is not
+        return np.where(real_roots < 0, -ea, ea)
+    return np.array([np.nan])
 
 
 def next_point(ea_vessel, ea_points, direction):
@@ -61,8 +64,7 @@ def next_point(ea_vessel, ea_points, direction):
             angle = np.pi*2 - angle
         ea_points_sorted = ea_points[np.argsort(angle)]
         return np.array([ea_points_sorted[0], ea_points_sorted[-1]])
-    else:
-        return np.array([np.nan, np.nan])
+    return np.array([np.nan, np.nan])
 
 
 def sort_intersect_indices(ea_vessel, ea_points, direction):
@@ -75,10 +77,8 @@ def sort_intersect_indices(ea_vessel, ea_points, direction):
             angle = np.pi*2 - angle
         ea_points_sorted = np.argsort(angle)
         # returning -1 instead np.nan because np.nan is special float
-        ea_points_sorted = np.where(np.isnan(ea_points[ea_points_sorted]), -1, ea_points_sorted)
-        return ea_points_sorted
-    else:
-        return np.array([np.nan])
+        return np.where(np.isnan(ea_points[ea_points_sorted]), -1, ea_points_sorted)
+    return np.array([np.nan])
 
 
 def gen_probe_points_ell(t1, t2, num):
@@ -155,7 +155,7 @@ def predict_enter_coi(vessel_data, body_data, vessel_orbit_center, hint_ma):
                 probe_points = gen_probe_points_ell(ma, range_point_ma, probe_points_num)
         else:
             # for hyperbola, points are always custom generated
-            # TODO
+            # TODO   #noqa
             probe_points = np.array([1, 1/2, 3/2, 3/4, 5/4, 1/4, 7/4, 7/8, 9/8,
                                      1/8, 15/8, 5/8, 11/8, 3/8, 13/8, 0]) * np.pi
             return np.array([np.nan] * 5)
@@ -200,7 +200,7 @@ def predict_enter_coi(vessel_data, body_data, vessel_orbit_center, hint_ma):
 
         # body position at that Ma relative to parent body
         if b_ecc < 1:
-            new_b_ea = newton_root_kepler_ell(b_ecc, new_b_ma, new_b_ea)
+            new_b_ea = solve_kepler_ell(b_ecc, new_b_ma, 1e-10)
             b_x_n = b_a * np.cos(new_b_ea) - b_f
             b_y_n = b_b * np.sin(new_b_ea)
         else:
@@ -234,7 +234,7 @@ def predict_enter_coi(vessel_data, body_data, vessel_orbit_center, hint_ma):
             else:
                 lost = False
                 if ecc < 1:
-                    new_ea = newton_root_kepler_ell(ecc, new_ma, new_ma)
+                    new_ea = solve_kepler_ell(ecc, new_ma, 1e-10)
                 else:
                     new_ea = newton_root_kepler_hyp(ecc, new_ma, new_ma)
                 # check if vessel is inside COI
@@ -281,18 +281,17 @@ def predict_enter_coi(vessel_data, body_data, vessel_orbit_center, hint_ma):
 
 
         # if there are no intersections
+        elif search:
+            corr = 1
         else:
-            if search:
-                corr = 1
-            else:
-                if not lost:
-                    # keep going back by half if intersection is not found at first
-                    if corr > 0:
-                        back = -1
-                    else:
-                        back = 1
-                    lost = True
-                corr = back * abs(corr) / 2   # go back by half
+            if not lost:
+                # keep going back by half if intersection is not found at first
+                if corr > 0:
+                    back = -1
+                else:
+                    back = 1
+                lost = True
+            corr = back * abs(corr) / 2   # go back by half
 
         # break when correction gets too small
         if abs(actual_corr) < 1e-4 and not np.isnan(new_ea):
@@ -300,17 +299,15 @@ def predict_enter_coi(vessel_data, body_data, vessel_orbit_center, hint_ma):
 
     if search:
         return np.array([np.nan] * 5)
-    else:
-        if abs(actual_corr) < 1e-3:
-            return np.array([new_ea, new_b_ea, new_ma, new_b_ma, time_to_new_ma])
-        else:
-            return np.array([np.nan] * 5)
+    if abs(actual_corr) < 1e-3:
+        return np.array([new_ea, new_b_ea, new_ma, new_b_ma, time_to_new_ma])
+    return np.array([np.nan] * 5)
 
 
 # if numba is enabled, compile functions ahead of time
-use_numba = leval(fileops.load_settings("game", "numba"))
+use_numba = literal_eval(peripherals.load_settings("game", "numba"))
 if numba_avail and use_numba:
-    enable_fastmath = leval(fileops.load_settings("game", "fastmath"))
+    enable_fastmath = literal_eval(peripherals.load_settings("game", "fastmath"))
     jitkw = {"cache": True, "fastmath": enable_fastmath}   # numba JIT setings
     # disabling fastmath for some functions with np.isnan()
     jitkw_nofast = {"cache": True, "fastmath": False}

@@ -1,6 +1,5 @@
 import pygame as pg
 
-
 settings = {
     "first_run": "True",
     "resolution": [1366, 768],
@@ -30,7 +29,7 @@ settings = {
     "stars": "True",
     "autosave_time": 5,
     "numba": "True",
-    "fastmath": "False"
+    "fastmath": "False",
 }
 
 
@@ -52,7 +51,7 @@ keybindings = {
     "quicksave": pg.K_F4,
     "delete_body_in_editor": pg.K_DELETE,
     "rotate_cw": pg.K_d,
-    "rotate_ccw": pg.K_a
+    "rotate_ccw": pg.K_a,
 }
 
 
@@ -62,7 +61,7 @@ sim_config = {
     "mass_thermal_mult": 2*10**26,
     "coi_coef": 0.7,
     "vessel_scale": 0.1,
-    "min_planet_mass": 200
+    "min_planet_mass": 200,
 }
 
 
@@ -73,10 +72,10 @@ new_body_dwarf = {
     "density": 3500.0,
     "position": [0, 0],
     "velocity": [0, 0],
-    "color": [255, 255, 255],
+    "color": [150, 150, 150],
     "atm_pres0": 0,
     "atm_scale_h": 0,
-    "atm_den0": 0
+    "atm_den0": 0,
 }
 
 new_body_planet = {
@@ -86,10 +85,10 @@ new_body_planet = {
     "density": 4000.0,
     "position": [0, 0],
     "velocity": [0, 0],
-    "color": [255, 255, 255],
+    "color": [150, 150, 150],
     "atm_pres0": 0,
     "atm_scale_h": 0,
-    "atm_den0": 0
+    "atm_den0": 0,
 }
 
 new_body_gas = {
@@ -99,10 +98,10 @@ new_body_gas = {
     "density": 800,
     "position": [0, 0],
     "velocity": [0, 0],
-    "color": [255, 255, 255],
+    "color": [150, 150, 150],
     "atm_pres0": 0,
     "atm_scale_h": 0,
-    "atm_den0": 0
+    "atm_den0": 0,
 }
 
 new_body_star = {
@@ -112,10 +111,10 @@ new_body_star = {
     "density": 2000,
     "position": [0, 0],
     "velocity": [0, 0],
-    "color": [255, 255, 255],
+    "color": [150, 150, 150],
     "atm_pres0": 0,
     "atm_scale_h": 0,
-    "atm_den0": 0
+    "atm_den0": 0,
 }
 
 new_body_bh = {
@@ -128,5 +127,5 @@ new_body_bh = {
     "color": [0, 0, 0],
     "atm_pres0": 0,
     "atm_scale_h": 0,
-    "atm_den0": 0
+    "atm_den0": 0,
 }

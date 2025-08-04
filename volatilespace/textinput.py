@@ -1,17 +1,17 @@
 import pygame
 
-from volatilespace.graphics import graphics
 from volatilespace.graphics import rgb
-
-graphics = graphics.Graphics()
 
 
 class Textinput():
+    """Textinput class"""
     def __init__(self):
         self.text = ""
+        self.text_id = None
         self.static_text = None
         self.textindex = 0
-        self.lineindex = 0
+        self.index_screen = 0
+        self.text_screen = ""
         self.blinking_line = True
         self.timer_hold = 0
         self.hold_first = 0.4   # delay on first step on button hold
@@ -24,12 +24,15 @@ class Textinput():
         self.double_click_time = 0.4   # delay for detecting double click
         self.disable_blinking_line = False
         self.backspace = False
+        self.delete = False
         self.left = False
         self.right = False
         self.enable_repeat = False
         self.limit_len = None   # limit text length to n chars
         self.first_click = False   # used for detecting double click
         self.selected = False
+        self.pos = [0, 0]
+        self.font = None
 
         self.fontbt = pygame.font.Font("fonts/LiberationSans-Regular.ttf", 22)   # button text font
         self.btn_w = 250   # button width
@@ -40,16 +43,25 @@ class Textinput():
         self.x_corr = 0   # x axis correction for text placement
 
 
-    def initial_text(self, text, static_text=None, x_corr=0, limit_len=None, selected=False):
-        """Loads initial text. Static text is text that cannot be deleted and is not returned as value."""
-        self.text = text
-        self.textindex = len(text)
-        self.lineindex = 0
-        self.static_text = static_text
-        self.x_corr = x_corr
-        self.limit_len = limit_len
-        self.first_click = True
-        self.selected = selected
+    def initial_text(self, text, text_id, static_text=None, x_corr=0, limit_len=None, selected=False):
+        """Loads initial text.
+        Static text is text that cannot be deleted and is not returned as value.
+        text_id is used for preventing overwriting initial text."""
+        if text_id != self.text_id:
+            self.text = text
+            self.text_id = text_id
+            self.textindex = len(self.text)
+            self.index_screen = self.textindex
+            self.static_text = static_text
+            self.x_corr = x_corr
+            self.limit_len = limit_len
+            self.first_click = True
+            self.selected = selected
+            self.text_screen = self.text
+            if self.static_text:
+                self.text_screen = self.static_text + self.text_screen
+            self.pos = [0, 0]
+            self.font = None
 
 
     def input(self, e):
@@ -61,6 +73,16 @@ class Textinput():
                     self.text = self.text[:self.textindex-1] + self.text[self.textindex:]
                     self.textindex -= 1   # move index left
                     self.backspace = True
+                    self.disable_blinking_line = True
+                if self.selected:
+                    self.text = ""
+                    self.textindex = 0
+                    self.selected = False
+
+            if e.key == pygame.K_DELETE:
+                if len(self.text):   # if there is text to delete
+                    self.text = self.text[:self.textindex] + self.text[self.textindex+1:]
+                    self.delete = True
                     self.disable_blinking_line = True
                 if self.selected:
                     self.text = ""
@@ -85,9 +107,21 @@ class Textinput():
                     self.textindex = len(self.text)
                     self.selected = False
 
+            elif e.key == pygame.K_HOME or e.key == pygame.K_KP7:
+                self.textindex = 0
+                self.selected = False
+
+            elif e.key == pygame.K_END or e.key == pygame.K_KP1:
+                self.textindex = len(self.text)
+                self.selected = False
+
+            elif e.key == pygame.K_a and e.mod & pygame.KMOD_CTRL:
+                self.selected = True
+
         elif e.type == pygame.KEYUP:
             # stop holding keys
             self.backspace = False
+            self.delete = False
             self.left = False
             self.right = False
             self.timer_hold = 0
@@ -105,11 +139,34 @@ class Textinput():
                 self.textindex = 1
                 self.selected = False
 
-        # double click on text - select all
-        if e.type == pygame.MOUSEBUTTONDOWN:
-            if e.button == 1:
-                if self.first_click:
-                    self.selected = True
+        if self.font:   # graphics() is needed to get font and text position
+            if e.type == pygame.MOUSEBUTTONDOWN:
+                if e.button == 1:
+                    mouse_pos = list(pygame.mouse.get_pos())
+                    size = self.font.size(self.text_screen)
+                    if 0 < mouse_pos[0] - self.pos[0] < size[0] and 0 < mouse_pos[1] - self.pos[1] < size[1]:
+                        self.blinking_line = True
+                        self.timer_blink = 0
+                        if self.first_click:
+                            # double click on text - select all
+                            self.selected = True
+                            self.textindex = len(self.text)
+                        else:
+                            self.selected = False
+                            self.first_click = True
+                            # one click - move cursor
+                            prev_check_pos = 0
+                            prev_pos = 0
+                            for num, _ in enumerate(self.text_screen):
+                                text = self.text_screen[:num+1]
+                                new_pos = self.font.size(text)[0]
+                                new_check_pos = prev_pos + abs((prev_pos - new_pos)/2)
+                                if prev_check_pos <= mouse_pos[0] - self.pos[0] < new_check_pos:
+                                    self.textindex = self.textindex - self.index_screen + num
+                                prev_check_pos = new_check_pos
+                                prev_pos = new_pos
+                            if prev_check_pos <= mouse_pos[0] - self.pos[0]:
+                                self.textindex = self.textindex - self.index_screen + num + 1
 
         return self.text
 
@@ -119,52 +176,56 @@ class Textinput():
         (x, y) = pos
         (w, h) = size
 
+        self.font = font
+
         # draw border
         pygame.draw.rect(screen, rgb.white, (x, y, w, h), 1)
 
-        text_screen = self.text
-        index_screen = self.textindex
+        self.text_screen = self.text
+        self.index_screen = self.textindex
         x += self.x_corr
 
         # draw selection for left sided text
         if self.selected and not center:
             text_static = font.render(self.static_text, True, rgb.white).get_rect(midleft=(x + 6, y + h/2))
-            text = font.render(text_screen, True, rgb.white)
+            text = font.render(self.text_screen, True, rgb.white)
             text_rect = text.get_rect(midleft=(x + 6 + text_static[2], y + h/2))
             pygame.draw.rect(screen, rgb.gray1, text_rect)
 
 
         # add static text
         if self.static_text:
-            text_screen = self.static_text + text_screen
-            index_screen += len(self.static_text)
+            self.text_screen = self.static_text + self.text_screen
+            self.index_screen += len(self.static_text)
 
         # draw centered text
         if center:
-            text_rect = font.render(text_screen, True, rgb.white).get_rect(center=(0, 0))
+            text_rect = font.render(self.text_screen, True, rgb.white).get_rect(center=(0, 0))
             if text_rect[2] > w-10:   # if text is larger than input box
                 while text_rect[2] > w-10:
-                    text_rect = font.render(text_screen, True, rgb.white).get_rect(center=(0, 0))
-                    text_rect_line = font.render((text_screen+"W")[:index_screen+1], True, rgb.white).get_rect(center=(x + w/2, y + h/2))
+                    text_rect = font.render(self.text_screen, True, rgb.white).get_rect(center=(0, 0))
+                    text_rect_line = font.render((self.text_screen+"W")[:self.index_screen+1], True, rgb.white).get_rect(center=(x + w/2, y + h/2))
                     if text_rect_line[2] > w-10:   # if cursor line is over right edge
-                        text_screen = text_screen[1:]   # remove 1 char from text start
-                        index_screen -= 1   # and move index left
+                        self.text_screen = self.text_screen[1:]   # remove 1 char from text start
+                        self.index_screen -= 1   # and move index left
                     else:   # if cursor line is inside input box
-                        text_screen = text_screen[:-1]   # remove 1 char from text end
-                text = font.render(text_screen, True, rgb.white)
+                        self.text_screen = self.text_screen[:-1]   # remove 1 char from text end
+                text = font.render(self.text_screen, True, rgb.white)
                 text_rect = text.get_rect(midright=(x+w-10, y+h/2))   # draw text from right edge
             else:
                 if self.selected:
-                    text = font.render(text_screen, True, rgb.white)
+                    text = font.render(self.text_screen, True, rgb.white)
                     text_rect = text.get_rect(center=(x + w/2, y + h/2))
                     pygame.draw.rect(screen, rgb.gray1, text_rect)
-                text = font.render(text_screen, True, rgb.white)
+                text = font.render(self.text_screen, True, rgb.white)
                 text_rect = text.get_rect(center=(x + w/2, y + h/2))   # draw centered text
             screen.blit(text, text_rect)
         else:
-            text = font.render(text_screen, True, rgb.white)
+            text = font.render(self.text_screen, True, rgb.white)
             text_rect = text.get_rect(midleft=(x + 6, y + h/2))   # draw text from left edge
             screen.blit(text, text_rect)
+
+        self.pos = text_rect
 
         # draw blinking line
         if self.disable_blinking_line:
@@ -181,15 +242,15 @@ class Textinput():
             self.timer_blink += 1
         if self.blinking_line is True:
             if center:
-                text_rect_line = font.render(text_screen[:index_screen], True, rgb.white).get_rect(center=(x + w/2, y + h/2))
+                text_rect_line = font.render(self.text_screen[:self.index_screen], True, rgb.white).get_rect(center=(x + w/2, y + h/2))
             else:
-                text_rect_line = font.render(text_screen[:index_screen], True, rgb.white).get_rect(midleft=(x + 6, y + h/2))
+                text_rect_line = font.render(self.text_screen[:self.index_screen], True, rgb.white).get_rect(midleft=(x + 6, y + h/2))
             line_x = text_rect[0] + text_rect_line[2]
             line_y = y + h/2 - font.get_height()/2 - 1
             pygame.draw.line(screen, rgb.white, (line_x, line_y), (line_x, line_y + font.get_height() + 1))
 
         # holding keys
-        if self.backspace or self.left or self.right:
+        if self.backspace or self.delete or self.left or self.right:
             # initial long timer
             time_hold = self.hold_first * clock.get_fps()
             if self.timer_hold > time_hold:
@@ -203,6 +264,9 @@ class Textinput():
                         if self.textindex != 0:
                             self.text = self.text[:self.textindex-1] + self.text[self.textindex:]
                             self.textindex -= 1
+                    if self.delete:
+                        if self.textindex != len(self.text):
+                            self.text = self.text[:self.textindex] + self.text[self.textindex+1:]
                     if self.left:
                         if self.textindex != 0:
                             self.textindex -= 1
