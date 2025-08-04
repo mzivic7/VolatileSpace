@@ -8,8 +8,7 @@ def to_date(seconds, clip=True):
             days, hours = divmod(hours, 24)
             if days:
                 years, days = divmod(days, 365)
-                if years > 999:
-                    years = 999
+                years = min(years, 999)
     if seconds < 10:
         seconds = "0" + str(seconds)
     if minutes < 10:
@@ -19,9 +18,7 @@ def to_date(seconds, clip=True):
     if clip:
         if years:
             return f"{years}y, {days}d, {hours}:{minutes}:{seconds}"
-        elif days:
+        if days:
             return f"{days}d, {hours}:{minutes}:{seconds}"
-        else:
-            return f"{hours}:{minutes}:{seconds}"
-    else:
-        return f"{years}y, {days}d, {hours}:{minutes}:{seconds}"
+        return f"{hours}:{minutes}:{seconds}"
+    return f"{years}y, {days}d, {hours}:{minutes}:{seconds}"

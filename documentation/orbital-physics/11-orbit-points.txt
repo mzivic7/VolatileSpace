@@ -1,6 +1,6 @@
 ### Characteristic orbit points ###
 
-# using math from other-physics/4-ellipse-circle.txt
+# using math from other-physics/02-ellipse-circle.txt
 # to get Ea and global point of intersection
 
 # COLLISION WITH PLANET
@@ -9,25 +9,30 @@
 # draw only first point in orbit direction on screen
 # orbit line parameter is limited to range: (ea_vessel, ea_point_next)
 # other range of orbit is darker color
+# body is located in ellipse/hyperbola focus
 
-# LEAVE ORBIT
+# LEAVE COI
 # do only for ref
 # obtain Ea (2 points, first point is next in orbit direction, and second is previous)
 # draw only first point in orbit direction on screen
 # orbit line parameter is limited to range: (ea_vessel, ea_point_next)
-# dark color line parameter is in range: (ea_point_prev, ea_vessel)
+# dark color line parameter is in range: (ea_point_previous, ea_vessel)
 # other range is invisible
+# body is located in ellipse/hyperbola focus
 
-# ENTER ORBIT
+# ENTER COI
 # do for all planets orbiting ref
 # obtain Ea
 # draw only first point in orbit direction on screen
 # orbit line parameter is limited to range: (ea_vessel, ea_point_next)
 # other range is invisible
-
+# body is not in focus, its position must be predicted, since it is moving too
+# this prediction must be ran periodically, because used algorithm predicts only up to one full orbit
+# it is advised to run it every half orbit, and every time something changes on orbit
+# here, prediction is re-run each time when vessel passes Pe and Ap
+# passage is checked same way as in other-physics/01-warp.txt
 
 ### Finding next and previous point on orbit ###
-
 # first calculate angle between points in CCW direction
 angle = abs(ea_vessel - ea_point)
 # if ea_vessel is larger: invert angle
@@ -39,3 +44,17 @@ if direction < 0:
 # do this for all points
 # then sort by calculated angle
 # and finally return ea_point by indices of first and last sorted angle
+
+
+### Predicting vessel and body ma at the moment when vessel ENTER body COI ###
+# this is easy:
+# just find intersection points of vessel orbit (ellipse/hyperbola) and body COI (circle)
+# methods explained here:
+other-physics/02-ellipse-circle.txt
+other-physics/03-hyperbola-circle.txt
+
+
+### Predicting vessel and body ma at the moment when vessel ENTER body COI ###
+# this is very hard to do with just math and newton solver
+# custom algorithm pseudocode is provided here:
+orbital-physics/12-enter-coi-point.txt

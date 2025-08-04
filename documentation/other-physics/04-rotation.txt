@@ -1,0 +1,12 @@
+# MANUAL ROTATION #
+#each vessel has its maximum rotation acceleration
+# when manually rotating vessel, that maximum acc is added to rotation speed each tick while holding key:
+rot_speed += rot_acc * direction
+# that rotation speed is each tick added to rotation angle:
+rot_angle += rot_speed
+# if angle get over 2pi it is put back to 0pi and
+# if angle get less than 0pi it is put back to 2pi
+
+
+# SAS #
+WIP

@@ -23,9 +23,19 @@ vessel = 0   # last selected vessel in game
 
 [config]
 gc = 1.0   # gravitational constant
-rad_mult = 100.0   # radius multiplier
+rad_mult = 179.0   # radius multiplier, not used in thermal calculations
+mass_thermal_mult = 2e+26   # mass multiplier, used in thermal calculations
 coi_coef = 0.7   # COI coefficient: larger coef - smaller COI
 vessel_scale = 0.1   # makes vessel larger or smaller
+min_planet_mass = 200   # minimal planet mass, less is dwarf planet, used only in classification
+
+# notes:
+# density is approximate to real world density, and can not be changed by values from [config]
+# recommended way to determine mass_thermal_mult based on desired sun mass in simulation:
+real_sun_mass = 1.9884 * 10**30
+mass_thermal_multiplier = real_sun_mass / simulation_sun_mass
+# when simulation is scaled down, gravitational constant should be increased so bodies can have orbits
+# caution should be taken when setting min_planet_mass, so planet with that mass is not a sun
 
 
 # for bodies:

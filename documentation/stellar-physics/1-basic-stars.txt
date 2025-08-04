@@ -1,5 +1,0 @@
-### basic stars ###
-vol = m / rho   # Volume from density
-R = cbrt(3 * vol / (4 * pi))   # Sphere radius
-Tc = (G * mp * m) / ((3 / 2) * k * R)   # Core temperature
-

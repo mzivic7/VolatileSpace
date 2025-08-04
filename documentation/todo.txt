@@ -1,111 +1,113 @@
 ### TIMELINE ###
 
-v0.5.2 - game-vessel (Enter/leave coi)
-leave coi physics
-detect enter coi point
-enter coi physics
+v0.5.3 - game-vessel (second orbit prediction)
+Draw ghost body
+Calculate second orbit after leaving coi
+Calculate second orbit after entering coi
+Draw second orbit (Ap, Pe, times)
+Use delta-time
+Logging
+error handling
+Debug console
 documentation
 
-v0.5.3 - game-vessel (vessel close view)
-load svg sprite and display it
+v0.5.4 - game-vessel (vessel close view)
+loading and displaying sprites
+switching sprite - icon
 sprite rotation
-documentatin for sprite creating
+planets rotation
+shadows
+documentation
 
-v0.5.4 - game-vessel (Near vessel warp switching)
+v0.5.5 - game-vessel (near vessel warp switching)
 calculate radius around vessel from vessel size and scale
 switch warp if vessel will be inside that radius
 documentation
 
-v0.5.5 - game-vessel (Vessel collisions)
+v0.5.6 - game-vessel (vessel-vessel collisions)
 vessel-vessel pixel collisions
 vessel destruction
 release phys-warp when vessel is destroyed
 documentation
 
-v0.5.6 - game-vessel (Vessel-planet collisions)
+v0.5.7 - game-vessel (vessel-planet collisions)
+planet-planet collisions (handle vessels orbiting deleted planet)
 vessel-planet collisions (temporarily planet is just circle)
 documentation
 
-v0.5.7 - game-gui (Orbit points UI)
+v0.5.8 - game-gui (orbit points UI)
 time to point
+ap/pe icons
 for points: ap/pe, leave/enter, impact
 mouseover - show data and warp button
 click - toggle show data
+points for target
 documentation
 
-v0.5.8 - game-vessel (Advanced warp)
+v0.5.9 - game-gui (advanced warp)
 warp to point on orbit
+snap to special points
 warp to next orbit
 top gui warp to next orbit
 documentation
 
 
-v0.6.0 - game-vessel (Vessel velocity)
+v0.6.0 - game-vessel (vessel velocity)
 deltaV
 engine
 fuel
 engine properties in vessel config
 velocity slider
 add velocity in facing direction
+option to not recalculate in 60 tps
 temporary way to spawn vessel in orbit
 
-v0.6.1 - game-gui (Right UI)
+v0.6.1 - game-gui (right UI)
 Vessel list (mark vessels holding physical warp)
+Set active vessel by double click in vessel list
 Orbit
 Surface
 Vessel
+Get current pressure and density
 Maneuver - placeholder
 Thermal - placeholder
-Selected body
-Selected body orbit
+Target body
+Target orbit
 
-v0.6.3 - game-vessel (SAS)
+v0.6.2 - game-vessel (SAS)
+rotate free
 rotate prograde/retrograde/radial/antiradial
 hold rotated position
 bot gui buttons
 documentation
 
-v0.6.3 - game-vessel (Second orbit prediction)
-enter-orbit-point prediction and drawing
-don't draw ap and pe outside orbit line
-draw second orbit
-documentation
-
-v0.6.4 - editor (Rebuilt editor physics)
+v0.6.3 - editor (rebuilt editor physics)
 rebuilt editor physics
 prograde/retrograde, radial/antiradial with W/A/S/D
 documentation
 
 
 
-### BODY PHYSICS ###
-planets rotation
-calculate surface temp
-calculate luminosity
-shadows
-pressure
-gas planets
-body classification
-star H-He ratio
-black holes
-support non-main-sequence stars
-classification
-
 ### GAME ###
 advanced game GUI
 maneuvers (SAS, GUI)
 more icons, markers
 vessel parts, editor and config
-part menus in cose view
+part menus in close view
 docking
 launch
 staging
 aerodynamics
 planet surface
 landing - change planet collisions
-heat
+ambient temperature and heat
+vessel temperature and heat
+planet temperature in gas planet classification
 electrical power
 communications
+vessel types and icons (satellite, vessel, debris, station, launchpad)
+pulsar
+neutron star
 
 ### BODY TEXTURES ###
 stars
@@ -122,6 +124,15 @@ atmospheric effects
 exhaust effects
 explosions
 
-??? multiplayer
-??? Localization
-??? Port to android
+### CREW ###
+controls
+movement on ground
+movement in space
+crew management
+resources
+advanced actions
+icon
+
+### CORE ###
+modding support
+multiplayer

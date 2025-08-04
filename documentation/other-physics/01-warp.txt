@@ -1,0 +1,50 @@
+### Warp ###
+
+# There are 2 types of warp in simulation:
+- Regular warp - movement is accelerated by multiplying mean motion with warp number
+- Physical warp - movement is accelerated by running movement warp number times per frame
+# Physical warp is used when there is about to happen impact, or while in atmospheric conditions
+
+# intersections are obtained in orbital_physics/13-enter-leave-coi.txt
+
+# using math from other-physics/4-ellipse-circle.txt
+# to get Ea and global point of intersection
+
+# using logic from orbital_physics/11-orbit-points.txt
+# for finding next point on orbit
+
+# using math from orbital_physics/10-mean-motion.txt
+# for calculating vessel ea for next iteration
+
+for each vessel:
+first find what is next intersection, if there is any
+then calculate vessel ea for next iteration
+check if vessel will have greater ea than intersection in next iteration (see bellow)
+then depending on what is that intersection switch warp
+if it is impact / enter atmosphere and this vessel is NOT in physical_hold: switch to physical and add vessel to physical_hold list
+if it is leave atmosphere switch to regular and remove vessel form physical_hold list
+
+physical_hold list contains all vessels currently holding physical warp, and preventing from switching to regular
+if list is empty, regular warp is allowed
+if there are no intersections, if vessel is in list, it will be removed
+
+
+
+# checking if vessel will have greater ea than intersection in next iteration
+ea_vessel_1 is in this iteration
+ea_vessel_2 is in next iteration
+# calculate two angles:
+# one from vessel ea in this iteration to intersection:
+angle_1 = abs(ea_vessel_1 - ea_intersect)
+# and one to vessel ea in next intersection
+angle_2 = abs(ea_vessel_1 - ea_vessel_2)
+# apply corrections to those angles if points are behind first vessel ea:
+if ea_vessel_1 > ea_intersect:
+    angle_1 = 2pi - angle_1
+if ea_vessel_1 > ea_vessel_2:
+    angle_2 = 2pi - angle_2
+# if orbit is hyperbolic, swap angle_1 and angle_2
+# if direction is clockwise, swap angle_1 and angle_2
+# and finally if intersection angle is smaller than vessels in next iteration,
+# vessel will pass that point in next iteration
+# it is made this way so it will work with edge case when passing 0pi/2pi point on orbit

@@ -1,9 +1,0 @@
-### planets ###
-vol = m / rho   # Volume from density
-R = cbrt(3 * vol / (4 * pi))   # Sphere radius
-g = G * m / r^2   # surface gravity [1]
-g_h = G * m / (h+r)^2   # gravity at height from surface [1]
-
-
-References:
-[1] https://en.wikipedia.org/wiki/Surface_gravity

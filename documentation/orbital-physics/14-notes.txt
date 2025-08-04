@@ -1,0 +1,5 @@
+### notes ###
+%2pi converts angle from (-pi, pi) range to (0, 2pi). It can be ignored in equations, but it is important in some calculations.
+True and mean anomaly must at all times be kept in (0, 2pi) range.
+%T prevents time to point going negative when passing that point, since here is needed Ma in (-p, pi) range, but (0, 2pi) is given. It can be ignored in equations, but it is important in some calculations.
+-pi is added to pe_arg, this rotates its origin from right side to left, this is needed when displaying something on screen.

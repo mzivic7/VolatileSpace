@@ -1,29 +1,28 @@
-from ast import literal_eval as leval
 import math
+from ast import literal_eval as literal_eval
+
 import pygame
-from pygame import gfxdraw
-import time
-from volatilespace import fileops
+
+from volatilespace import metric, peripherals
 from volatilespace.graphics import rgb
-import numpy as np
 
 
 class Graphics():
+    """Graphics class"""
     def __init__(self):
-        self.grid_mode = 0   # grid mode: 0 - global, 1 - selected body, 2 - parent
-        self.grid_mode_prev = 0   # history of grid mode
+        pygame.font.init()
         self.screen_x, self.screen_y = 0, 0   # initial window width, window height
         self.timed_text_enable = False   # for drawing timed text on screen
         self.timer = 0   # timer for drawing timed text on screen
         self.reload_settings()
-        self.color, self.font, self.text_str, self.pos, self.time, self.center = (0, 0, 0), 0, 0, [0, 0], 0, 0
+        self.color, self.font, self.text_str, self.pos, self.time, self.center = (0, 0, 0), None, "", [0, 0], 0, [0, 0]
         self.fade = 0.2
         self.fontbt = pygame.font.Font("fonts/LiberationSans-Regular.ttf", 22)   # button text font
         self.fontmd = pygame.font.Font("fonts/LiberationSans-Regular.ttf", 16)   # medium text font
         self.fontsm = pygame.font.Font("fonts/LiberationSans-Regular.ttf", 10)   # small text font
-        self.link = pygame.image.load("img/link.png")
-        self.plus = pygame.image.load("img/plus.png")
-        self.minus = pygame.image.load("img/minus.png")
+        self.link = pygame.image.load("img/link.png").convert_alpha()
+        self.plus = pygame.image.load("img/plus.png").convert_alpha()
+        self.minus = pygame.image.load("img/minus.png").convert_alpha()
 
         self.btn_w = 250   # button width
         self.btn_w_h = 200   # for horizontal placement
@@ -45,14 +44,19 @@ class Graphics():
 
     def reload_settings(self):
         """Reload all settings, should be run every time settings are applied"""
-        self.antial = leval(fileops.load_settings("graphics", "antialiasing"))
-        self.spacing_min = int(fileops.load_settings("graphics", "grid_spacing_min"))   # minimum and maximum size spacing of grid
-        self.spacing_max = int(fileops.load_settings("graphics", "grid_spacing_max"))
+        self.antial = literal_eval(peripherals.load_settings("graphics", "antialiasing"))
+        self.spacing_min = int(peripherals.load_settings("graphics", "grid_spacing_min"))   # minimum and maximum spacing of grid
+        self.spacing_max = int(peripherals.load_settings("graphics", "grid_spacing_max"))
+
+
+    def update_mouse(self, mouse, click, disable):
+        """Updates dynamically changing values"""
+        self.mouse, self.click, self.disable_buttons = mouse, click, disable
 
 
     def draw_line(self, surface, color, point_1, point_2, thickness):
         """Draw a straight line"""
-        if self.antial is True:
+        if self.antial:
             pygame.draw.aaline(surface, color, point_1, point_2)
         else:
             pygame.draw.line(surface, color, point_1, point_2, thickness)
@@ -60,42 +64,41 @@ class Graphics():
 
     def draw_lines(self, surface, color, points, thickness, closed=False):
         """Draw multiple contiguous straight line segments"""
-        if self.antial is True:
+        if self.antial:
             pygame.draw.aalines(surface, color, closed, points)
         else:
-            pygame.draw.lines(surface, colors, closed, points, thickness)
+            pygame.draw.lines(surface, color, closed, points, thickness)
 
 
-    def draw_circle(self, surface, color, center, radius, thickness):   # gfxdraw ### OBSOLETE ###
+    def draw_circle(self, surface, color, center, radius, thickness):
         """Draw a circle"""
-        if radius < 60000:   # no need to draw so large circle lines
-            if self.antial is True and radius < 1000:   # limit radius because of gfxdraw bug
-                # if circle is off screen don't draw it, because gfxdraw uses short integers for position and radius
-                if center[0]+radius > 0 and center[0]-radius < self.screen_x and center[1]+radius > 0 and center[1]-radius < self.screen_y:
-                    gfxdraw.aacircle(surface, int(center[0]), int(center[1]), int(radius), color)   # draw initial circle
-                    if thickness != 1:   # antial line has no thickness option
-                        for num in range(1, thickness):   # draw one more circle for each number of thickness
-                            gfxdraw.aacircle(surface, int(center[0]), int(center[1]), int(radius)+num, color)
-            else:
-                pygame.draw.circle(surface, color, center, radius, thickness)
+        if self.antial:
+            pygame.draw.aacircle(surface, color, center, radius, thickness)
+        else:
+            pygame.draw.circle(surface, color, center, radius, thickness)
 
 
-    def draw_circle_fill(self, surface, color, center, radius, antial=None):   # gfxdraw ### OBSOLETE ###
-        """Draw a filled circle"""
-        if antial is None:
-            func_antial = self.antial
-        else:
-            func_antial = antial   # antial as function argument is optional override to global antial
-        if radius == 1:
-            gfxdraw.pixel(surface, int(center[0]), int(center[1]), color)
-        else:
-            if func_antial is True and radius < 1000:
-                if center[0]+radius > 0 and center[0]-radius < self.screen_x and center[1]+radius > 0 and center[1]-radius < self.screen_y:
-                    # radius-1 because 1px radius covers 4px total
-                    gfxdraw.aacircle(surface, int(center[0]), int(center[1]), int(radius - 1), color)
-                    gfxdraw.filled_circle(surface, int(center[0]), int(center[1]), int(radius - 1), color)
+    def draw_circle_fill(self, surface, color, center, radius):
+        """Draw a filled circle with optional transparency.
+        Warning: transparency is slow for large circles!"""
+        if len(color) > 3 and color[3] != 255:
+            # adding transparency
+            raw_pos = center - radius
+            surface_pos = (int(raw_pos[0]), int(raw_pos[1]))
+            circle_center = (center[0] - surface_pos[0],
+                             center[1] - surface_pos[1])
+            # surface is slightly larger (+4) because of antialiasing
+            alpha_surface = pygame.Surface(2*((radius * 2) + 4,))
+            if self.antial:
+                pygame.draw.aacircle(alpha_surface, color, circle_center, radius)
             else:
-                pygame.draw.circle(surface, color, center, radius - 1)
+                pygame.draw.circle(alpha_surface, color, circle_center, radius)
+            alpha_surface.set_alpha(color[3])
+            surface.blit(alpha_surface, surface_pos)
+        elif self.antial:
+            pygame.draw.aacircle(surface, color, center, radius)
+        else:
+            pygame.draw.circle(surface, color, center, radius)
 
 
     def fill(self, surface, color):
@@ -119,11 +122,11 @@ class Graphics():
         """Draw image. If rotated, it is cenered."""
         if angle:
             if scale != 1:
-                img = pygame.transform.rotozoom(img, angle*180/np.pi, scale)
+                img = pygame.transform.rotozoom(img, angle*180/math.pi, scale)
                 img_rect = img.get_rect(center=pos)
                 pos = img_rect
             else:
-                img = pygame.transform.rotate(img, angle*180/np.pi)
+                img = pygame.transform.rotate(img, angle*180/math.pi)
                 img_rect = img.get_rect(center=pos)
                 pos = img_rect
         elif center:
@@ -162,7 +165,7 @@ class Graphics():
         self.timer = 0
 
 
-    def timed_text(self, screen, clock):
+    def timed_text(self, screen):
         """Print timed text on screen with fade out effect"""
         if self.timed_text_enable is True:
             alpha = 255
@@ -186,9 +189,8 @@ class Graphics():
         return text
 
 
-    def draw_grid(self, screen, grid_mode, origin, zoom):
-        """Draw grid of lines expanding from origin"""
-        self.grid_mode = grid_mode
+    def draw_grid(self, screen, origin, zoom):
+        """Draw grid of lines expanding from origin with size labels"""
         spacing = 10 * zoom   # initial spacing
         while spacing < self.spacing_min:   # if spacing gets smaller than limit
             spacing *= 2   # double increase spacing
@@ -212,11 +214,19 @@ class Graphics():
             elif abs(line + moved) % 5 == 0:   # every fifth line, but include line index movement
                 self.draw_line(screen, rgb.gray1, (pos_x, 0), (pos_x, self.screen_y), 1)   # gray line
                 sim_pos_x = round(((line + moved) * spacing) / zoom)   # calculate simulation coordinate
-                self.text(screen, rgb.gray1, self.fontsm, str(sim_pos_x), (pos_x, self.screen_y - 10), True, rgb.black)
+                self.text(
+                    screen, rgb.gray1, self.fontsm,
+                    metric.format_si(sim_pos_x, 2),
+                    (pos_x, self.screen_y - 10), True, rgb.black,
+                )
             else:   # every other line
                 sim_pos_x = round(((line + moved) * spacing) / zoom)
                 self.draw_line(screen, rgb.gray2, (pos_x, 0), (pos_x, self.screen_y), 1)   # dark gray line
-                self.text(screen, rgb.gray2, self.fontsm, str(sim_pos_x), (pos_x, self.screen_y - 10), True, rgb.black)
+                self.text(
+                    screen, rgb.gray2, self.fontsm,
+                    metric.format_si(sim_pos_x, 2),
+                    (pos_x, self.screen_y - 10), True, rgb.black,
+                )
 
         for line in range(line_num_y):
             pos_y = origin[1] + (spacing * line)
@@ -233,16 +243,19 @@ class Graphics():
             elif abs(line + moved) % 5 == 0:
                 self.draw_line(screen, rgb.gray1, (0, pos_y), (self.screen_x, pos_y), 1)
                 sim_pos_y = round(-((line + moved) * spacing) / zoom)
-                self.text(screen, rgb.gray1, self.fontsm, str(sim_pos_y), (5+self.btn_s, pos_y-5), False, rgb.black)
+                self.text(
+                    screen, rgb.gray1, self.fontsm,
+                    metric.format_si(sim_pos_y, 2),
+                    (5+self.btn_s, pos_y-5), False, rgb.black,
+                )
             else:   # every other line
                 self.draw_line(screen, rgb.gray2, (0, pos_y), (self.screen_x, pos_y), 1)
                 sim_pos_y = round(-((line + moved) * spacing) / zoom)
-                self.text(screen, rgb.gray2, self.fontsm, str(sim_pos_y), (5+self.btn_s, pos_y-5), False, rgb.black)
-
-
-    def update_mouse(self, mouse, click, disable):
-        """Updates dynamically changing values"""
-        self.mouse, self.click, self.disable_buttons = mouse, click, disable
+                self.text(
+                    screen, rgb.gray2, self.fontsm,
+                    metric.format_si(sim_pos_y, 2),
+                    (5+self.btn_s, pos_y-5), False, rgb.black,
+                )
 
 
     def buttons_vertical(self, screen, buttons_txt, pos, prop=None, safe=False):
@@ -318,7 +331,8 @@ class Graphics():
     def buttons_horizontal(self, screen, buttons_txt, pos, prop=None, safe=False, alt_width=None):
         """Draws buttons with mouseover and self.click effect.
         Properties are passed as list with value for each button.
-        Values can be: None - no effect, 0 - red color (OFF), 1 - green color (ON), 2 - add link icon on button"""
+        Values can be: None - no effect, 0 - red color (OFF), 1 - green color (ON),
+        2 - add link icon on button, 5 - disabled"""
         (x, y) = pos
         btn_w = self.btn_w_h
         if alt_width is not None:
@@ -327,34 +341,39 @@ class Graphics():
         if safe is False:
             disable_buttons = self.disable_buttons
         for num, text in enumerate(buttons_txt):
-            if prop is not None and prop[num] == 0:   # depending on properties value, determine color
-                color = rgb.red_s1
-            elif prop is not None and prop[num] == 1:
-                color = rgb.green_s1
+            if prop is not None and prop[num] == 5:   # black out disabled buttons
+                color = rgb.black
+                color_text = rgb.gray
             else:
-                color = rgb.gray3
-
-            # mouse over button
-            if x <= self.mouse[0]-1 <= x + btn_w and y <= self.mouse[1]-1 <= y + self.btn_h and disable_buttons is False:
-                if prop is not None and prop[num] == 0:
-                    color = rgb.red_s2
+                color_text = rgb.gray
+                if prop is not None and prop[num] == 0:   # depending on properties value, determine color
+                    color = rgb.red_s1
                 elif prop is not None and prop[num] == 1:
-                    color = rgb.green_s2
+                    color = rgb.green_s1
                 else:
-                    color = rgb.gray2
+                    color = rgb.gray3
 
-                # click on button
-                if self.click is True:
+                # mouse over button
+                if x <= self.mouse[0]-1 <= x + btn_w and y <= self.mouse[1]-1 <= y + self.btn_h and disable_buttons is False:
                     if prop is not None and prop[num] == 0:
-                        color = rgb.red_s3
+                        color = rgb.red_s2
                     elif prop is not None and prop[num] == 1:
-                        color = rgb.green_s3
+                        color = rgb.green_s2
                     else:
-                        color = rgb.gray1
+                        color = rgb.gray2
+
+                    # click on button
+                    if self.click is True:
+                        if prop is not None and prop[num] == 0:
+                            color = rgb.red_s3
+                        elif prop is not None and prop[num] == 1:
+                            color = rgb.green_s3
+                        else:
+                            color = rgb.gray1
 
             pygame.draw.rect(screen, color, (x, y, btn_w, self.btn_h))
             pygame.draw.rect(screen, rgb.white, (x, y, btn_w, self.btn_h), 1)
-            self.text(screen, rgb.white, self.fontbt, text, (x + btn_w/2, y + self.btn_h/2), True)
+            self.text(screen, color_text, self.fontbt, text, (x + btn_w/2, y + self.btn_h/2), True)
             if prop is not None and prop[num] == 2:   # add link icon
                 screen.blit(self.link, (x+btn_w-40, y))
             x += btn_w + self.space
@@ -468,29 +487,26 @@ class Graphics():
         for num, text in enumerate(["Cancel", yes_txt]):
             if num == 0:
                 color = rgb.gray3
+            elif red is True:
+                color = rgb.red_s1
             else:
-                if red is True:
-                    color = rgb.red_s1
-                else:
-                    color = rgb.gray3
+                color = rgb.gray3
             # mouse over button
             if x <= self.mouse[0]-1 <= x + self.btn_w_h and y <= self.mouse[1]-1 <= y + self.btn_h:
                 if num == 0:
                     color = rgb.gray2
+                elif red is True:
+                    color = rgb.red_s2
                 else:
-                    if red is True:
-                        color = rgb.red_s2
-                    else:
-                        color = rgb.gray2
+                    color = rgb.gray2
                 # click on button
                 if self.click is True:
                     if num == 0:
                         color = rgb.gray1
+                    elif red is True:
+                        color = rgb.red_s3
                     else:
-                        if red is True:
-                            color = rgb.red_s3
-                        else:
-                            color = rgb.gray1
+                        color = rgb.gray1
             pygame.draw.rect(screen, color, (x, y, self.btn_w_h, self.btn_h))
             pygame.draw.rect(screen, rgb.white, (x, y, self.btn_w_h, self.btn_h), 1)
             self.text(screen, rgb.white, self.fontbt, text, (x + self.btn_w_h/2, y + self.btn_h/2), True)
@@ -602,7 +618,7 @@ class Graphics():
         for num, text in enumerate(texts):
             if prop is not None and prop[num] == 2:
                 x_pos = x + 58
-                for num in range(3):
+                for _ in range(3):
                     color = rgb.gray3
                     if x_pos <= self.mouse[0]-1 <= x_pos + 53 and y <= self.mouse[1]-1 <= y + h:
                         color = rgb.gray2
@@ -641,7 +657,7 @@ class Graphics():
             elif prop is not None and prop[num] == 5:
                 x_pos = x
                 w_short = (w + 10) / len(imgs) - 10
-                for num, _ in enumerate(imgs):
+                for _, _ in enumerate(imgs):
                     color = rgb.gray3
                     if x_pos <= self.mouse[0]-1 <= x_pos + w_short and y <= self.mouse[1]-1 <= y + h:
                         color = rgb.gray2

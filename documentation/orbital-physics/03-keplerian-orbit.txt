@@ -1,0 +1,27 @@
+### Keplerian orbit ###
+
+# Calculating keplerian orbit parameters from position and velocity vectors
+
+i = 0   # inclination (for 3D)
+asc_node = 0   # longitude of ascending node (for 3D)
+n = [-Lx, Lz, 0]   # vector to ascending node (for 3D)
+Pr = P2 - P1   # relative position vector
+vr = v2 - v1   # relative velocity vector
+u = G * m   # standard gravitational parameter
+a = -1 * u / (2*(|vr|^2 / 2 - u / |Pr|))   # semi-major axis [5], also can be calculated from vis-viva equation [9]
+h = Pr x vr   # orbital momentum, since simulation is 2D, momentum is scalar
+ev = (vr x h)/u - Pr/|Pr|  # eccentricity vector [10], this is general equation for 3D and 2D
+# since this is 2D and h is scalar, (vr x h) cross product is not needed, so just multiply, swap axes and -y
+e = |ev|   # eccentricity
+f = sqrt(a^2 - b^2)   # focus
+f = e * a   # focus (from: e = f / a)
+b = sqrt(f^2 - a^2)   # semi-minor axis
+pe_arg = pi + arctan2(ev_y, ev_x)   # argument of periapsis [4]
+    if e = 0:   # if it is circle
+        pe_arg = 0   # there is no periapsis
+
+References:
+[4]  https://en.wikipedia.org/wiki/Argument_of_periapsis#Calculation
+[5]  https://en.wikipedia.org/wiki/Semi-major_and_semi-minor_axes#Energy;_calculation_of_semi-major_axis_from_state_vectors
+[9]  https://en.wikipedia.org/wiki/Vis-viva_equation
+[10] https://en.wikipedia.org/wiki/Eccentricity_vector

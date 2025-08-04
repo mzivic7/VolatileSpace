@@ -1,9 +1,9 @@
 import sys
+
 import pygame
 
-from volatilespace import fileops
-from volatilespace.graphics import graphics
-from volatilespace.graphics import rgb
+from volatilespace import peripherals
+from volatilespace.graphics import graphics, rgb
 
 graphics = graphics.Graphics()
 
@@ -11,9 +11,10 @@ buttons_keyb_ui = ["Accept", "Cancel", "Load default"]
 
 
 class Keybinding():
+    """Keybinding menu class"""
     def __init__(self):
         self.run = True
-        self.keyb_dict = fileops.load_keybindings()
+        self.keyb_dict = peripherals.load_keybindings()
         self.disable_buttons = False
         self.mouse = [0, 0]
         self.click = False
@@ -45,16 +46,13 @@ class Keybinding():
 
     def keybindings_for_screen(self):
         """Generate keybindings list for displaying on screen"""
-        keyb_list = list(self.keyb_dict.keys())
-        val_list = list(self.keyb_dict.values())
         self.key_list_screen = []
         self.val_list_screen = []
         # keys list
-        for item in keyb_list:
-            item = item.replace("_", " ").replace("ui", "UI").capitalize()
-            self.key_list_screen.append(item)
+        for item in list(self.keyb_dict.keys()):
+            self.key_list_screen.append(item.replace("_", " ").replace("ui", "UI").capitalize())
         # values list
-        for value in val_list:
+        for value in list(self.keyb_dict.values()):
             value_text = pygame.key.name(int(value)).replace("left ", "L ").replace("right", "R ").replace(" lock", "").title()
             self.val_list_screen.append(value_text)
 
@@ -65,13 +63,12 @@ class Keybinding():
             if e.key == pygame.K_ESCAPE:
                 self.run = False
                 self.scrollbar_drag = False
-            else:
-                if self.selected_item is not None:
-                    # update keybindings list by index from selected item
-                    key = list(self.keyb_dict)[self.selected_item]   # get key from index
-                    self.keyb_dict[key] = e.key
-                    self.keybindings_for_screen()
-                    self.selected_item = None
+            elif self.selected_item is not None:
+                # update keybindings list by index from selected item
+                key = list(self.keyb_dict)[self.selected_item]   # get key from index
+                self.keyb_dict[key] = e.key
+                self.keybindings_for_screen()
+                self.selected_item = None
 
 
     def input_mouse(self, e):
@@ -113,12 +110,12 @@ class Keybinding():
                     for num, _ in enumerate(buttons_keyb_ui):
                         if x_pos <= self.mouse[0]-1 <= x_pos + self.btn_w_h and self.keyb_y_ui <= self.mouse[1]-1 <= self.keyb_y_ui + self.btn_h:
                             if num == 0:   # apply
-                                fileops.save_keybindings(self.keyb_dict)
+                                peripherals.save_keybindings(self.keyb_dict)
                                 self.run = False
                             elif num == 1:   # cancel
                                 self.run = False
                             elif num == 2:   # load default
-                                fileops.default_keybindings()
+                                peripherals.default_keybindings()
                         x_pos += self.btn_w_h + self.space
 
                 if self.scrollbar_drag is True:   # disable scrollbar_drag when release click
@@ -170,10 +167,10 @@ def main(screen, clock):
     keybindings = Keybinding()
     run = True
     while run:
-        for e in pygame.event.get():
-            keybindings.input_keys(e)
-            run = keybindings.input_mouse(e)
-            if e.type == pygame.QUIT:
+        for event in pygame.event.get():
+            keybindings.input_keys(event)
+            run = keybindings.input_mouse(event)
+            if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
         keybindings.gui(screen)

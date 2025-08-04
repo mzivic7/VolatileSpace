@@ -1,0 +1,75 @@
+# CALCULATION OF INTERSECTING POINTS OF ROTATED ELLIPSE AND CIRCLE #
+
+# Convert all points to check from global coordinate system to local
+# Local CS is rotated by vessels argument of periapsis and translated to its position
+
+c_x = cos(-omega) * (x - P_x) - sin(-omega) * (y - P_y)
+c_y = sin(-omega) * (x - P_x) + cos(-omega) * (y - P_y)
+
+
+# find at what angle/s (parameter t) ellipse and circle intersect, if any
+# goal is to transform ellipse and circle equations into single quartic equation
+
+# ellipse is not rotated since this is local CS, vut circle is
+# circle canonical form is:
+(x-c_x)^2 + (y-c_y)^2 = r^2
+
+# ellipse in Weierstrass substituted form (rational parametrization): [3] [4]
+# z is parameter in range -inf < z < inf
+x = a(1-z^2)/(1+z^2)
+y = b(2z)/(1+z^2)
+
+# substitute these in circle equation:
+(a(1-z^2)/(1+z^2) - c_x)^2 + (b(2z)/(1+z^2) - c_y)^2 = r^2
+
+# after long simplifying,
+# this is quartic equation:
+a_4*t^4 + a_3*t^3 + a_2*t^2 + a_1*t + a_0 = 0
+
+# with its polynomial coefficients:
+a_0 = a^2 - 2a*c_x + c_x^2 + c_y^2 - r^2
+a_1 = -4b*c_y
+a_2 = -2a^2 + 4b^2 + 2c_x^2 + 2c_y^2 - 2r^2
+a_3 = -4b*c_y
+a_4 = a^2 + 2a*c_x + c_x^2 + c_y^2 - r^2
+
+# finally solve roots for quartic equation [5]
+Modified Ferrari's method is used to calculate roots of quartic equation [9]
+In it modified Cardano's method is used to calculate roots of cubic equation [8]
+(from 'Numerical Recipes' and Viète’s trigonometric method)
+
+z = np.polynomial.polynomial.polyroots([a_0, a_1, a_2, a_3, a_4])
+
+# there will be max 4 roots
+# get only non-complex roots
+# these roots are parameter z for ellipse but for Weierstrass substitute
+
+# calculate eccentric anomaly from it
+ea = atan2(2z, 1 - z^2)
+
+# if above polynomial equation is less order than 4
+# i.e. a_4 = 0
+# then add pi to ea
+
+# to put it in (0, 2pi) range:
+ea % 2pi
+
+# more details at: https://math.stackexchange.com/questions/3419984/find-the-intersection-of-a-circle-and-an-ellipse
+# and: https://www.physicsforums.com/threads/eccentric-anomaly-of-ellipse-circle-intersections.1057352/
+
+
+# from calculated eccentric anomaly, position can be calculated:
+x_n = a * cos(ea_n) - f
+y_n = b * sin(ea_n)
+
+# but it is in local CS and must be returned to global:
+x = (x_n * math.cos(omega) - y_n * math.sin(omega)) + P_x
+y = (x_n * math.sin(omega) + y_n * math.cos(omega)) + P_y
+
+
+References:
+[1] https://en.wikipedia.org/wiki/Tangent_half-angle_substitution#The_substitution
+[3] https://en.wikipedia.org/wiki/Quartic_equation
+[4] https://en.wikipedia.org/wiki/Hyperbola#Parametric_equations
+[6] https://quarticequations.com/Cubic.pdf
+[7] https://quarticequations.com/Quartic2.pdf

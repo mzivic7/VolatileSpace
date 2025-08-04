@@ -1,0 +1,43 @@
+### orbit shape specific parameters: ###
+
+
+# Ellipse and circle ecc < 1:
+Ea = acos((e + cos(Ta)) / (1 + e * cos(Ta)))   # eccentric anomaly from true anomaly [12]
+if pi < Ta < 2pi:   # use Ta to determine in which quadrant is body
+    Ea = 2pi - Ea   # and put Ea in adequate side (0 - 2pi), since, in above eqation , it is in range: (0-pi-0)
+Ma = Ea - e * sin(Ea)   # mean anomaly from Keplers equation [12]
+# in case of circle: Ma = Ea = Ta
+dPe = a * (1 - e)   # Pe height
+tPe = T - (Ma * T / (2pi))   # time to periapsis [12]
+dAp = a * (1 + e)   # Ap height
+tAp = T - (Ma + pi)(T / (2pi))%T   # time to apoapsis
+tN = T - (Ma * T / (2pi)) - (phi * T / (2pi))   # time to point on orbit, point is given by angle phi starting from periapsis
+
+# time to point on orbit is calculated as difference of time to Pe from current point and time to Pe from target point
+tN = T - (Ma - phi)(T / (2pi))   # above equation simplified
+# if direction is clockwise, then: tN = period - Tn
+# if Ma < phi, then: tN = tN - period
+# if using negative time:
+if time_to > period / 2:
+    time_to = time_to - period
+
+
+# Parabola ecc = 1:
+Da = tan(Ta/2)   # eccentric anomaly from true anomaly [12]
+Ma = Da + (Da^3)/3   # mean anomaly from eccentric anomaly [12]
+dPe = a
+tPe = sqrt(2(a/2)^3) * Ma
+
+
+# Hyperbola ecc > 1:
+Fa = acosh((e + cos(Ta)) / (1 + e * cos(Ta)))   # eccentric anomaly from true anomaly [12]
+Ma = e * sinh(Fa) - Fa   # mean anomaly from eccentric anomaly [12]
+dPe = a * (1 - e)   # Pe height
+tPe = sqrt(|a|^3 / u) * Ma
+
+
+Note:
+Ma in parabola and hyperbola can go over 2pi
+
+References:
+[12] https://www.bogan.ca/orbits/kepler/orbteqtn.html

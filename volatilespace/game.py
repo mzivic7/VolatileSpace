@@ -1,70 +1,70 @@
-from ast import literal_eval as leval
 import math
 import os
 import sys
 import time
-import pygame
+from ast import literal_eval
+
 import numpy as np
+import pygame
 
-from volatilespace import fileops
-from volatilespace import physics_game_body
-from volatilespace import physics_game_vessel
-from volatilespace import physics_convert
-from volatilespace.graphics import rgb
-from volatilespace.graphics import graphics
-from volatilespace.graphics import bg_stars
-from volatilespace import textinput
-from volatilespace import metric
-from volatilespace import format_time
-from volatilespace import defaults
+from volatilespace import format_time, metric, peripherals, textinput
+from volatilespace.graphics import bg_stars, graphics, rgb
+from volatilespace.physics import convert, phys_body, phys_vessel
+from volatilespace.physics.phys_shared import point_between
 
-
-physics_body = physics_game_body.Physics()
-physics_vessel = physics_game_vessel.Physics()
+physics_body = phys_body.Physics()
+physics_vessel = phys_vessel.Physics()
 graphics = graphics.Graphics()
-bg_stars = bg_stars.Bg_Stars()
+bg_stars = bg_stars.BgStars()
 textinput = textinput.Textinput()
 
-
-buttons_pause_menu = ["Resume",
-                      "Save game",
-                      "Load game",
-                      "Settings",
-                      "Quit without saving",
-                      "Save and Quit"]
+buttons_pause_menu = [
+    "Resume",
+    "Save game",
+    "Load game",
+    "Settings",
+    "Quit without saving",
+    "Save and Quit",
+]
 buttons_save = ["Cancel", "Save", "New save"]
 buttons_load = ["Cancel", "Load"]
 buttons_new_game = ["Cancel", "Create"]
-body_types = ["Moon", "Solid planet", "Gas planet", "Star", "Black Hole"]
-text_data_orb = ["Target: ",
-                 "Ref body: ",
-                 "Periapsis: ",
-                 "Apoapsis: ",
-                 "Eccentricity: ",
-                 "Argument of Pe: ",
-                 "Mean anomaly: ",
-                 "True anomaly: ",
-                 "Direction: ",
-                 "Distance: ",
-                 "Orbital Period: ",
-                 "Orbital Speed: ",
-                 "Horizontal Speed: ",
-                 "Vertical Speed: "]
+body_types = ["Dwarf planet", "Solid planet", "Gas planet", "Star", "Black Hole"]
+text_data_orb = [
+    "Target: ",
+    "Ref body: ",
+    "Periapsis: ",
+    "Apoapsis: ",
+    "Eccentricity: ",
+    "Argument of Pe: ",
+    "Mean anomaly: ",
+    "True anomaly: ",
+    "Direction: ",
+    "Distance: ",
+    "Orbital Period: ",
+    "Orbital Speed: ",
+    "Horizontal Speed: ",
+    "Vertical Speed: ",
+]
 text_data_body = ["Target: ", "Type: ", "Mass: ", "Density: ", "Radius: ", "COI altitude: "]
-text_data_planet = ["(Rotation period): ",
-                    "Color: ",
-                    "Atmosphere height: ",
-                    "Surface gravity: "]
-text_data_star = ["(Surface temp):",
-                  "(Luminosity): ",
-                  "Color: ",
-                  "(H/He ratio): "]
+text_data_planet = [
+    "(Rotation period): ",
+    "Color: ",
+    "Atmosphere height: ",
+    "Surface gravity: ",
+]
+text_data_star = [
+    "Effective temp: ",
+    "Luminosity: ",
+    "Stellar class: ",
+]
 text_data_bh = ["Schwarzschild radius: "]
 text_follow_mode = ["Disabled", "Active vessel", "Orbited body"]
 text_grid_mode = ["Disabled", "Global", "Active vessel", "Orbited body"]
 
 
 class Game():
+    """Main game class"""
     def __init__(self):
         self.state = 3
         self.sim_name = "Unknown"
@@ -114,17 +114,21 @@ class Game():
         graphics.antial = self.antial
 
         # simulation related
-        self.ptps = 59   # divisor to convert simulation time to real time (it is not 60 because userevent timer is rounded to 17ms)
+        self.ptps = 58.823   # divisor to convert simulation time to real time (it is not 60 because userevent timer is rounded to 17ms)
         self.zoom = 0.15
         self.select_sens = 5   # how many pixels are tolerable for mouse to move while selecting body
         self.drag_sens = 0.02   # drag sensitivity when inserting body
         self.warp_range = [1, 2, 3, 4, 5, 10, 50, 100, 1000]   # all possible warps, by order
         self.warp_index = 0
         self.warp = self.warp_range[self.warp_index]
+        self.warp_mem = None
         self.warp_phys_active = True
         self.warp_phys_range = [1, 2, 4, 8]
         self.warp_phys_index = 0
         self.warp_phys = self.warp_range[self.warp_index]
+        self.warp_phys_mem = None
+        self.disable_warp_changing = False
+        self.vessel_crossing = None
         self.sim_time = 0
         self.pause = False
         self.move = False
@@ -151,8 +155,12 @@ class Game():
         self.v_curves = np.array([])
         self.v_rot_angle = np.array([])
         self.v_rot_dir = 0
-        self.visible_bodies = []
-        self.visible_vessels = []
+        self.visible_bodies = np.array([])
+        self.visible_coi = np.array([])
+        self.visible_body_orbits = np.array([])
+        self.visible_vessel_orbits = np.array([])
+        self.visible_vessels = np.array([])
+        self.change_vessel = None
 
         # ### DEBUG ###
         self.physics_debug_time = 1
@@ -163,44 +171,49 @@ class Game():
         self.offset_old = np.array([self.offset_x, self.offset_y])
         self.grid_mode = 0   # grid mode: 0 - global, 1 - selected body, 2 - parent
 
-
         # icons
-        menu_img = pygame.image.load("img/menu.png")
-        body_list_img = pygame.image.load("img/body_list.png")
-        orbit_sel_img = pygame.image.load("img/orbit_select.png")
-        body_img = pygame.image.load("img/body_select.png")
+        menu_img = pygame.image.load("img/menu.png").convert_alpha()
+        body_list_img = pygame.image.load("img/body_list.png").convert_alpha()
+        orbit_sel_img = pygame.image.load("img/orbit_select.png").convert_alpha()
+        body_img = pygame.image.load("img/body_select.png").convert_alpha()
         self.ui_imgs = [menu_img, body_list_img, orbit_sel_img, body_img]
-        follow_none_img = pygame.image.load("img/follow_none.png")
-        follow_vessel_img = pygame.image.load("img/follow_vessel.png")
-        follow_ref_img = pygame.image.load("img/follow_ref.png")
+        follow_none_img = pygame.image.load("img/follow_none.png").convert_alpha()
+        follow_vessel_img = pygame.image.load("img/follow_vessel.png").convert_alpha()
+        follow_ref_img = pygame.image.load("img/follow_ref.png").convert_alpha()
         self.top_ui_img_follow = [follow_none_img, follow_vessel_img, follow_ref_img]
-        warp_0_img = pygame.image.load("img/warp_0.png")
+        warp_0_img = pygame.image.load("img/warp_0.png").convert_alpha()
         warp_0_img = graphics.fill(warp_0_img, rgb.red)
-        warp_1_img = pygame.image.load("img/warp_1.png")
-        warp_2_img = pygame.image.load("img/warp_2.png")
-        warp_3_img = pygame.image.load("img/warp_3.png")
+        warp_1_img = pygame.image.load("img/warp_1.png").convert_alpha()
+        warp_2_img = pygame.image.load("img/warp_2.png").convert_alpha()
+        warp_3_img = pygame.image.load("img/warp_3.png").convert_alpha()
         self.top_ui_img_warp = [warp_0_img, warp_1_img, warp_2_img, warp_3_img]
-        self.top_ui_img_warp_phys = [warp_0_img,
-                                     graphics.fill(warp_1_img, rgb.orange),
-                                     graphics.fill(warp_2_img, rgb.orange),
-                                     graphics.fill(warp_3_img, rgb.orange)]
-        grid_global_img = pygame.image.load("img/grid_global.png")
-        grid_vessel_img = pygame.image.load("img/grid_vessel.png")
-        grid_ref_img = pygame.image.load("img/grid_ref.png")
+        self.top_ui_img_warp_phys = [
+            warp_0_img,
+            graphics.fill(warp_1_img, rgb.orange),
+            graphics.fill(warp_2_img, rgb.orange),
+            graphics.fill(warp_3_img, rgb.orange),
+        ]
+        grid_global_img = pygame.image.load("img/grid_global.png").convert_alpha()
+        grid_vessel_img = pygame.image.load("img/grid_vessel.png").convert_alpha()
+        grid_ref_img = pygame.image.load("img/grid_ref.png").convert_alpha()
         grid_disabled_img = graphics.fill(grid_global_img, rgb.gray0)
         self.top_ui_img_grid = [grid_disabled_img, grid_global_img, grid_vessel_img, grid_ref_img]
         self.top_ui_imgs = [warp_1_img, follow_vessel_img, grid_disabled_img]
-        body_moon = pygame.image.load("img/moon.png")
-        body_planet_solid = pygame.image.load("img/planet_solid.png")
-        body_planet_gas = pygame.image.load("img/planet_gas.png")
-        body_star = pygame.image.load("img/star.png")
-        body_bh = pygame.image.load("img/bh.png")
-        self.body_imgs = [body_moon, body_planet_solid, body_planet_gas, body_star, body_bh]
-        self.vessel_img = graphics.fill(pygame.image.load_sized_svg("img/vessel.svg", (24,24)), rgb.gray)
-        self.target_img = pygame.image.load("img/target.png")
-        self.impact_img = pygame.image.load("img/impact.png")
-        self.orb_leave_img = graphics.fill(pygame.image.load("img/orb_leave.png"), rgb.cyan)
-        self.orb_enter_img = graphics.fill(pygame.image.load("img/orb_enter.png"), rgb.cyan)
+        body_dwarf = pygame.image.load("img/moon.png").convert_alpha()
+        body_planet_solid = pygame.image.load("img/planet_solid.png").convert_alpha()
+        body_planet_gas = pygame.image.load("img/planet_gas.png").convert_alpha()
+        body_star = pygame.image.load("img/star.png").convert_alpha()
+        body_bh = pygame.image.load("img/bh.png").convert_alpha()
+        self.body_imgs = [body_dwarf, body_planet_solid, body_planet_gas, body_star, body_bh]
+        self.vessel_img = graphics.fill(pygame.image.load_sized_svg("img/vessel.svg", (24, 24)), rgb.gray).convert_alpha()
+        self.target_img = pygame.image.load("img/target.png").convert_alpha()
+        self.impact_img = pygame.image.load("img/impact.png").convert_alpha()
+        orb_leave_img = pygame.image.load("img/orb_leave.png").convert_alpha()
+        self.orb_leave_img_cyan = graphics.fill(orb_leave_img, rgb.cyan)
+        self.orb_leave_img_gray = graphics.fill(orb_leave_img, rgb.gray)
+        orb_enter_img = pygame.image.load("img/orb_enter.png").convert_alpha()
+        self.orb_enter_img_cyan = graphics.fill(orb_enter_img, rgb.cyan)
+        self.orb_enter_img_gray = graphics.fill(orb_enter_img, rgb.gray)
 
         bg_stars.set_screen()
         graphics.set_screen()
@@ -209,6 +222,7 @@ class Game():
     def set_screen(self):
         """Load pygame-related variables, this should be run after pygame has initialised or resolution has changed"""
         self.screen_x, self.screen_y = pygame.display.get_surface().get_size()
+        self.screen_dim = np.array([self.screen_x, self.screen_y])
         self.ask_x = self.screen_x/2 - (2*self.btn_w_h + self.space)/2
         self.ask_y = self.screen_y/2 + self.space
         self.pause_x = self.screen_x/2 - self.btn_w/2
@@ -230,21 +244,22 @@ class Game():
 
     def reload_settings(self):
         """Reload all settings for editor and graphics, should be run every time editor is entered"""
-        self.fullscreen = leval(fileops.load_settings("graphics", "fullscreen"))
+        self.fullscreen = literal_eval(peripherals.load_settings("graphics", "fullscreen"))
         avail_res = pygame.display.list_modes()
         self.screen_x, self.screen_y = pygame.display.get_surface().get_size()
+        self.screen_dim = np.array((self.screen_x, self.screen_y))
         try:
             self.selected_res = avail_res.index((self.screen_x, self.screen_y))
         except Exception:   # fail-safe repair if resolution is invalid
             self.selected_res = 0   # use maximum resolution
-            fileops.save_settings("graphics", "resolution", list(avail_res[0]))
+            peripherals.save_settings("graphics", "resolution", list(avail_res[0]))
             if self.fullscreen:
                 pygame.display.set_mode((avail_res[0]), pygame.FULLSCREEN)
             else:
                 pygame.display.set_mode((avail_res[0]))
-        self.antial = leval(fileops.load_settings("graphics", "antialiasing"))
-        self.mouse_wrap = leval(fileops.load_settings("graphics", "mouse_wrap"))
-        self.bg_stars_enable = leval(fileops.load_settings("background", "stars"))
+        self.antial = literal_eval(peripherals.load_settings("graphics", "antialiasing"))
+        self.mouse_warp = literal_eval(peripherals.load_settings("graphics", "mouse_warp"))
+        self.bg_stars_enable = literal_eval(peripherals.load_settings("background", "stars"))
         bg_stars.reload_settings()
         graphics.reload_settings()
         physics_body.reload_settings()
@@ -252,16 +267,16 @@ class Game():
         self.set_screen()   # resolution may have been changed
         bg_stars.set_screen()
         graphics.set_screen()
-        self.keys = fileops.load_keybindings()
+        self.keys = peripherals.load_keybindings()
         self.right_menu = None
         self.autosave_event = pygame.USEREVENT + 1
-        autosave_time = int(fileops.load_settings("game", "autosave_time")) * 60 * 1000   # min to ms
+        autosave_time = int(peripherals.load_settings("game", "autosave_time")) * 60 * 1000   # min to ms
         pygame.time.set_timer(self.autosave_event, autosave_time)
 
 
     def gen_game_list(self):
         """Generate list of games and select currently active file"""
-        self.games = fileops.gen_game_list()
+        self.games = peripherals.gen_game_list()
         self.game_list_size = len(self.games) * self.btn_h + len(self.games) * self.space
         if len(self.games) != 0:
             self.selected_path = "Saves/" + self.games[self.selected_item, 0]
@@ -283,7 +298,7 @@ class Game():
 
     def load_system(self, system):
         """Load system from file and convert to kepler orbit if needed"""
-        game_data, self.sim_conf, body_data, body_orb_data, vessel_data, vessel_orb_data = fileops.load_file(system)
+        game_data, self.sim_conf, body_data, body_orb_data, vessel_data, vessel_orb_data = peripherals.load_file(system)
         self.sim_name = game_data["name"]
         self.sim_time = game_data["time"]
         self.vessel_scale = self.sim_conf["vessel_scale"]
@@ -292,11 +307,13 @@ class Game():
         self.density = body_data["den"]
         self.color = body_data["color"]
         if not body_orb_data["kepler"]:   # convert to keplerian model
-            body_orb_data = physics_convert.to_kepler(self.mass, body_orb_data, self.sim_conf["gc"], self.sim_conf["coi_coef"])
+            body_orb_data = convert.to_kepler(self.mass, body_orb_data, self.sim_conf["gc"], self.sim_conf["coi_coef"])
             os.remove(system)
-            fileops.save_file(system, game_data, self.sim_conf,
-                              body_data, body_orb_data,
-                              vessel_data, vessel_orb_data)
+            peripherals.save_file(
+                system, game_data, self.sim_conf,
+                body_data, body_orb_data,
+                vessel_data, vessel_orb_data,
+            )
 
         self.file_path = system   # this path will be used for load/save
         self.pause_menu = 0
@@ -308,9 +325,12 @@ class Game():
         self.set_pause(False)
         self.warp_index = 0
         self.warp = 1
+        self.warp_mem = None
         self.warp_phys_active = False
         self.warp_phys_index = 0
         self.warp_phys = 1
+        self.warp_phys_mem = None
+        self.disable_warp_changing = False
         self.set_warp_ui(True)
         self.follow = 1
         self.grid_mode = 0
@@ -325,7 +345,7 @@ class Game():
         self.unpack_body(body_data, body_orb_data)
 
         physics_vessel.load(self.sim_conf, body_data, body_orb_data, vessel_data, vessel_orb_data)
-        vessel_orb_data, self.v_pos, self.v_ma, self.v_curves = physics_vessel.initial(self.warp, self.pos)
+        vessel_orb_data, self.v_pos, self.v_ma, self.v_curves = physics_vessel.initial(self.warp, self.pos, self.ma)
         self.unpack_vessel(vessel_data, vessel_orb_data)
 
         self.active_vessel = game_data["vessel"]
@@ -387,12 +407,14 @@ class Game():
         self.mass = body_data["mass"]
         self.density = body_data["den"]
         self.temp = body_data["temp"]
+        self.luminosity = body_data["lum"]
+        self.stellar_class = body_data["class"]
         self.base_color = body_data["color_b"]
         self.color = body_data["color"]
         self.atm_h = body_data["atm_h"]
         self.atm_data = [body_data["atm_pres0"], body_data["atm_scale_h"], body_data["atm_den0"]]
         self.surf_grav = body_data["surf_grav"]
-        self.size = body_data["size"]
+        self.radius = body_data["radius"]
         self.rad_sc = body_data["rad_sc"]
         # ORBIT DATA #
         self.a = body_orb["a"]
@@ -407,6 +429,7 @@ class Game():
 
 
     def unpack_vessel(self, vessel_data, vessel_orb):
+        """Unpack vessel data from vessel dict and update it in this class"""
         # BODY DATA #
         self.v_names = vessel_data["name"]
         self.v_mass = vessel_data["mass"]
@@ -424,51 +447,92 @@ class Game():
         self.v_period = vessel_orb["per"]
 
 
+    def update_vessel(self, vessel, vessel_data, vessel_orb):
+        """Update vessel data after its orbit has been changed"""
+        # using lists to make it faster
+        # BODY DATA #
+        self.v_names[vessel] = vessel_data[0]
+        # ORBIT DATA #
+        self.v_a[vessel] = vessel_orb[0]
+        if self.v_ref[vessel] != vessel_orb[1] and self.active_vessel == vessel and self.follow != 0:
+            self.follow = 1   # when crossing coi change focus back to vessel
+        self.v_ref[vessel] = vessel_orb[1]
+        self.v_ecc[vessel] = vessel_orb[2]
+        self.v_pe_d[vessel] = vessel_orb[3]
+        self.v_ap_d[vessel] = vessel_orb[4]
+        self.v_pea[vessel] = vessel_orb[5]
+        self.v_dr[vessel] = vessel_orb[6]
+        self.v_period[vessel] = vessel_orb[7]
+        # change bg_stars offset
+        if self.bg_stars_enable and self.follow and self.active_vessel == vessel:
+            parent_pos = self.pos[self.v_ref[self.active_vessel]]
+            self.offset_old = np.array([self.offset_x, self.offset_y]) + parent_pos
+
+
     def load(self):
         """Loads system from "load" dialog."""
         if os.path.exists(self.selected_path):
             self.load_system(self.selected_path)
             self.file_path = self.selected_path
-            graphics.timed_text_init(rgb.gray0, self.fontmd, "Game loaded successfully", (self.screen_x/2, self.screen_y-70), 2, True)
+            graphics.timed_text_init(
+                rgb.gray0, self.fontmd,
+                "Game loaded successfully",
+                (self.screen_x/2, self.screen_y-70), 2, True,
+            )
 
 
     def save(self, path, name=None, silent=False):
         """Saves game to file. If name is None, name is not changed."""
         date = time.strftime("%d.%m.%Y %H:%M")
-        body_data = {"name": self.names,
-                     "mass": self.mass,
-                     "den": self.density,
-                     "color": self.base_color,
-                     "atm_pres0": self.atm_data[0],
-                     "atm_scale_h": self.atm_data[1],
-                     "atm_den0": self.atm_data[2]
-                     }
+        body_data = {
+            "name": self.names,
+            "mass": self.mass,
+            "den": self.density,
+            "color": self.base_color,
+            "atm_pres0": self.atm_data[0],
+            "atm_scale_h": self.atm_data[1],
+            "atm_den0": self.atm_data[2],
+        }
         body_orb_data = {"a": self.a, "ecc": self.ecc, "pe_arg": self.pea, "ma": self.ma, "ref": self.ref, "dir": self.dr}
-        vessel_data = {"name": self.v_names,
-                       "mass": self.v_mass,
-                       "rot_angle": self.v_rot_angle,
-                       "rot_acc": self.v_rot_acc,
-                       "sprite": self.v_sprite}
+        vessel_data = {
+            "name": self.v_names,
+            "mass": self.v_mass,
+            "rot_angle": self.v_rot_angle,
+            "rot_acc": self.v_rot_acc,
+            "sprite": self.v_sprite,
+        }
         vessel_orb_data = {"a": self.v_a, "ecc": self.v_ecc, "pe_arg": self.v_pea, "ma": self.v_ma, "ref": self.v_ref, "dir": self.v_dr}
         game_data = {"name": name, "date": date, "time": self.sim_time, "vessel": self.active_vessel}
-        fileops.save_file(path, game_data, self.sim_conf,
+        peripherals.save_file(path, game_data, self.sim_conf,
                           body_data, body_orb_data,
                           vessel_data, vessel_orb_data)
         if not silent:
-            graphics.timed_text_init(rgb.gray0, self.fontmd, "Game saved successfully", (self.screen_x/2, self.screen_y-70), 2, True)
+            graphics.timed_text_init(
+                rgb.gray0, self.fontmd,
+                "Game saved successfully",
+                (self.screen_x/2, self.screen_y-70), 2, True,
+            )
 
 
     def quicksave(self):
         """Saves game to quicksave file."""
         self.save("Saves/quicksave.ini", "Quicksave - " + self.sim_name, True)
-        graphics.timed_text_init(rgb.gray0, self.fontmd, "Quicksave...", (self.screen_x/2, self.screen_y-70), 2, True)
+        graphics.timed_text_init(
+            rgb.gray0, self.fontmd,
+            "Quicksave...",
+            (self.screen_x/2, self.screen_y-70), 2, True,
+        )
 
 
     def autosave(self, e):
         """Automatically saves current game to autosave.ini at predefined interval."""
         if e.type == self.autosave_event:
             self.save("Saves/autosave.ini", "Autosave - " + self.sim_name, True)
-            graphics.timed_text_init(rgb.gray1, self.fontmd, "Autosave...", (self.screen_x/2, self.screen_y-70), 2, True)
+            graphics.timed_text_init(
+                rgb.gray1, self.fontmd,
+                "Autosave...",
+                (self.screen_x/2, self.screen_y-70), 2, True,
+            )
 
 
     def set_pause(self, do=None):
@@ -483,6 +547,7 @@ class Game():
 
 
     def set_warp_ui(self, silent=False):
+        """Set warp UI in top panel and handle notifications"""
         if self.warp_phys_active:
             if self.warp_phys_index < 2:
                 ui_warp_index = 1
@@ -492,7 +557,18 @@ class Game():
                 ui_warp_index = 3
             self.top_ui_imgs[0] = self.top_ui_img_warp_phys[ui_warp_index]
             if not silent:
-                graphics.timed_text_init(rgb.orange, self.fontmd, "Physical warp: x" + str(self.warp_phys), (self.screen_x/2, self.screen_y-70), 1, True)
+                if self.disable_warp_changing:
+                    graphics.timed_text_init(
+                        rgb.gray0, self.fontmd,
+                        "Time warp is disabled due to vessel crossing COI.",
+                        (self.screen_x/2, self.screen_y-70), 1.5, True,
+                    )
+                else:
+                    graphics.timed_text_init(
+                        rgb.orange, self.fontmd,
+                        "Physical warp: x" + str(self.warp_phys),
+                        (self.screen_x/2, self.screen_y-70), 1, True,
+                    )
         else:
             if self.warp_index < 3:
                 ui_warp_index = 1
@@ -502,7 +578,18 @@ class Game():
                 ui_warp_index = 3
             self.top_ui_imgs[0] = self.top_ui_img_warp[ui_warp_index]
             if not silent:
-                graphics.timed_text_init(rgb.gray0, self.fontmd, "Time warp: x" + str(self.warp), (self.screen_x/2, self.screen_y-70), 1, True)
+                if self.disable_warp_changing:
+                    graphics.timed_text_init(
+                        rgb.gray0, self.fontmd,
+                        "Time warp is disabled due to vessel crossing COI.",
+                        (self.screen_x/2, self.screen_y-70), 1.5, True,
+                    )
+                else:
+                    graphics.timed_text_init(
+                        rgb.gray0, self.fontmd,
+                        "Time warp: x" + str(self.warp),
+                        (self.screen_x/2, self.screen_y-70), 1, True,
+                    )
 
 
 
@@ -519,7 +606,7 @@ class Game():
                     self.new_game = False
                     self.ask = None
                 elif e.key == pygame.K_RETURN:
-                    path = fileops.new_game(self.text, time.strftime("%d.%m.%Y %H:%M"))
+                    path = peripherals.new_game(self.text, time.strftime("%d.%m.%Y %H:%M"))
                     self.save(path, name=self.text)
                     self.gen_game_list()
                     self.new_game = False
@@ -564,6 +651,7 @@ class Game():
         # in game
         elif e.type == pygame.KEYDOWN:
             if e.key == pygame.K_ESCAPE:
+                self.move = False   # disable screen movement
                 if self.ask is None:
                     if self.pause_menu:
                         self.pause_menu = False
@@ -598,19 +686,25 @@ class Game():
                         self.follow_offset_y = self.screen_y / 2
                         self.top_ui_imgs[1] = self.top_ui_img_follow[self.follow]
                         text = text_follow_mode[self.follow]
-                        graphics.timed_text_init(rgb.gray0, self.fontmd, "Follow: " + text, (self.screen_x/2, self.screen_y-70), 1.5, True)
+                        graphics.timed_text_init(
+                            rgb.gray0, self.fontmd,
+                            "Follow: " + text,
+                            (self.screen_x/2, self.screen_y-70), 1.5, True,
+                        )
 
                 elif e.key == self.keys["cycle_grid_modes"]:
-                    self.grid_mode += 1   # cycle grid modes (0-disabled, 1-active vessel, 2-orbited body)
+                    self.grid_mode += 1   # cycle grid modes (0-disabled, 1-global, 2-active vessel, 3-orbited body)
                     if self.grid_mode > 3:
                         self.grid_mode = 0
                     self.top_ui_imgs[2] = self.top_ui_img_grid[self.grid_mode]
                     text = text_grid_mode[self.grid_mode]
-                    graphics.timed_text_init(rgb.gray0, self.fontmd, "Grid: " + text, (self.screen_x/2, self.screen_y-70), 1.5, True)
+                    graphics.timed_text_init(
+                        rgb.gray0, self.fontmd,
+                        "Grid: " + text,
+                        (self.screen_x/2, self.screen_y-70), 1.5, True,
+                    )
 
                 elif e.key == self.keys["screenshot"]:
-                    if not os.path.exists("Screenshots"):
-                        os.mkdir("Screenshots")
                     self.screenshot = True
 
                 elif e.key == self.keys["toggle_ui_visibility"]:
@@ -631,27 +725,29 @@ class Game():
                 # time warp
                 if not self.pause:
                     if e.key == self.keys["decrease_time_warp"]:
-                        if self.warp_phys_active:
+                        if self.disable_warp_changing:
+                            pass
+                        elif self.warp_phys_active:
                             if self.warp_phys_index > 0:   # stop index from going out of range
                                 self.warp_phys_index -= 1
                                 self.warp_phys = self.warp_phys_range[self.warp_phys_index]
                                 self.set_warp_ui()
-                        else:
-                            if self.warp_index > 0:
-                                self.warp_index -= 1
-                                self.warp = self.warp_range[self.warp_index]
-                                self.set_warp_ui()
+                        elif self.warp_index > 0:
+                            self.warp_index -= 1
+                            self.warp = self.warp_range[self.warp_index]
+                            self.set_warp_ui()
                     if e.key == self.keys["increase_time_warp"]:
-                        if self.warp_phys_active:
+                        if self.disable_warp_changing:
+                            pass
+                        elif self.warp_phys_active:
                             if self.warp_phys_index < len(self.warp_phys_range)-1:
                                 self.warp_phys_index += 1
                                 self.warp_phys = self.warp_phys_range[self.warp_phys_index]
                                 self.set_warp_ui()
-                        else:
-                            if self.warp_index < len(self.warp_range)-1:
-                                self.warp_index += 1
-                                self.warp = self.warp_range[self.warp_index]
-                                self.set_warp_ui()
+                        elif self.warp_index < len(self.warp_range)-1:
+                            self.warp_index += 1
+                            self.warp = self.warp_range[self.warp_index]
+                            self.set_warp_ui()
                     if e.key == self.keys["stop_time_warp"]:
                         self.warp_phys_index = 0
                         self.warp_phys = self.warp_phys_range[self.warp_phys_index]
@@ -660,9 +756,8 @@ class Game():
                         if self.warp_phys_active:
                             if self.warp_phys != 0:
                                 self.set_warp_ui()
-                        else:
-                            if self.warp != 0:
-                                self.set_warp_ui()
+                        elif self.warp != 0:
+                            self.set_warp_ui()
 
         elif e.type == pygame.KEYUP:
             self.hold_key = None
@@ -721,20 +816,28 @@ class Game():
                                     if sum(np.square(self.screen_coords(vessel_pos) - self.mouse_raw)) < (scr_radius)**2:
                                         self.vessel_potential_target = vessel   # if clicked only once, timer must change target
                                         if self.first_click:
+                                            prev_active_vessel = self.active_vessel
                                             self.active_vessel = vessel
                                             self.follow = 1
                                             self.vessel_potential_target = None
                                             self.target = self.v_ref[self.active_vessel]   # set new active vessel's parent to be target
                                             self.target_type = 0
-                                            self.follow_offset_x = self.screen_x / 2   # reset follow offset
-                                            self.follow_offset_y = self.screen_y / 2
+                                            if self.ref[prev_active_vessel] == self.ref[vessel]:
+                                                # calculate new follow offset so view does not move
+                                                diff = self.v_pos[prev_active_vessel] - self.v_pos[self.active_vessel]
+                                                self.follow_offset_x -= diff[0]
+                                                self.follow_offset_y -= diff[1]
+                                            else:
+                                                # reset follow offset
+                                                self.follow_offset_x = self.screen_x / 2
+                                                self.follow_offset_y = self.screen_y / 2
                                         self.first_click = True
                             if not self.first_click:   # if vessel is selected: don't check for bodies
                                 for body, body_pos in enumerate(self.pos):
                                     curve = self.screen_coords_array(self.curves[body])   # line coords on screen
                                     diff = np.amax(curve, 0) - np.amin(curve, 0)
                                     if body == 0 or diff[0]+diff[1] > 32:   # skip hidden bodies with too small orbits
-                                        scr_radius = self.size[body]*self.zoom
+                                        scr_radius = self.radius[body]*self.zoom
                                         if scr_radius < 5:   # if body is small on screen, there is marker
                                             scr_radius = 8
                                         # if mouse is inside body radius on its location: (body_x - mouse_x)**2 + (body_y - mouse_y)**2 < radius**2
@@ -830,7 +933,7 @@ class Game():
                                 if num == 0:   # cancel
                                     pass
                                 elif num == 1:   # save
-                                    path = fileops.new_game(self.text, time.strftime("%d.%m.%Y %H:%M"))
+                                    path = peripherals.new_game(self.text, time.strftime("%d.%m.%Y %H:%M"))
                                     self.save(path, name=self.text)
                                     self.gen_game_list()
                                 self.new_game = False
@@ -939,24 +1042,22 @@ class Game():
                             self.disable_input = True
                             self.set_pause(True)
                             self.right_menu = None
-                        else:
-                            if self.right_menu == num:
-                                self.right_menu = None
-                            else:
-                                if num in [2, 3]:
-                                    if self.target is not None:
-                                        # don't display orbit data for root body
-                                        if num == 2 and self.target == self.ref[self.target] and self.target_type == 0:
-                                            pass
-                                        # don't display body data for vessel
-                                        elif num == 3 and self.target_type == 1:
-                                            pass
-                                        else:
-                                            self.right_menu = num
-                                            self.click = False
-
+                        elif self.right_menu == num:
+                            self.right_menu = None
+                        elif num in [2, 3]:
+                            if self.target is not None:
+                                # don't display orbit data for root body
+                                if num == 2 and self.target == self.ref[self.target] and self.target_type == 0:
+                                    pass
+                                # don't display body data for vessel
+                                elif num == 3 and self.target_type == 1:
+                                    pass
                                 else:
                                     self.right_menu = num
+                                    self.click = False
+
+                        else:
+                            self.right_menu = num
                     y_pos += self.btn_s + 1
 
                 # top ui
@@ -964,7 +1065,14 @@ class Game():
                 for num, _ in enumerate(self.top_ui_imgs):
                     if x_pos <= self.mouse_raw[0] <= x_pos + self.btn_sm and 0 <= self.mouse_raw[1] <= self.btn_sm:
                         if num == 0:   # warp
-                            if self.warp_phys_active:
+                            if self.pause:
+                                self.pause = not self.pause
+                            elif self.disable_warp_changing:
+                                self.warp_phys_index = 0
+                                self.warp_phys = self.warp_phys_range[self.warp_phys_index]
+                                self.warp_index = 0
+                                self.warp = self.warp_range[self.warp_index]
+                            elif self.warp_phys_active:
                                 self.warp_phys_index += 1
                                 if self.warp_phys_index >= len(self.warp_phys_range):
                                     self.warp_phys_index = 0
@@ -985,14 +1093,22 @@ class Game():
                                 self.follow_offset_y = self.screen_y / 2
                                 self.top_ui_imgs[1] = self.top_ui_img_follow[self.follow]
                                 text = text_follow_mode[self.follow]
-                                graphics.timed_text_init(rgb.gray0, self.fontmd, "Follow mode: " + text, (self.screen_x/2, self.screen_y-70), 1.5, True)
+                                graphics.timed_text_init(
+                                    rgb.gray0, self.fontmd,
+                                    "Follow mode: " + text,
+                                    (self.screen_x/2, self.screen_y-70), 1.5, True,
+                                )
                         if num == 2:
                             self.grid_mode += 1   # grid
                             if self.grid_mode > 3:
                                 self.grid_mode = 0
                             self.top_ui_imgs[2] = self.top_ui_img_grid[self.grid_mode]
                             text = text_grid_mode[self.grid_mode]
-                            graphics.timed_text_init(rgb.gray0, self.fontmd, "Grid mode: " + text, (self.screen_x/2, self.screen_y-70), 1.5, True)
+                            graphics.timed_text_init(
+                                rgb.gray0, self.fontmd,
+                                "Grid mode: " + text,
+                                (self.screen_x/2, self.screen_y-70), 1.5, True,
+                            )
                     x_pos += self.btn_sm + 1
 
             # right ui
@@ -1037,9 +1153,8 @@ class Game():
     def physics(self, e):
         """Do simulation physics with warp and pause"""
         if e.type == pygame.USEREVENT:
+            debug_time = time.time()   # ### DEBUG ###
             if self.pause is False:
-                debug_time = time.time()   # ### DEBUG ###
-
                 # regular/physical warp toggle
                 situation, alarm_vessel, physical_hold = physics_vessel.check_warp(self.warp)
                 match situation:
@@ -1048,18 +1163,22 @@ class Game():
                             self.warp_phys_active = True
                             self.warp_phys = 1
                             self.warp_phys_index = 0
-                            graphics.timed_text_init(rgb.orange, self.fontmd,
-                                                     f"Vessel {self.v_names[alarm_vessel]} is about to impact, switching to physical warp.",
-                                                     (self.screen_x/2, self.screen_y-70), 1.5, True)
+                            graphics.timed_text_init(
+                                rgb.orange, self.fontmd,
+                                f"Vessel {self.v_names[alarm_vessel]} is about to impact, switching to physical warp.",
+                                (self.screen_x/2, self.screen_y-70), 1.5, True,
+                            )
                         self.set_warp_ui(silent=True)
                     case 1:   # space -> atmosphere
                         if not self.warp_phys_active:
                             self.warp_phys_active = True
                             self.warp_phys = 1
                             self.warp_phys_index = 0
-                            graphics.timed_text_init(rgb.orange, self.fontmd,
-                                                     f"Vessel {self.v_names[alarm_vessel]} is entering atmosphere, switching to physical warp.",
-                                                     (self.screen_x/2, self.screen_y-70), 1.5, True)
+                            graphics.timed_text_init(
+                                rgb.orange, self.fontmd,
+                                f"Vessel {self.v_names[alarm_vessel]} is entering atmosphere, switching to physical warp.",
+                                (self.screen_x/2, self.screen_y-70), 1.5, True,
+                            )
                         self.set_warp_ui(silent=True)
                     case 2:   # atmosphere -> space
                         if self.warp_phys_active:
@@ -1069,43 +1188,100 @@ class Game():
                                 self.warp_phys_index = 0
                                 self.warp = 1
                                 self.warp_index = 0
-                                graphics.timed_text_init(rgb.gray0, self.fontmd,
-                                                         f"Vessel {self.v_names[alarm_vessel]} left atmosphere, switching to regular warp.",
-                                                         (self.screen_x/2, self.screen_y-70), 1.5, True)
+                                graphics.timed_text_init(
+                                    rgb.gray0, self.fontmd,
+                                    f"Vessel {self.v_names[alarm_vessel]} left atmosphere, switching to regular warp.",
+                                    (self.screen_x/2, self.screen_y-70), 1.5, True,
+                                )
                             else:
-                                graphics.timed_text_init(rgb.gray0, self.fontmd,
-                                                         f"Vessel {self.v_names[alarm_vessel]} left atmosphere, NOT switching to regular warp ({physical_hold} vessel/s are still in physical).",
-                                                         (self.screen_x/2, self.screen_y-70), 1.5, True)
+                                graphics.timed_text_init(
+                                    rgb.gray0, self.fontmd,
+                                    f"Vessel {self.v_names[alarm_vessel]} left atmosphere, NOT switching to regular warp ({physical_hold} vessel/s are still in physical).",
+                                    (self.screen_x/2, self.screen_y-70), 1.5, True,
+                                )
                         self.set_warp_ui(silent=True)
+                    case 3:   # crossing coi
+                        self.vessel_crossing = alarm_vessel
+                        self.disable_warp_changing = True
+                        if self.warp_phys_active:
+                            if self.warp_phys_mem is None:
+                                self.warp_phys_mem = self.warp_phys_index
+                            self.warp_phys = 1
+                            self.warp_phys_index = 0
+                        else:
+                            if self.warp_mem is None:
+                                self.warp_mem = self.warp_index
+                            self.warp = 1
+                            self.warp_index = 0
+                            if self.warp_index > 5:
+                                graphics.timed_text_init(
+                                    rgb.gray0, self.fontmd,
+                                    f"Vessel {self.v_names[self.vessel_crossing]} is about to pass COI, warp will be held for that period",
+                                    (self.screen_x/2, self.screen_y-70), 1.5, True,
+                                )
 
+                # for each vessel run prediction at Pe and Ap, it is warp independant
+                physics_vessel.predict_enter_coi_service()
+                # physical warp
                 if self.warp_phys_active:
-                    # physical warp
                     for _ in range(self.warp_phys):
                         self.pos, self.ma = physics_body.move(self.warp_phys)
-                        self.v_pos, self.v_ma = physics_vessel.move(self.warp_phys, self.pos)
+                        self.v_pos, self.v_ma = physics_vessel.move(self.warp_phys, self.pos, self.ma)
                         self.v_rot_angle = physics_vessel.rotate(self.warp, self.active_vessel, self.v_rot_dir)
-
+                        self.change_vessel = physics_vessel.cross_coi()
                     self.sim_time += 1 * self.warp_phys   # iterate sim_time
+                # regular warp
                 else:
-                    # regular warp
                     self.pos, self.ma = physics_body.move(self.warp)
-                    self.v_pos, self.v_ma = physics_vessel.move(self.warp, self.pos)
+                    self.v_pos, self.v_ma = physics_vessel.move(self.warp, self.pos, self.ma)
                     self.v_rot_angle = physics_vessel.rotate(self.warp, self.active_vessel, self.v_rot_dir)
-
+                    self.change_vessel = physics_vessel.cross_coi()
                     self.sim_time += 1 * self.warp   # iterate sim_time
 
                 self.v_rot_dir = 0
                 self.curves = physics_body.curve_move()
-                if False:   # TODO run only if something change
-                    physics_vessel.points(self.active_vessel)
-                    physics_vessel.curve(self.active_vessel)
-                self.v_curves = physics_vessel.curve_move()
-                sim_screen = np.array((self.sim_coords((0, 0)), self.sim_coords((self.screen_x, self.screen_y))))
-                self.visible_bodies = physics_body.culling(sim_screen)
-                self.visible_vessels = physics_vessel.culling(sim_screen)
-                self.curve_light, self.curve_dark, self.intersect, self.intersect_type = physics_vessel.curve_segments()
 
-                self.physics_debug_time = time.time() - debug_time   # ### DEBUG ###
+                # handling changes on vessel orbit
+                if self.change_vessel is not None:
+                    vessel_data, vessel_orb_data = physics_vessel.change_vessel(self.change_vessel)
+                    self.update_vessel(self.change_vessel, vessel_data, vessel_orb_data)
+
+                    # resuming warp after orbit changes
+                    if self.vessel_crossing is not None and self.change_vessel == self.vessel_crossing:
+                        self.disable_warp_changing = False
+                        if self.warp_phys_active:
+                            if self.warp_phys_mem is None:
+                                self.warp_phys_mem = 0
+                            self.warp_phys_index = self.warp_phys_mem
+                            self.warp_phys = self.warp_phys_range[self.warp_phys_index]
+                            self.warp_phys_mem = None
+                        else:
+                            if self.warp_mem is None:
+                                self.warp_mem = 0
+                            self.warp_index = self.warp_mem
+                            self.warp = self.warp_range[self.warp_index]
+                            self.warp_mem = None
+                        if self.warp or self.warp_phys:
+                            graphics.timed_text_init(
+                                rgb.gray0, self.fontmd,
+                                f"Vessel {self.v_names[self.vessel_crossing]} passed COI, warp was held for that period",
+                                (self.screen_x/2, self.screen_y-70), 1.5, True,
+                            )
+                        self.vessel_crossing = None
+                    self.change_vessel = None
+
+                self.v_curves = physics_vessel.curve_move()
+
+
+
+            # culing
+            sim_screen = np.array((self.sim_coords((0, 0)), self.sim_coords(self.screen_dim)))
+            self.visible_bodies, self.visible_coi, self.visible_body_orbits = physics_body.culling(sim_screen, self.zoom)
+            self.visible_vessels, self.visible_vessel_orbits = physics_vessel.culling(sim_screen, self.zoom, self.visible_coi)
+            self.curve_light, self.curve_dark, self.intersect, self.intersect_type, self.select_range = physics_vessel.curve_segments()
+
+            self.physics_debug_time = time.time() - debug_time   # ### DEBUG ###
+
 
 
 
@@ -1143,21 +1319,34 @@ class Game():
                 self.offset_x += self.mouse[0] - self.mouse_old[0]   # add mouse movement to offset
                 self.offset_y += self.mouse[1] - self.mouse_old[1]
 
-            if self.mouse_wrap:
+            if self.mouse_warp:
                 if self.mouse_raw[0] >= self.screen_x-1:   # if mouse hits screen edge
                     pygame.mouse.set_pos(1, self.mouse_raw[1])   # move it to opposite edge
                     self.mouse_fix_x = True   # in next itteration, dont calculate that as movement
                 if self.mouse_raw[0] <= 0:
-                    pygame.mouse.set_pos(self.screen_x, self.mouse_raw[1]-1)
+                    pygame.mouse.set_pos(self.screen_x-2, self.mouse_raw[1])
                     self.mouse_fix_x = True
                 if self.mouse_raw[1] >= self.screen_y-1:
                     pygame.mouse.set_pos(self.mouse_raw[0], 1)
                     self.mouse_fix_y = True
                 if self.mouse_raw[1] <= 0:
-                    pygame.mouse.set_pos(self.mouse_raw[0], self.screen_y-1)
+                    pygame.mouse.set_pos(self.mouse_raw[0], self.screen_y-2)
                     self.mouse_fix_y = True
             self.mouse_old = self.mouse
 
+        # DRAWING ORDER: body stuff, vessel orbit, body, vessel, vessel stuff
+
+        # draw body atmosphere (before everything else because it is fake transparent)
+        for body in self.visible_bodies:
+            scr_body_radius = self.radius[body] * self.zoom
+            if scr_body_radius >= 5:
+                if self.atm_h[body]:
+                    atm_color = np.array(self.color[body]) * 30 / 255   # fake transparency
+                    # atm_color = tuple(np.append(self.color[body], 30))   # real transparency - slow
+                    scr_atm_radius = (self.radius[body] + self.atm_h[body]) * self.zoom
+                    if scr_atm_radius > scr_body_radius + 2:
+                        screen_coords = self.screen_coords(self.pos[body])
+                        graphics.draw_circle_fill(screen, atm_color, screen_coords, scr_atm_radius)
 
         # background stars:
         if self.bg_stars_enable:
@@ -1184,91 +1373,108 @@ class Game():
             if self.target is not None:
                 if self.grid_mode == 2:      # grid mode: selected body
                     origin = self.screen_coords(self.v_pos[self.active_vessel])
-                if self.grid_mode == 3:   # grid mode: orbited body
+                elif self.grid_mode == 3:   # grid mode: orbited body
                     origin = self.screen_coords(self.pos[self.v_ref[self.active_vessel]])
             else:
                 origin = self.screen_coords([0, 0])
-            graphics.draw_grid(screen, self.grid_mode, origin, self.zoom)
+            graphics.draw_grid(screen, origin, self.zoom)
 
-        # DRAWING ORDER: body stuff, vessel orbit, body, vessel, vessel stuff
 
         # bodies stuff drawing, WITHOUT bodies - bodies are drawn aftter vessel orbit lines
-        for body in self.visible_bodies:
-            curve = self.screen_coords_array(self.curves[body])   # line coords on screen
-
-            # draw orbit curve lines
-            if body != 0:   # skip root
+        # draw body orbit curve lines
+        for body in self.visible_body_orbits:
+            curve = self.screen_coords_array(self.curves[body])
+            if body != 0:
                 line_color = np.where(self.color[body] > 255, 255, self.color[body])
                 graphics.draw_lines(screen, tuple(line_color), curve, 2)
 
-            # draw body atmosphere
-            scr_body_size = self.size[body] * self.zoom
-            if scr_body_size >= 5:
-                if self.atm_h[body]:
-                    atm_color = tuple(np.append(self.color[body], 30))   # add alpha
-                    scr_atm_size = (self.size[body] + self.atm_h[body]) * self.zoom
-                    graphics.draw_circle_fill(screen, atm_color, self.screen_coords(self.pos[body]), scr_atm_size)
+        for body in self.visible_bodies:
+            scr_body_radius = self.radius[body] * self.zoom
 
             # target body
             if self.target is not None and self.target_type == 0 and self.target == body:
-                parent = self.ref[body]
                 body_pos = self.pos[body, :]
                 ta, pe, pe_t, ap, ap_t, distance, speed_orb, speed_hor, speed_vert = physics_body.selected(body)
                 if self.right_menu == 2:
-                    self.orbit_data_menu = [self.pe_d[body],
-                                            self.ap_d[body],
-                                            self.ecc[body],
-                                            self.pea[body] * 180 / np.pi,
-                                            self.ma[body] * 180 / np.pi,
-                                            ta * 180 / np.pi,
-                                            self.dr[body],
-                                            distance,
-                                            self.period[body],
-                                            speed_orb,
-                                            speed_hor,
-                                            speed_vert]
+                    self.orbit_data_menu = [
+                        self.pe_d[body],
+                        self.ap_d[body],
+                        self.ecc[body],
+                        self.pea[body] * 180 / np.pi,
+                        self.ma[body] * 180 / np.pi,
+                        ta * 180 / np.pi,
+                        self.dr[body],
+                        distance,
+                        self.period[body],
+                        speed_orb,
+                        speed_hor,
+                        speed_vert,
+                    ]
 
                 # circles
                 if not self.disable_labels:
-                    if scr_body_size >= 5:
-                        graphics.draw_circle(screen, rgb.cyan, self.screen_coords(body_pos), self.size[body] * self.zoom + 4, 2)   # selection circle
-                    else:
-                        graphics.draw_img(screen, self.target_img, self.screen_coords(body_pos), center=True)   # target img for marker
-                    if self.size[body] < self.coi[body]:
-                        if self.coi[body] * self.zoom >= 8:
-                            graphics.draw_circle(screen, rgb.gray2, self.screen_coords(body_pos), self.coi[body] * self.zoom, 1)   # circle of influence
-                    if body != 0:
-                        parent_scr = self.screen_coords(self.pos[parent])
+                    # target selection
+                    if body in self.visible_bodies:
+                        if scr_body_radius >= 5:
+                            # selection circle
+                            scr_atm_radius = (self.radius[body] + self.atm_h[body]) * self.zoom
+                            graphics.draw_circle(screen, rgb.cyan, self.screen_coords(body_pos), scr_atm_radius + 4, 1)
+                        else:
+                            # marker img
+                            graphics.draw_img(screen, self.target_img, self.screen_coords(body_pos), center=True)
 
+                    # circle of influence
+                    if body in self.visible_coi and self.radius[body] < self.coi[body]:
+                        graphics.draw_circle(screen, rgb.gray2, self.screen_coords(body_pos), self.coi[body] * self.zoom, 1)
+
+        for body in self.visible_body_orbits:
+            if self.target is not None and self.target_type == 0 and self.target == body:
+                if not self.disable_labels:
+                    if body != 0:
+                        parent = self.ref[body]
+                        parent_scr = self.screen_coords(self.pos[parent])
+                        ta, pe, pe_t, ap, ap_t, distance, speed_orb, speed_hor, speed_vert = physics_body.selected(body)
                         # ap and pe
                         if self.ap_d[body] > 0:
                             ap_scr = self.screen_coords(ap)
                         else:   # in case of hyperbola/parabola (ap_d is negative)
                             ap_scr = self.screen_coords(pe)
                         scr_dist = abs(parent_scr - ap_scr)
-                        if scr_dist[0] > 8 or scr_dist[1] > 8:   # don't draw Ap and Pe if Ap is too close to parent
+                        if scr_dist[0] > 18 or scr_dist[1] > 15:   # don't draw Ap and Pe if Ap is too close to parent
 
                             pe_scr = self.screen_coords(pe)
                             pe_scr_dist = abs(parent_scr - pe_scr)
-                            if pe_scr_dist[0] > 8 or pe_scr_dist[1] > 8:   # don't draw Pe if it is too close to parent
+                            if pe_scr_dist[0] > 18 or pe_scr_dist[1] > 18:   # don't draw Pe if it is too close to parent
                                 # periapsis location marker, text: distance and time to it
                                 pe_scr = self.screen_coords(pe)
                                 graphics.draw_circle_fill(screen, rgb.lime1, pe_scr, 3)   # periapsis marker
-                                graphics.text(screen, rgb.lime1, self.fontsm, "Periapsis: " + str(round(self.pe_d[body], 1)), (pe_scr[0], pe_scr[1] + 7), True)
-                                graphics.text(screen, rgb.lime1, self.fontsm,
-                                              "T - " + format_time.to_date(int(pe_t/self.ptps)),
-                                              (pe_scr[0], pe_scr[1] + 17), True)
+                                graphics.text(
+                                    screen, rgb.lime1, self.fontsm,
+                                    "Periapsis: " + metric.format_si(self.pe_d[body], 2),
+                                    (pe_scr[0], pe_scr[1] + 7), True,
+                                )
+                                graphics.text(
+                                    screen, rgb.lime1, self.fontsm,
+                                    "T - " + format_time.to_date(int(pe_t/self.ptps)),
+                                    (pe_scr[0], pe_scr[1] + 17), True,
+                                )
 
                             if self.ecc[body] < 1:   # if orbit is ellipse
                                 # apoapsis location marker, text: distance and time to it
                                 graphics.draw_circle_fill(screen, rgb.lime1, ap_scr, 3)   # apoapsis marker
-                                graphics.text(screen, rgb.lime1, self.fontsm, "Apoapsis: " + str(round(self.ap_d[body], 1)), (ap_scr[0], ap_scr[1] + 7), True)
-                                graphics.text(screen, rgb.lime1, self.fontsm,
-                                              "T - " + format_time.to_date(int(ap_t/self.ptps)),
-                                              (ap_scr[0], ap_scr[1] + 17), True)
+                                graphics.text(
+                                    screen, rgb.lime1, self.fontsm,
+                                    "Apoapsis: " + metric.format_si(self.ap_d[body], 2),
+                                    (ap_scr[0], ap_scr[1] + 7), True,
+                                )
+                                graphics.text(
+                                    screen, rgb.lime1, self.fontsm,
+                                    "T - " + format_time.to_date(int(ap_t/self.ptps)),
+                                    (ap_scr[0], ap_scr[1] + 17), True,
+                                )
 
-        # vessel orbit lines drawing
-        for vessel in self.visible_vessels:
+        # draw vessel orbit curve lines
+        for vessel in self.visible_vessel_orbits:
             # get curve intersections and ranges
             curve_light = self.screen_coords_array(self.curve_light[vessel])
             curve_dark = self.screen_coords_array(self.curve_dark[vessel])
@@ -1276,25 +1482,29 @@ class Game():
             vessel_pos = self.screen_coords(self.v_pos[vessel])
             # active vessel
             if self.active_vessel is not None and self.active_vessel == vessel:
-                if intersect_type:
+                if intersect_type in [1, 3]:
                     graphics.draw_lines(screen, rgb.cyan_1, curve_dark, 2)
                 graphics.draw_lines(screen, rgb.cyan, curve_light, 2)
             # target vessel
             elif self.target is not None and self.target_type == 1 and self.target == vessel:
-                if intersect_type:
+                if intersect_type in [1, 3]:
                     graphics.draw_lines(screen, rgb.gray1, curve_dark, 2)
                 graphics.draw_lines(screen, rgb.gray, curve_light, 2)
             else:
-                if intersect_type:
+                if intersect_type in [1, 3]:
                     graphics.draw_lines(screen, rgb.gray2, curve_dark, 2)
                 graphics.draw_lines(screen, rgb.gray1, curve_light, 2)
 
         # bodies drawing
         for body in self.visible_bodies:
-            scr_body_size = self.size[body] * self.zoom
+            scr_body_radius = self.radius[body] * self.zoom
             body_color = tuple(self.color[body])
-            if scr_body_size >= 5:
-                graphics.draw_circle_fill(screen, body_color, self.screen_coords(self.pos[body]), scr_body_size)
+            if scr_body_radius >= 5:
+                if self.types[body] != 4:
+                    graphics.draw_circle_fill(screen, body_color, self.screen_coords(self.pos[body]), scr_body_radius)
+                else:   # black hole
+                    graphics.draw_circle_fill(screen, rgb.black, self.screen_coords(self.pos[body]), scr_body_radius)
+                    graphics.draw_circle(screen, rgb.white, self.screen_coords(self.pos[body]), scr_body_radius, 2)
             else:   # if body is too small, draw marker with fixed size
                 graphics.draw_circle_fill(screen, rgb.gray1, self.screen_coords(self.pos[body]), 6)
                 graphics.draw_circle_fill(screen, rgb.gray2, self.screen_coords(self.pos[body]), 5)
@@ -1302,7 +1512,7 @@ class Game():
 
 
         # vessel stuff drawing WITH vessels
-        for vessel in self.visible_vessels:
+        for vessel in self.visible_vessel_orbits:
             # get curve intersections and ranges
             curve_light = self.screen_coords_array(self.curve_light[vessel])
             curve_dark = self.screen_coords_array(self.curve_dark[vessel])
@@ -1310,19 +1520,22 @@ class Game():
             intersect_type = self.intersect_type[vessel]
             vessel_pos = self.screen_coords(self.v_pos[vessel])
             vessel_rot = self.v_rot_angle[vessel]
+            target = self.target_type == 1 and self.target == vessel
+            active = self.active_vessel is not None and self.active_vessel == vessel
 
-            # active vessel
-            if self.active_vessel is not None and self.active_vessel == vessel:
+            if active:
                 graphics.draw_img(screen, self.vessel_img, vessel_pos, angle=vessel_rot-np.pi/2, scale=0.75, center=True)
-                ta, pe, pe_t, ap, ap_t, distance, speed_orb, speed_hor, speed_vert = physics_vessel.selected(vessel)
-                ref = self.v_ref[vessel]
+
+            # active vessel and target vessel
+            if active or target:
 
                 # parent circle of influence
                 if not self.disable_labels:
+                    ta, pe, pe_t, ap, ap_t, distance, speed_orb, speed_hor, speed_vert = physics_vessel.selected(vessel)
+                    ref = self.v_ref[vessel]
                     parent_scr = self.screen_coords(self.pos[ref])
-                    if ref != 0:
-                        if self.coi[ref] * self.zoom >= 8:
-                            graphics.draw_circle(screen, rgb.gray2, parent_scr, self.coi[ref] * self.zoom, 1)
+                    if ref != 0 and ref in self.visible_coi:
+                        graphics.draw_circle(screen, rgb.gray2, parent_scr, self.coi[ref] * self.zoom, 1)
 
                     # ap and pe
                     if self.v_ap_d[vessel] > 0:
@@ -1333,58 +1546,92 @@ class Game():
                     if scr_dist[0] > 8 or scr_dist[1] > 8:   # don't draw Ap and Pe if Ap is too close to parent
 
                         pe_scr = self.screen_coords(pe)
-                        parent_rad = [self.size[ref] * self.zoom] * 2
+                        parent_rad = [self.radius[ref] * self.zoom] * 2
                         pe_scr_dist = abs(parent_scr - pe_scr) - parent_rad
-                        if pe_scr_dist[0] > 8 or pe_scr_dist[1] > 8:   # don't draw Pe if it is too close to parent
+                        if pe_scr_dist[0] > 2 or pe_scr_dist[1] > 2:   # don't draw Pe if it is too close to parent
                             # periapsis location marker, text: distance and time to it
-                            pe_scr = self.screen_coords(pe)
-                            graphics.draw_circle_fill(screen, rgb.lime1, pe_scr, 3)   # periapsis marker
-                            graphics.text(screen, rgb.lime1, self.fontsm, "Periapsis: " + str(round(self.v_pe_d[vessel], 1)), (pe_scr[0], pe_scr[1] + 7), True)
-                            graphics.text(screen, rgb.lime1, self.fontsm,
-                                          "T - " + format_time.to_date(int(pe_t/self.ptps)),
-                                          (pe_scr[0], pe_scr[1] + 17), True)
+                            in_range = point_between(
+                                0,
+                                self.select_range[vessel, 0],
+                                self.select_range[vessel, 1],
+                                self.v_dr[vessel],
+                            )
+                            if intersect_type != 2 or (intersect_type == 2 and in_range):
+                                pe_scr = self.screen_coords(pe)
+                                graphics.draw_circle_fill(screen, rgb.lime1, pe_scr, 3)   # periapsis marker
+                                graphics.text(
+                                    screen, rgb.lime1, self.fontsm,
+                                    "Periapsis: " + str(round(self.v_pe_d[vessel], 1)),
+                                    (pe_scr[0], pe_scr[1] + 7), True,
+                                )
+                                graphics.text(
+                                    screen, rgb.lime1, self.fontsm,
+                                    "T - " + format_time.to_date(int(pe_t/self.ptps)),
+                                    (pe_scr[0], pe_scr[1] + 17), True,
+                                )
 
-                        if self.ecc[vessel] < 1:   # if orbit is ellipse
+                        if self.v_ecc[vessel] < 1:   # if orbit is ellipse
                             if self.v_ap_d[vessel] <= self.coi[ref]:
                                 # apoapsis location marker, text: distance and time to it
-                                graphics.draw_circle_fill(screen, rgb.lime1, ap_scr, 3)   # apoapsis marker
-                                graphics.text(screen, rgb.lime1, self.fontsm, "Apoapsis: " + str(round(self.v_ap_d[vessel], 1)), (ap_scr[0], ap_scr[1] + 7), True)
-                                graphics.text(screen, rgb.lime1, self.fontsm,
-                                              "T - " + format_time.to_date(int(ap_t/self.ptps)),
-                                              (ap_scr[0], ap_scr[1] + 17), True)
+                                in_range = point_between(
+                                    np.pi,
+                                    self.select_range[vessel, 0],
+                                    self.select_range[vessel, 1],
+                                    self.v_dr[vessel],
+                                )
+                                if intersect_type != 2 or (intersect_type == 2 and in_range):
+                                    graphics.draw_circle_fill(screen, rgb.lime1, ap_scr, 3)   # apoapsis marker
+                                    graphics.text(
+                                        screen, rgb.lime1, self.fontsm,
+                                        "Apoapsis: " + str(round(self.v_ap_d[vessel], 1)),
+                                        (ap_scr[0], ap_scr[1] + 7), True,
+                                    )
+                                    graphics.text(
+                                        screen, rgb.lime1, self.fontsm,
+                                        "T - " + format_time.to_date(int(ap_t/self.ptps)),
+                                        (ap_scr[0], ap_scr[1] + 17), True,
+                                    )
 
                         # characteristic points
                         if intersect_type == 1:   # impact
-                            if self.size[ref] * self.zoom >= 5:
+                            if self.radius[ref] * self.zoom >= 5:
                                 graphics.draw_img(screen, self.impact_img, intersect, center=True)
-                        elif intersect_type == 2:   # leave COI
+                        elif intersect_type == 2:   # enter COI
                             if self.coi[ref] * self.zoom >= 10:
-                                graphics.draw_img(screen, self.orb_leave_img, intersect, center=True)
-                        elif intersect_type == 3:
+                                if active:
+                                    graphics.draw_img(screen, self.orb_enter_img_cyan, intersect, center=True)
+                                else:
+                                    graphics.draw_img(screen, self.orb_enter_img_gray, intersect, center=True)
+                        elif intersect_type == 3:   # leave COI
                             if self.coi[ref] * self.zoom >= 10:
-                                graphics.draw_img(screen, self.orb_enter_img, intersect, center=True)
+                                if active:
+                                    graphics.draw_img(screen, self.orb_leave_img_cyan, intersect, center=True)
+                                else:
+                                    graphics.draw_img(screen, self.orb_leave_img_gray, intersect, center=True)
 
             # target vessel
-            elif self.target is not None and self.target_type == 1 and self.target == vessel:
+            if self.target is not None and self.target_type == 1 and self.target == vessel:
                 graphics.draw_img(screen, self.vessel_img, vessel_pos, angle=vessel_rot-np.pi/2, scale=0.75, center=True)
                 graphics.draw_img(screen, self.target_img, vessel_pos, center=True)
                 ta, pe, pe_t, ap, ap_t, distance, speed_orb, speed_hor, speed_vert = physics_vessel.selected(vessel)
                 if self.right_menu == 2:
-                    self.orbit_data_menu = [self.v_pe_d[vessel],
-                                            self.v_ap_d[vessel],
-                                            self.v_ecc[vessel],
-                                            self.v_pea[vessel] * 180 / np.pi,
-                                            self.v_ma[vessel] * 180 / np.pi,
-                                            ta * 180 / np.pi,
-                                            self.v_dr[vessel],
-                                            distance,
-                                            self.v_period[vessel],
-                                            speed_orb,
-                                            speed_hor,
-                                            speed_vert]
+                    self.orbit_data_menu = [
+                        self.v_pe_d[vessel],
+                        self.v_ap_d[vessel],
+                        self.v_ecc[vessel],
+                        self.v_pea[vessel] * 180 / np.pi,
+                        self.v_ma[vessel] * 180 / np.pi,
+                        ta * 180 / np.pi,
+                        self.v_dr[vessel],
+                        distance,
+                        self.v_period[vessel],
+                        speed_orb,
+                        speed_hor,
+                        speed_vert,
+                    ]
 
             # all other vessels
-            else:
+            elif vessel in self.visible_vessels:
                 graphics.draw_img(screen, self.vessel_img, vessel_pos, angle=vessel_rot-np.pi/2, scale=0.75, center=True)
 
 
@@ -1428,11 +1675,17 @@ class Game():
 
         # screenshot
         if self.screenshot:
+            if not os.path.exists("Screenshots"):
+                os.mkdir("Screenshots")
             date = time.strftime("%Y-%m-%d %H-%M-%S")
-            screenshot_path = "Screenshots/Screenshot from " + date + ".png"
+            screenshot_path = f"Screenshots/Screenshot from {date}.png"
             pygame.image.save(screen, screenshot_path)
             if not self.disable_ui:
-                graphics.timed_text_init(rgb.gray0, self.fontmd, "Screenshot saved at: " + screenshot_path, (self.screen_x/2, self.screen_y-70), 2, True)
+                graphics.timed_text_init(
+                    rgb.gray0, self.fontmd,
+                    "Screenshot saved at: " + screenshot_path,
+                    (self.screen_x/2, self.screen_y-70), 2, True,
+                )
             self.screenshot = False
 
         # new game
@@ -1441,7 +1694,11 @@ class Game():
             bg_rect = [sum(i) for i in zip(border_rect, [-10, -10, 20, 20])]
             pygame.draw.rect(screen, rgb.black, bg_rect)
             pygame.draw.rect(screen, rgb.white, border_rect, 1)
-            graphics.text(screen, rgb.white, self.fontbt, "New Save", (self.screen_x/2,  self.ask_y-20-self.btn_h), True)
+            graphics.text(
+                screen, rgb.white, self.fontbt,
+                "New Save",
+                (self.screen_x/2, self.ask_y-20-self.btn_h), True,
+            )
             textinput.graphics(screen, clock, self.fontbt, (self.ask_x, self.ask_y-self.btn_h), (self.btn_w_h*2+self.space, self.btn_h))
             graphics.buttons_horizontal(screen, buttons_new_game, (self.ask_x, self.ask_y+self.space), safe=True)
 
@@ -1460,7 +1717,7 @@ class Game():
 
 
         if not self.disable_ui:
-            graphics.timed_text(screen, clock)
+            graphics.timed_text(screen)
 
             # left ui
             pygame.draw.rect(screen, rgb.black, (0, 0, self.btn_s, self.screen_y))
@@ -1485,12 +1742,11 @@ class Game():
                 imgs = []
                 names_screen = []
                 for num, name in enumerate(self.names):
-                    name = graphics.limit_text(name, self.fontbt, 280)   # limit names length
                     if num == 0:
-                        names_screen.append("Root: " + name)
+                        names_screen.append("Root: " + graphics.limit_text(name, self.fontbt, 280))
                     else:
                         parent = self.names[self.ref[num]]
-                        names_screen.append(name + "    @ " + parent)
+                        names_screen.append(graphics.limit_text(name, self.fontbt, 280) + "    @ " + parent)
                     imgs.append(self.body_imgs[int(self.types[num])])
                 graphics.text_list_select(screen, names_screen, (self.r_menu_x_btn, 38), (280, 21), 26, self.target, imgs)
 
@@ -1523,18 +1779,20 @@ class Game():
                                body_types[int(self.types[self.target])],
                                metric.format_si(self.mass[self.target], 3),
                                metric.format_si(self.density[self.target], 3),
-                               metric.format_si(self.size[self.target], 3),
+                               metric.format_si(self.radius[self.target], 3),
                                metric.format_si(self.coi[self.target], 3)]
                 texts_body = []
                 for i, _ in enumerate(text_data_body):
                     texts_body.append(text_data_body[i] + values_body[i])
                 texts_merged = texts_body[:]
-                if int(self.types[self.target]) in [0, 1, 2]:   # moon, planet, gas
+                if int(self.types[self.target]) in [0, 1, 2]:   # dwarf, planet, gas
                     color = self.color[self.target]
-                    values_planet = ["WIP",
-                                     " R: " + str(color[0]) + "   G: " + str(color[1]) + "   B: " + str(color[2]),
-                                     metric.format_si(self.atm_h[self.target], 3),
-                                     metric.format_si(self.surf_grav[self.target], 3)]
+                    values_planet = [
+                        "WIP",
+                        " R: " + str(color[0]) + "   G: " + str(color[1]) + "   B: " + str(color[2]),
+                        metric.format_si(self.atm_h[self.target], 3),
+                        metric.format_si(self.surf_grav[self.target], 3),
+                    ]
                     texts_planet = []
                     for i, _ in enumerate(text_data_planet):
                         if isinstance(values_planet[i], str):
@@ -1543,10 +1801,11 @@ class Game():
                             texts_planet.append(values_planet[i])
                     texts_merged += texts_planet
                 elif int(self.types[self.target]) == 3:   # star
-                    values_star = ["WIP",
-                                   "WIP",
-                                   "WIP",
-                                   "WIP"]
+                    values_star = [
+                        metric.format_si(self.temp[self.target], 3) + "°K",
+                        metric.format_si(self.luminosity[self.target], 3) + "W",
+                        self.stellar_class[self.target],
+                    ]
                     texts_star = []
                     for i, _ in enumerate(text_data_star):
                         texts_star.append(text_data_star[i] + values_star[i])
@@ -1562,7 +1821,11 @@ class Game():
             # top ui
             pygame.draw.rect(screen, rgb.black, (0, 0, self.screen_x, 22))
             pygame.draw.line(screen, rgb.white, (0, 22), (self.screen_x, 22), 1)
-            graphics.text(screen, rgb.white, self.fontmd, format_time.to_date(int(self.sim_time/self.ptps), False), (74, 11), center=True)
+            graphics.text(
+                screen, rgb.white, self.fontmd,
+                format_time.to_date(int(self.sim_time/self.ptps), False),
+                (74, 11), center=True,
+            )
             pygame.draw.line(screen, rgb.white, (150, 0), (150, 22), 1)
             graphics.buttons_small_h(screen, self.top_ui_imgs, (151, 0))
 
@@ -1573,10 +1836,18 @@ class Game():
                 self.physics_debug_time_sum += self.physics_debug_time
             else:
                 self.debug_timer = 0
-                self.physics_debug_percent = round((self.physics_debug_time_sum/10 * 100) / (1 / clock.get_fps()), 1)
+                self.physics_debug_percent = round((self.physics_debug_time_sum/10 * 100) / (1 / max(clock.get_fps(), 1)), 1)
                 self.physics_debug_time_sum = 0
-            graphics.text(screen, rgb.gray1, self.fontmd, "phys: " + str(self.physics_debug_percent) + "%", (self.screen_x - 150, 2))
-            graphics.text(screen, rgb.gray1, self.fontmd, "fps: " + str(int(clock.get_fps())), (self.screen_x - 50, 2))
+            graphics.text(
+                screen, rgb.gray1, self.fontmd,
+                "phys: " + str(self.physics_debug_percent) + "%",
+                (self.screen_x - 150, 2),
+            )
+            graphics.text(
+                screen, rgb.gray1, self.fontmd,
+                "fps: " + str(int(clock.get_fps())),
+                (self.screen_x - 50, 2),
+            )
 
 
 
@@ -1584,19 +1855,19 @@ class Game():
         """Main game loop"""
         run = True
         while run:
-            for e in pygame.event.get():
-                self.input_keys(e)
-                self.input_mouse(e)
-                self.ui_mouse(e)
+            for event in pygame.event.get():
+                self.input_keys(event)
+                self.input_mouse(event)
+                self.ui_mouse(event)
                 if self.state != 2:
                     state = self.state
                     self.state = 2
                     return state
-                if e.type == pygame.QUIT:
+                if event.type == pygame.QUIT:
                     pygame.quit()
                     sys.exit()
-                self.physics(e)
-                self.autosave(e)
+                self.physics(event)
+                self.autosave(event)
             self.graphics(screen)
             self.graphics_ui(screen, clock)
             pygame.display.flip()

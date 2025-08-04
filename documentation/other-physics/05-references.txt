@@ -1,0 +1,8 @@
+### references ###
+[1] https://en.wikipedia.org/wiki/Tangent_half-angle_substitution#The_substitution
+[2] https://en.wikipedia.org/wiki/Ellipse#Parametric_representation
+[3] https://en.wikipedia.org/wiki/Quartic_equation
+[4] https://en.wikipedia.org/wiki/Hyperbola#Parametric_equations
+[5] https://en.wikipedia.org/wiki/Eccentric_anomaly#From_the_true_anomaly
+[6] https://quarticequations.com/Cubic.pdf
+[7] https://quarticequations.com/Quartic2.pdf
