@@ -41,7 +41,7 @@ def main():
     pygame.display.init()
     pygame.font.init()
     pygame.display.set_caption("Volatile Space")
-    pygame.display.set_icon(pygame.image.load("img/icon.png"))
+    pygame.display.set_icon(pygame.image.load("images/icon.png"))
     if literal_eval(peripherals.load_settings("graphics", "first_run")) is True:
         avail_res = pygame.display.get_desktop_sizes()
         (screen_x, screen_y) = avail_res[0]   # use highest resolution
@@ -83,7 +83,7 @@ def main():
     editor = editor.Editor()
 
 
-    state = 1   # enter main menu on startup
+    state = 1
     run = True
     while run:
         for event in pygame.event.get():

@@ -11,9 +11,10 @@ dPe = a * (1 - e)   # Pe height
 tPe = T - (Ma * T / (2pi))   # time to periapsis [12]
 dAp = a * (1 + e)   # Ap height
 tAp = T - (Ma + pi)(T / (2pi))%T   # time to apoapsis
-tN = T - (Ma * T / (2pi)) - (phi * T / (2pi))   # time to point on orbit, point is given by angle phi starting from periapsis
+# time to point on orbit from curent point, using mean motion
+(source_Ma - target_Ma) / n   # closkwise
+(target_Ma - source_Ma) / n   # counterclockwise
 
-# time to point on orbit is calculated as difference of time to Pe from current point and time to Pe from target point
 tN = T - (Ma - phi)(T / (2pi))   # above equation simplified
 # if direction is clockwise, then: tN = period - Tn
 # if Ma < phi, then: tN = tN - period
@@ -27,6 +28,9 @@ Da = tan(Ta/2)   # eccentric anomaly from true anomaly [12]
 Ma = Da + (Da^3)/3   # mean anomaly from eccentric anomaly [12]
 dPe = a
 tPe = sqrt(2(a/2)^3) * Ma
+# time to point on orbit from curent point, using mean motion
+# also prevent negative values, since it not periodic
+max(-dr * (target_Ma - source_Ma) / n, 0.0)
 
 
 # Hyperbola ecc > 1:
@@ -34,6 +38,9 @@ Fa = acosh((e + cos(Ta)) / (1 + e * cos(Ta)))   # eccentric anomaly from true an
 Ma = e * sinh(Fa) - Fa   # mean anomaly from eccentric anomaly [12]
 dPe = a * (1 - e)   # Pe height
 tPe = sqrt(|a|^3 / u) * Ma
+# time to point on orbit from curent point, using mean motion
+# also prevent negative values, since it not periodic
+max(-dr * (target_Ma - source_Ma) / n, 0.0)
 
 
 Note:

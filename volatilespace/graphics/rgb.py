@@ -1,4 +1,4 @@
-"""Colors in RGB format for use with pygame GUI"""
+# Predefined colors in RGB format for use with pygame GUI
 
 white = (255, 255, 255)
 

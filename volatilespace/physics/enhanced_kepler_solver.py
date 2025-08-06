@@ -22,7 +22,7 @@ def solve_kepler_ell(ecc, ma, tol):
     Using enhanced Newton-Rhapson root solver for Keplr Equation (ERNKE).
     With provided minimal tolerance.
     """
-    # mr = ma % (6.2831853071795864779 )   # more turns
+    # mr = ma % (6.2831853071795864779)   # more turns
     mr = ma   # one turn
 
     if mr > math.pi:
@@ -37,7 +37,10 @@ def solve_kepler_ell(ecc, ma, tol):
         fp = 2.7 * mr
         fpp = 0.301
         f = 0.154
-        while (fpp - fp > (al + be * f)):
+        i = 0
+        for i in range(1000):   # failsafe
+            if (fpp - fp) <= (al + be * f):
+                break
             if (f - ecc * math.sin(f) - mr) > 0:
                 fpp = f
             else:
@@ -56,7 +59,9 @@ def solve_kepler_ell(ecc, ma, tol):
     ffpfpp = f * fp * fpp
     f2fppp = f * f * fppp
     delta = delta * (fp3 - 0.5 * ffpfpp + f2fppp / 3) / (fp3 - ffpfpp + 0.5 * f2fppp)
-    while (delta * delta > fp * tol2s):
+    for i in range(30):   # prevent infinite loops
+        if delta * delta < fp * tol2s:
+            break
         eapp = eapp + delta
         fp = 1 - ecc * math.cos(eapp)
         delta = (mr - eapp + ecc * math.sin(eapp)) / fp

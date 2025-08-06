@@ -10,10 +10,9 @@ graphics = graphics.Graphics()
 
 rng = np.random.default_rng()
 
-###### --Random pools-- ######
 # generate pool of random numbers with gaussian distribution weighted on 0
-rand_color_pool = rng.normal(0, 80, 1000)   # random pool of numbers with gaussian distribution
-rand_color_pool = rand_color_pool[rand_color_pool >= 0]   # limit pool to positive values less than 255
+rand_color_pool = rng.normal(0, 80, 1000)
+rand_color_pool = rand_color_pool[rand_color_pool >= 0]
 rand_color_pool = rand_color_pool[rand_color_pool <= 255]
 # generate pool of random numbers with gaussian distribution weighted on 255
 rand_color_pool_inv = rng.normal(0, 80, 1000) + 255
@@ -21,7 +20,6 @@ rand_color_pool_inv = rand_color_pool_inv[rand_color_pool_inv >= 0]
 rand_color_pool_inv = rand_color_pool_inv[rand_color_pool_inv <= 255]
 
 
-###### --Functions-- ######
 def random_star_color(radius, speed, opacity=1):
     """Generate star color based on its radius and speed"""
     if speed < 1.5:   # slow stars
@@ -52,7 +50,7 @@ def random_cluster_stars(count_minmax, size_mult, speed, radius_prob, opacity, b
     stars[:, 0] = rng.normal(0, size, count)   # stars coordinates from gaussian distribution
     stars[:, 1] = rng.normal(0, size, count)
     for star in range(count):
-        radius = rng.choice([1, 2, 3], p=radius_prob)   # random radius from prob
+        radius = rng.choice([1, 2, 3], p=radius_prob)
         stars[star, 2] = radius
         if use_img:
             stars[star, 3] = graphics.fill(bg_imgs[0][radius-1], random_star_color(radius, speed, opacity))
@@ -94,7 +92,7 @@ class BgStars():
         self.star_field = np.empty((0, 5), dtype=object)   # [x, y, radius, speed, color]
         self.clusters = np.empty((0, 4), dtype=object)   # [cx, cy, vel, [sx, sy, rad, col]]
         self.res = [0, 0]
-        self.bg_imgs = [[pygame.image.load(f"img/bg/{star}.png").convert_alpha() for star in radius] for radius in [[11, 12, 13], [21, 22, 23]]]
+        self.bg_imgs = [[pygame.image.load(f"images/background/{star}.png").convert_alpha() for star in radius] for radius in [[11, 12, 13], [21, 22, 23]]]
         # format: [radius, speed]
 
     def reload_settings(self):
@@ -119,12 +117,10 @@ class BgStars():
         self.zoom_sim_mult = float(peripherals.load_settings("background", "zoom_mult"))   # simulation zoom multiplier to get bg_zoom
         graphics.reload_settings()
 
-        self.opacity = min(self.opacity, 1)   # limit opacity from 0 to 1
+        self.opacity = min(self.opacity, 1)
         self.opacity = max(self.opacity, 0)
 
 
-
-    ###### --Init after pygame-- ######
     def set_screen(self):
         """Load pygame-related variables, this should be run after pygame has initialised or resolution has changed"""
         self.star_field = np.empty((0, 5), dtype=object)   # [x, y, radius, speed, color]
@@ -136,9 +132,9 @@ class BgStars():
         for _ in range(self.num):
             star_x = rng.integers(0, self.res[0]+self.frame*2)-self.frame
             star_y = rng.integers(0, self.res[1]+self.frame*2)-self.frame
-            radius = rng.choice([1, 2, 3], p=self.radius_prob)   # random star radius from prob
-            speed = rng.choice([1, 2, 3], p=self.speed_prob) * radius / 2   # random star speed from prob, but larger ones are faster
-            if radius == 3:  # if star is large
+            radius = rng.choice([1, 2, 3], p=self.radius_prob)
+            speed = rng.choice([1, 2, 3], p=self.speed_prob) * radius / 2   # larger stars are faster
+            if radius == 3:
                 speed = np.sqrt(speed)  # decrease speed for few fast and large stars
             color = random_star_color(radius, speed, self.opacity)
             if self.use_img:   # replace color with colored image of star
@@ -149,17 +145,14 @@ class BgStars():
         for _ in range(self.cluster_num):
             cluster_x = rng.integers(-self.frame, self.res[0]+self.frame)
             cluster_y = rng.integers(-self.frame, self.res[1]+self.frame)
-            cluster_speed = rng.choice([1, 2, 3], p=self.speed_prob)   # random speed from prob
-            # stars in cluster:
+            cluster_speed = rng.choice([1, 2, 3], p=self.speed_prob)
             stars = random_cluster_stars(self.cluster_stars, self.size_mult, cluster_speed, self.radius_prob, self.opacity, self.bg_imgs, self.use_img)
             self.clusters = np.vstack((self.clusters, np.array([cluster_x, cluster_y, cluster_speed, stars], dtype=object)))
 
 
-
-    ###### --Draw background stars-- ######
     def draw_bg(self, screen, speed_mult, direction, zoom_in):
         """Draw stars and clusters on screen with movement in direction, and zoom effect"""
-        zoom_min_coef = np.log(self.zoom_max/self.zoom_min - 1)   # bellow eq solved for zoom_min_coef, where x=zoom_min and y=0 (log is ln)
+        zoom_min_coef = np.log(self.zoom_max/self.zoom_min - 1)   # bellow eq solved for zoom_min_coef, where x=zoom_min and y=0
         zoom = self.zoom_max / (1 + np.e**(zoom_min_coef - zoom_in * self.zoom_sim_mult))   # limit zoom with logistic function: y=a/1+e^(b-x)
         zoom_off = (self.res[0] / 2 - (zoom * self.res[0] / 2), self.res[1] / 2 - (zoom * self.res[1] / 2))
         self.star_field = new_pos(self.star_field, self.res, self.frame, zoom_off, zoom)   # cycle stars at edge
@@ -186,7 +179,7 @@ class BgStars():
             self.clusters = new_pos(self.clusters, self.res, self.frame, zoom_off, zoom)   # cycle stars at edge
             for cluster in self.clusters:
                 if self.cluster_new:
-                    cluster[3] = random_cluster_stars(self.cluster_stars, self.size_mult, cluster[2], self.radius_prob, self.opacity, self.bg_imgs, self.use_img)   # generate new stars
+                    cluster[3] = random_cluster_stars(self.cluster_stars, self.size_mult, cluster[2], self.radius_prob, self.opacity, self.bg_imgs, self.use_img)
                 for star in cluster[3]:
                     star_zoom = ((star[0] + cluster[0]) * zoom + zoom_off[0], (star[1] + cluster[1]) * zoom + zoom_off[1])   # star position with zoom
                     if star_zoom[0] >= 0-1 and star_zoom[1] >= 0-1 and star_zoom[0] <= self.res[0]+1 and star_zoom[1] <= self.res[1]+1:

@@ -84,7 +84,7 @@ class Editor():
     def __init__(self):
         self.state = 2
         self.sim_name = "Unknown"
-        self.screen_mode = False   # trigger to change screen mode
+        self.screen_mode = False
         self.screenshot = False
 
         # menu related
@@ -101,8 +101,8 @@ class Editor():
         self.click = False
         self.first_click = None
         self.click_timer = 0
-        self.scroll = 0   # scroll for menus
-        self.scroll_sens = 10   # scroll sensitivity
+        self.scroll = 0
+        self.scroll_sensitivity = 10
         self.scrollbar_drag = False
         self.selected_item = 0
         self.fontbt = pygame.font.Font("fonts/LiberationSans-Regular.ttf", 22)   # button text font
@@ -130,12 +130,12 @@ class Editor():
         # simulation related
         self.ptps = 58.823   # divisor to convert simulation time to real time (it is not 60 because userevent timer is rounded to 17ms)
         self.zoom = 0.15
-        self.key_sens = 0.02   # sensitivity when pressing or holding wasd buttons
-        self.select_sens = 5   # how many pixels are tolerable for mouse to move while selecting body
+        self.key_delay = 0.02
+        self.select_sensitivity = 5
         self.drag_sens = 0.02   # drag sensitivity when inserting body
-        self.warp_range = [1, 2, 3, 4, 5, 10, 50, 100]   # all possible warps, by order
+        self.warp_range = [1, 2, 3, 4, 5, 10, 50, 100]
         self.warp_index = 0
-        self.warp = self.warp_range[self.warp_index]   # load current warp
+        self.warp = self.warp_range[self.warp_index]
         self.sim_time = 0
         self.pause = False
         self.enable_insert = False
@@ -147,58 +147,58 @@ class Editor():
         self.mouse = [0, 0]   # in simulation
         self.mouse_raw = [0, 0]   # on screen
         self.mouse_raw_old = [0, 0]
-        self.zoom_x, self.zoom_y = 0, 0   # initial zoom offset
-        self.offset_x = self.screen_x / 2   # initial centered offset to 0, 0 coordinates
+        self.zoom_x, self.zoom_y = 0, 0
+        self.offset_x = self.screen_x / 2
         self.offset_y = self.screen_y / 2
         self.mouse_fix_x = False   # fix mouse movement when jumping off screen edge
         self.mouse_fix_y = False
         self.zoom_step = 0.05
         self.orbit_data = []   # additional data for right_menu
         self.sim_conf = {}   # simulation related config loaded from save file
-        self.new_body_data = copy.deepcopy(defaults.new_body_dwarf)   # body related data when inserting new body
+        self.new_body_data = copy.deepcopy(defaults.new_body_dwarf)
         self.precalc_data = physics.precalculate(self.new_body_data)   # body physics without adding it to sim
         self.vessel_data = None
         self.vessel_orb_data = None
 
-        # ### DEBUG ###
+        # DEBUG
         self.physics_debug_time = 1
         self.debug_timer = 0
         self.physics_debug_time_sum = 0
         self.physics_debug_percent = 0
 
         self.offset_old = np.array([self.offset_x, self.offset_y])
-        self.grid_mode = 0   # grid mode: 0 - global, 1 - selected body, 2 - parent
+        self.grid_mode = 0   # 0 - global, 1 - selected body, 2 - parent
 
 
         # icons
-        menu_img = pygame.image.load("img/menu.png").convert_alpha()
-        body_list_img = pygame.image.load("img/body_list.png").convert_alpha()
-        insert_img = pygame.image.load("img/insert.png").convert_alpha()
-        orbit_img = pygame.image.load("img/orbit.png").convert_alpha()
-        body_img = pygame.image.load("img/body_edit.png").convert_alpha()
-        settings_img = pygame.image.load("img/settings.png").convert_alpha()
+        menu_img = pygame.image.load("images/menu.png").convert_alpha()
+        body_list_img = pygame.image.load("images/body_list.png").convert_alpha()
+        insert_img = pygame.image.load("images/insert.png").convert_alpha()
+        orbit_img = pygame.image.load("images/orbit.png").convert_alpha()
+        body_img = pygame.image.load("images/body_edit.png").convert_alpha()
+        settings_img = pygame.image.load("images/settings.png").convert_alpha()
         self.ui_imgs = [menu_img, body_list_img, insert_img, orbit_img, body_img, settings_img]
-        follow_none_img = pygame.image.load("img/follow_none.png").convert_alpha()
-        follow_vessel_img = pygame.image.load("img/follow_vessel.png").convert_alpha()
-        follow_ref_img = pygame.image.load("img/follow_ref.png").convert_alpha()
+        follow_none_img = pygame.image.load("images/follow_none.png").convert_alpha()
+        follow_vessel_img = pygame.image.load("images/follow_vessel.png").convert_alpha()
+        follow_ref_img = pygame.image.load("images/follow_ref.png").convert_alpha()
         self.top_ui_img_follow = [follow_none_img, follow_vessel_img, follow_ref_img]
-        warp_0_img = pygame.image.load("img/warp_0.png").convert_alpha()
+        warp_0_img = pygame.image.load("images/warp_0.png").convert_alpha()
         warp_0_img = graphics.fill(warp_0_img, rgb.red)
-        warp_1_img = pygame.image.load("img/warp_1.png").convert_alpha()
-        warp_2_img = pygame.image.load("img/warp_2.png").convert_alpha()
-        warp_3_img = pygame.image.load("img/warp_3.png").convert_alpha()
+        warp_1_img = pygame.image.load("images/warp_1.png").convert_alpha()
+        warp_2_img = pygame.image.load("images/warp_2.png").convert_alpha()
+        warp_3_img = pygame.image.load("images/warp_3.png").convert_alpha()
         self.top_ui_img_warp = [warp_0_img, warp_1_img, warp_2_img, warp_3_img]
-        grid_global_img = pygame.image.load("img/grid_global.png").convert_alpha()
-        grid_vessel_img = pygame.image.load("img/grid_vessel.png").convert_alpha()
-        grid_ref_img = pygame.image.load("img/grid_ref.png").convert_alpha()
+        grid_global_img = pygame.image.load("images/grid_global.png").convert_alpha()
+        grid_vessel_img = pygame.image.load("images/grid_vessel.png").convert_alpha()
+        grid_ref_img = pygame.image.load("images/grid_ref.png").convert_alpha()
         grid_disabled_img = graphics.fill(grid_global_img, rgb.gray0)
         self.top_ui_img_grid = [grid_disabled_img, grid_global_img, grid_vessel_img, grid_ref_img]
         self.top_ui_imgs = [warp_1_img, follow_vessel_img, grid_disabled_img]
-        body_dwarf = pygame.image.load("img/moon.png").convert_alpha()
-        body_planet_solid = pygame.image.load("img/planet_solid.png").convert_alpha()
-        body_planet_gas = pygame.image.load("img/planet_gas.png").convert_alpha()
-        body_star = pygame.image.load("img/star.png").convert_alpha()
-        body_bh = pygame.image.load("img/bh.png").convert_alpha()
+        body_dwarf = pygame.image.load("images/moon.png").convert_alpha()
+        body_planet_solid = pygame.image.load("images/planet_solid.png").convert_alpha()
+        body_planet_gas = pygame.image.load("images/planet_gas.png").convert_alpha()
+        body_star = pygame.image.load("images/star.png").convert_alpha()
+        body_bh = pygame.image.load("images/bh.png").convert_alpha()
         self.body_imgs = [body_dwarf, body_planet_solid, body_planet_gas, body_star, body_bh]
 
         bg_stars.set_screen()
@@ -321,13 +321,12 @@ class Editor():
         self.new_body_data = new_body_dwarf
         self.precalc_data = physics.precalculate(self.new_body_data)   # body physics without adding it to sim
 
-        # userevent may not been run in first iteration, but this values are needed in graphics section:
+        # userevent may not be run in first iteration, but this values are needed in graphics section
         self.names, self.types, self.mass, self.density, self.temp, self.luminosity, self.stellar_class, self.position, self.velocity, self.colors, self.radius, self.rad_sc, self.surf_grav = physics.get_bodies()
         self.atm_pres0, self.atm_scale_h, self.atm_den0, self.atm_h = physics.get_atmosphere()
         self.base_colors = physics.get_base_color()
 
 
-    ###### --Help functions-- ######
     def focus_point(self, pos, zoom=None):
         """Claculate offset and zoom, used to focus on specific coordinates"""
         if zoom:
@@ -339,7 +338,7 @@ class Editor():
 
 
     def screen_coords(self, coords_in_sim):
-        """Converts from sim coords to screen coords. Adds zoom, view move, and moves origin from up-left to bottom-left"""
+        """Convert from sim coords to screen coords. Add zoom, view move, and move origin from up-left to bottom-left"""
         x_on_screen = (coords_in_sim[0] + self.offset_x - self.zoom_x) * self.zoom   # correction for zoom, screen movement offset
         y_on_screen = (coords_in_sim[1] + self.offset_y - self.zoom_y) * self.zoom
         y_on_screen = self.screen_y - y_on_screen   # move origin from up-left to bottom-left
@@ -347,10 +346,10 @@ class Editor():
 
 
     def sim_coords(self, coords_on_screen):
-        """Converts from screen coords to sim coords. Adds zoom, view move, and moves origin from bottom-left to up-left"""
+        """Convert from screen coords to sim coords. Add zoom, view move, and move origin from bottom-left to up-left"""
         x_in_sim = coords_on_screen[0] / self.zoom - self.offset_x + self.zoom_x
         y_in_sim = -(coords_on_screen[1] - self.screen_y) / self.zoom - self.offset_y + self.zoom_y
-        # y_on_screen = y_on_screen - screen_y   move origin from bottom-left to up-left. This is implemented in above line
+        # y_on_screen = y_on_screen - screen_y   move origin from bottom-left to up-left
         return [x_in_sim, y_in_sim]
 
 
@@ -358,7 +357,7 @@ class Editor():
         """Loads system from "load" dialog."""
         if os.path.exists(self.selected_path):
             self.load_system(self.selected_path)
-            self.file_path = self.selected_path   # change currently active file
+            self.file_path = self.selected_path
             graphics.timed_text_init(
                 rgb.gray0, self.fontmd,
                 "Map loaded successfully",
@@ -367,8 +366,10 @@ class Editor():
 
 
     def save(self, path, name=None, silent=False):
-        """Saves map to file. If name is None, name is not changed.
-        Automatically convert to kepler orbit if overwriting game"""
+        """
+        Save map to file. If name is None, name is not changed.
+        Automatically convert to kepler orbit if overwriting game.
+        """
         base_color = physics.get_base_color()
         date = time.strftime("%d.%m.%Y %H:%M")
         body_orb_data = {"kepler": False, "pos": self.position, "vel": self.velocity}
@@ -404,13 +405,19 @@ class Editor():
             "atm_den0": self.atm_den0,
         }
         game_data = {"name": name, "date": date, "time": 0, "vessel": None}
-        peripherals.save_file(path, game_data, self.sim_conf,
-                          body_data, body_orb_data,
-                          self.vessel_data, self.vessel_orb_data)
+        peripherals.save_file(
+            path,
+            game_data,
+            self.sim_conf,
+            body_data,
+            body_orb_data,
+            self.vessel_data,
+            self.vessel_orb_data,
+        )
 
 
     def quicksave(self):
-        """Saves map to quicksave file."""
+        """Save map to quicksave file"""
         self.save("Maps/quicksave.ini", "Quicksave - " + self.sim_name, True)
         graphics.timed_text_init(
             rgb.gray0, self.fontmd,
@@ -420,7 +427,7 @@ class Editor():
 
 
     def autosave(self, e):
-        """Automatically saves current map to autosave.ini at predefined interval."""
+        """Automatically save current map to autosave.ini at predefined interval."""
         if e.type == self.autosave_event:
             self.save("Maps/autosave.ini", "Autosave - " + self.sim_name, True)
             graphics.timed_text_init(
@@ -461,7 +468,7 @@ class Editor():
         """Check if new body name is already taken and append number to it"""
         body_name = self.new_body_data["name"]
         if body_name in self.names:
-            # check if number already exists and continue it
+            # check if number already exists and continue from it
             last_space = body_name.rfind(" ")
             last_word = body_name[last_space+1:]
             try:
@@ -476,8 +483,6 @@ class Editor():
             self.new_body_data["name"] = body_name
 
 
-
-    ###### --Keys-- ######
     def input_keys(self, e):
         """Simulation and menu keys"""
         if self.state != 2:   # when returning to editor menu
@@ -773,19 +778,17 @@ class Editor():
 
         # add velocity to specific direction
         if self.direction is not None:
-            _, _, _, _, _, _, _, _, velocity, _, _, _, _ = physics.get_bodies()   # get body velocity to be increased
-            if self.direction == "up":   # new_velocity = old_velocity + key_sensitivity
-                physics.set_body_vel(self.selected, [velocity[self.selected, 0], velocity[self.selected, 1] + self.key_sens])
+            _, _, _, _, _, _, _, _, velocity, _, _, _, _ = physics.get_bodies()
+            if self.direction == "up":   # new_velocity = old_velocity + key_delayitivity
+                physics.set_body_vel(self.selected, [velocity[self.selected, 0], velocity[self.selected, 1] + self.key_delay])
             if self.direction == "down":
-                physics.set_body_vel(self.selected, [velocity[self.selected, 0], velocity[self.selected, 1] - self.key_sens])
+                physics.set_body_vel(self.selected, [velocity[self.selected, 0], velocity[self.selected, 1] - self.key_delay])
             if self.direction == "left":
-                physics.set_body_vel(self.selected, [velocity[self.selected, 0] - self.key_sens, velocity[self.selected, 1]])
+                physics.set_body_vel(self.selected, [velocity[self.selected, 0] - self.key_delay, velocity[self.selected, 1]])
             if self.direction == "right":
-                physics.set_body_vel(self.selected, [velocity[self.selected, 0] + self.key_sens, velocity[self.selected, 1]])
+                physics.set_body_vel(self.selected, [velocity[self.selected, 0] + self.key_delay, velocity[self.selected, 1]])
 
 
-
-    ###### --Simulation Mouse-- ######
     def input_mouse(self, e):
         """Input mouse for simulation"""
         self.mouse_raw = list(pygame.mouse.get_pos())
@@ -814,7 +817,7 @@ class Editor():
             if self.enable_insert:
                 if e.type == pygame.MOUSEBUTTONDOWN and e.button == 1:
                     self.insert_body = True
-                    self.new_position = self.sim_coords(self.mouse_raw)   # use variable, since reading from dict takes more time
+                    self.new_position = self.sim_coords(self.mouse_raw)
                     self.new_body_data["position"] = self.new_position
                     if self.follow == 1:
                         self.new_position_rel = self.position[self.selected] - self.new_position
@@ -854,7 +857,7 @@ class Editor():
                     mouse_move = math.dist(self.mouse_raw, self.mouse_raw_old)
                     self.select_toggle = False
                     if e.button != 2:   # don't select body with middle click when in insert mode
-                        if mouse_move < self.select_sens:
+                        if mouse_move < self.select_sensitivity:
                             curves = physics.curve()
                             for body, body_pos in enumerate(self.position):
                                 curve = np.column_stack(self.screen_coords(curves[:, body]))   # line coords on screen
@@ -885,8 +888,6 @@ class Editor():
                         # these values are added only to displayed objects, traces... But not to real position
 
 
-
-    ###### --UI Mouse-- ######
     def ui_mouse(self, e):
         """Input mouse for menus"""
         btn_disable_input = False
@@ -1466,14 +1467,12 @@ class Editor():
                             self.sim_conf = defaults.sim_config.copy()
                             physics.load_conf(self.sim_conf)
 
-
-
             # scrollbar
             if e.type == pygame.MOUSEWHEEL and (self.menu == 0 or self.menu == 1):
                 if self.scrollbar_drag is False:
                     # scrolling inside list area
                     if self.maps_x-self.space <= self.mouse_raw[0]-1 <= self.maps_x+self.btn_w_l+self.space+16 and self.maps_y-self.space <= self.mouse_raw[1]-1 <= self.maps_y+self.list_limit:
-                        self.scroll -= e.y * self.scroll_sens
+                        self.scroll -= e.y * self.scroll_sensitivity
                         if self.scroll < 0:
                             self.scroll = 0
                         elif self.scroll > max(0, self.map_list_size - self.list_limit):
@@ -1496,12 +1495,10 @@ class Editor():
         return self.state
 
 
-
-    ###### --Physics-- ######
     def physics(self, e):
         """Do simulation physics with warp and pause"""
         body_del = None
-        debug_time = time.time()   # ### DEBUG ###
+        debug_time = time.time()   # DEBUG
         if e.type == pygame.USEREVENT:
             if self.pause is False:
                 for _ in range(self.warp):
@@ -1526,15 +1523,12 @@ class Editor():
             self.colors = physics.temp_color()
             physics.classify()
 
-            self.physics_debug_time = time.time() - debug_time   # ### DEBUG ###
+            self.physics_debug_time = time.time() - debug_time   # DEBUG
 
 
-
-    ###### --Graphics-- ######
     def graphics(self, screen):
         """Drawing simulation stuff on screen"""
         screen.fill((0, 0, 0))
-
 
         # follow body (this must be before drawing objects to prevent them from vibrating when moving)
         if self.follow and self.selected is not None:
@@ -1562,7 +1556,7 @@ class Editor():
             self.offset_x += self.mouse[0] - self.mouse_old[0]   # add mouse movement to offset
             self.offset_y += self.mouse[1] - self.mouse_old[1]
 
-            if mouse_move > self.select_sens:   # stop following if mouse distance is more than sensitivity
+            if mouse_move > self.select_sensitivity:   # stop following if mouse distance is more than sensitivity
                 self.follow = False
 
             if self.mouse_warp:
@@ -1580,8 +1574,7 @@ class Editor():
                     self.mouse_fix_y = True
             self.mouse_old = self.mouse
 
-
-        # background stars:
+        # background stars
         if self.bg_stars_enable:
             offset_diff = self.offset_old - np.array([self.offset_x, self.offset_y])   # movement vector in one iterration
             offset_diff = offset_diff * min(self.zoom, 3)   # add zoom to speed calculation and limit zoom
@@ -1591,7 +1584,6 @@ class Editor():
                 speed = math.sqrt(speed)
             direction = math.atan2(offset_diff[1], offset_diff[0])   # movement vector angle from atan2
             bg_stars.draw_bg(screen, speed, direction, self.zoom)
-
 
         # background lines grid
         if self.grid_mode:
@@ -1608,7 +1600,6 @@ class Editor():
             else:
                 origin = self.screen_coords([0, 0])
             graphics.draw_grid(screen, origin, self.zoom)
-
 
         # bodies drawing
         curves = physics.curve()
@@ -1776,9 +1767,6 @@ class Editor():
                 graphics.draw_lines(screen, rgb.gray2, curve, 2)
 
 
-
-
-    ###### --Menus-- ######
     def graphics_ui(self, screen, clock):
         """Drawing GUI menus"""
 
@@ -1847,7 +1835,6 @@ class Editor():
             if self.click_timer >= 0.4 * 60:
                 self.first_click = None
                 self.click_timer = 0
-
 
         if not self.disable_ui:
             graphics.timed_text(screen)
@@ -2055,7 +2042,7 @@ class Editor():
             pygame.draw.line(screen, rgb.white, (150, 0), (150, 22), 1)
             graphics.buttons_small_h(screen, self.top_ui_imgs, (151, 0))
 
-            # ### DEBUG ###
+            # DEBUG
             graphics.text(screen, rgb.gray1, self.fontmd, str(self.mouse_raw), (self.screen_x - 240, 2))
             if self.debug_timer < 10:
                 self.debug_timer += 1
@@ -2066,7 +2053,6 @@ class Editor():
                 self.physics_debug_time_sum = 0
             graphics.text(screen, rgb.gray1, self.fontmd, "phys: " + str(self.physics_debug_percent) + "%", (self.screen_x - 150, 2))
             graphics.text(screen, rgb.gray1, self.fontmd, "fps: " + str(int(clock.get_fps())), (self.screen_x - 50, 2))
-
 
 
     def main(self, screen, clock):

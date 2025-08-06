@@ -1,5 +1,5 @@
 def to_date(seconds, clip=True):
-    """Formats time from seconds to (Y, D, HH:MM:SS) and clips Y and D if they are 0,"""
+    """Format time from seconds to (Y, D, HH:MM:SS) and clip Y and D if they are 0"""
     years = days = hours = minutes = 0
     minutes, seconds = divmod(seconds, 60)
     if minutes:

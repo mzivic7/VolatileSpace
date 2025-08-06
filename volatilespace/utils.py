@@ -24,7 +24,7 @@ class ReturnThread(threading.Thread):
 
 
 def responsive_blocking(target, args=()):
-    """Runs blocking, but pygame responsive, function and returns value"""
+    """Run blocking, function and return value, but keep it pygame responsive"""
     thread = ReturnThread(target=target, args=args, daemon=True)
     thread.start()
     while thread.is_alive():

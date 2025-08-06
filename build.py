@@ -24,15 +24,15 @@ def build(nonumba, noupx):
         command = f'uv run python -m PyInstaller {hidden_imports}--noconfirm {numba}--windowed --clean --contents-directory "libraries" --name {APP_NAME} "main.py"'
         os.system(command)
     elif sys.platform == "win32":
-        command = f'uv run python -m PyInstaller {hidden_imports}--noconfirm {upx}{numba}--windowed --clean --contents-directory "libraries" --icon "img/icon.ico" --name {APP_NAME} "main.py"'
+        command = f'uv run python -m PyInstaller {hidden_imports}--noconfirm {upx}{numba}--windowed --clean --contents-directory "libraries" --icon "images/icon.ico" --name {APP_NAME} "main.py"'
         os.system(command)
     elif sys.platform == "darwin":
-        command = f'uv run python -m PyInstaller {hidden_imports}--noconfirm {numba}--windowed --clean --contents-directory "libraries" --icon "img/icon.ico" --name {APP_NAME} "main.py"'
+        command = f'uv run python -m PyInstaller {hidden_imports}--noconfirm {numba}--windowed --clean --contents-directory "libraries" --icon "images/icon.ico" --name {APP_NAME} "main.py"'
         os.system(command)
     else:
         sys.exit(f"This platform is not supported: {sys.platform}")
 
-    shutil.copytree("img/", "dist/VolatileSpace/img/", dirs_exist_ok=True)
+    shutil.copytree("images/", "dist/VolatileSpace/images/", dirs_exist_ok=True)
     shutil.copytree("fonts/", "dist/VolatileSpace/fonts/", dirs_exist_ok=True)
     shutil.copytree("parts/", "dist/VolatileSpace/parts/", dirs_exist_ok=True)
     shutil.copytree("documentation/", "dist/VolatileSpace/documentation/", dirs_exist_ok=True)

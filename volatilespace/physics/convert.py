@@ -18,8 +18,10 @@ from volatilespace.physics.phys_shared import (
 
 
 def kepler_to_velocity(rel_pos, a, ecc, pe_arg, u, dr):
-    """Converts from keplerian parameters to relative velocity vector, given that relative position vector is known.
-    True anomaly can be inverted for ellipse and hyperbola separately, if needed."""
+    """
+    Convert from keplerian parameters to relative velocity vector, given that relative position vector is known.
+    True anomaly can be inverted for ellipse and hyperbola separately, if needed
+    """
     if ecc < 1:   # ellipse
         b = a * math.sqrt(1 - ecc**2)
         f = math.sqrt(a**2 - b**2)
@@ -63,10 +65,12 @@ def kepler_to_velocity(rel_pos, a, ecc, pe_arg, u, dr):
 
 
 def velocity_to_kepler(rel_pos, rel_vel, u, failsafe=0):
-    """Converts from relative velocity vector to keplerian parameters, given that relative position vector is known.
+    """
+    Convert from relative velocity vector to keplerian parameters, given that relative position vector is known.
     failsafe=1 option will check if new position is same as before, because newton root may fail
     failsafe=2 will apply failsafe=1 and will check if body velocity is pointing towrards reference.
-    This is happening because of orbital model simplification, when entering COI."""
+    This is happening because of orbital model simplification, when entering COI
+    """
     a = -1 * u / (2*(dot_2d(rel_vel, rel_vel) / 2 - u / mag(rel_pos)))   # mag(x)^2 = x dot x
     momentum = cross_2d(rel_pos, rel_vel)    # orbital momentum, since this is 2d, momentum is scalar
     rel_vel[0], rel_vel[1] = rel_vel[1], -rel_vel[0]
@@ -126,7 +130,7 @@ def velocity_to_kepler(rel_pos, rel_vel, u, failsafe=0):
 
 
 def to_newton(mass, orb_data, gc, coi_coef):
-    """Converts form keplerian orbit parameters to newtonian (position, velocity)."""
+    """Convert form keplerian orbit parameters to newtonian (position, velocity)"""
     semi_major_l = orb_data["a"]
     ecc_l = orb_data["ecc"]
     pe_arg_l = orb_data["pe_arg"]
@@ -187,7 +191,7 @@ def to_newton(mass, orb_data, gc, coi_coef):
 
 
 def to_kepler(mass, orb_data, gc, coi_coef):
-    """Converts form newtonian (position, velocity) orbit parameters to keplerian"""
+    """Convert form newtonian (position, velocity) orbit parameters to keplerian"""
     pos = orb_data["pos"]
     vel = orb_data["vel"]
 

@@ -5,14 +5,12 @@ import numpy as np
 
 try:   # to allow building without numba
     from numba import bool_, float64, int64, njit
-    from numba.types.misc import Omitted
     numba_avail = True
 except ImportError:
     numba_avail = False
 
 from volatilespace import peripherals
 
-###### --Constants-- ######
 gc = 6.674 * 10**-11   # real gravitational constant
 c = 299792458   # speed of light in vacuum
 sigma = 5.670374419 * 10**-8   # Stefan-Boltzmann constant
@@ -20,9 +18,8 @@ ls = 3.828 * 10**26   # Sun luminosity
 ms = 1.9884 * 10**30   # Sun mass
 
 
-###### --Functions-- ######
 def dot_2d(v1, v2):
-    """Fastest 2D dot product. It is slightly faster than built in: v1 @ v2."""
+    """Fastest 2D dot product. It is slightly faster than built in: v1 @ v2"""
     return v1[0]*v2[0] + v1[1]*v2[1]
 
 
@@ -37,7 +34,7 @@ def cross_2d(v1, v2):
 
 
 def compare(a, b):
-    """Compares 2 values and returns percentage difference"""
+    """Compare 2 values and return percentage difference"""
     if a == b:
         return 0.0
     if 0 in (a, b):
@@ -53,26 +50,23 @@ def compare(a, b):
 
 
 def compare_coord(a, b):
-    """Compares 2 coordinates and returns percentage difference"""
+    """Compare 2 coordinates and return percentage difference"""
     p = compare(a[0], b[0])
     q = compare(a[1], b[1])
     return (p + q) / 2
 
 
-def orbit_time_to(source_angle, target_angle, period, dr, neg_time=False):
-    """Time to point on orbit"""
-    time_to = period - (source_angle - target_angle) * (period / (2 * np.pi))
-    if source_angle < target_angle:
-        time_to = time_to - period
+def orbit_time_to(source_angle, target_angle, ecc, dr, n):
+    """Calculate time to point on orbit"""
+    if ecc >= 1:
+        return max(-dr * (target_angle - source_angle) / n, 0.0)
     if dr < 0:
-        time_to = period - time_to
-    if neg_time and time_to > period / 2:
-        time_to -= period
-    return time_to
+        return ((source_angle - target_angle) % (2 * np.pi)) / n
+    return ((target_angle - source_angle) % (2 * np.pi)) / n
 
 
 def point_between(n, a, b, direction):
-    """Returns True if angle n is between angles a and b in specified direction"""
+    """Return True if angle n is between angles a and b in specified direction"""
     n = n % (2*np.pi)
     a = a % (2*np.pi)
     b = b % (2*np.pi)
@@ -88,7 +82,7 @@ def point_between(n, a, b, direction):
 
 
 def angle_diff(from_angle, to_angle, dr):
-    """Calculates difference between two angles in orbit direction with wrapping at 2pi"""
+    """Calculate difference between two angles in orbit direction with wrapping at 2pi"""
     if dr < 0:
         from_angle, to_angle = to_angle, from_angle
     if from_angle < to_angle:
@@ -97,7 +91,7 @@ def angle_diff(from_angle, to_angle, dr):
 
 
 def newton_root(function, derivative, root_guess, variables={}):
-    """General case newton root solver"""
+    """General case Newton root solver"""
     root = root_guess
     for _ in range(50):
         delta_x = function(root, variables) / derivative(root, variables)   # guess correction
@@ -130,7 +124,7 @@ def newton_root_kepler_hyp(ecc, ma, ea_guess):
 
 
 def get_angle(a, b, c):
-    """Angle between 3 points in 2D or 3D"""
+    """Calculate angle between 3 points in 2D or 3D"""
     ba = a - b   # get 2 vectors from 3 points
     bc = c - b
     cosine_angle = np.dot(ba, bc) / (np.linalg.norm(ba) * np.linalg.norm(bc))   # angle between 2 vectors
@@ -138,7 +132,7 @@ def get_angle(a, b, c):
 
 
 def rot_ellipse_by_y(x, a, b, p):
-    """Rotated ellipse by y, but only positive half"""
+    """Rotated ellipse by y, only positive half"""
     sin_p = math.sin(p)
     cos_p = math.cos(p)
     a2 = a**2
@@ -151,7 +145,7 @@ def rot_ellipse_by_y(x, a, b, p):
 
 
 def rot_hyperbola_by_y(x, a, b, p):
-    """Rotated hyperbola by y, but only positive half"""
+    """Rotated hyperbola by y, only positive half"""
     sin_p = math.sin(p)
     cos_p = math.cos(p)
     a2 = a**2
@@ -191,7 +185,7 @@ def impl_derivative_rot_hyp(p_x, p_y, a, b, p):
         / (- a2 * p_y * cos_p2 + b2 * p_y * sin_p2 + b2 * p_x * sin_cos_p + a2 * p_x * sin_cos_p))
 
 
-def orb2xy(a, b, f, ecc, pea, pos, ea):
+def orb2xy(a, b, f, ecc, pea, ref_pos, ea):
     """ Calculate relative x and y coordinates from orbital parameters"""
     if ea:
         if ecc < 1:
@@ -200,14 +194,14 @@ def orb2xy(a, b, f, ecc, pea, pos, ea):
         else:
             x_n = a * np.cosh(ea) - f
             y_n = b * np.sinh(ea)
-        x = (x_n * np.cos(pea - np.pi) - y_n * np.sin(pea - np.pi)) + pos[0]
-        y = (x_n * np.sin(pea - np.pi) + y_n * np.cos(pea - np.pi)) + pos[1]
+        x = (x_n * np.cos(pea - np.pi) - y_n * np.sin(pea - np.pi)) + ref_pos[0]
+        y = (x_n * np.sin(pea - np.pi) + y_n * np.cos(pea - np.pi)) + ref_pos[1]
         return np.array(([x, y]))
     return np.array(([None, None]))
 
 
 def curve_points(ecc, a, b, pea, t):
-    """Calculates conic curve line points coordinates, rotated by periapsis argument."""
+    """Calculate conic curve line points coordinates, rotated by periapsis argument"""
     sin_p = np.sin(pea)
     cos_p = np.cos(pea)
     if ecc < 1:   # ellipse
@@ -224,15 +218,14 @@ def curve_points(ecc, a, b, pea, t):
 
 
 def curve_move_to(curves, body_pos, ref, f, pea):
-    """Aligns focus of rotated curve points with its refernce body position. For multiple curves."""
+    """Align focus of multiple rotated curves points with their refernce body position"""
     focus_x = f * np.cos(pea)
     focus_y = f * np.sin(pea)
     focus = np.column_stack((focus_x, focus_y))
     return curves + focus[:, np.newaxis, :] + body_pos[ref, np.newaxis, :]
 
 def culling(coords, radius, screen_bounds, zoom):
-    """Decides wether provided objecs should be drawn on screen,
-    depending on their position and radius (if any)."""
+    """Decide wether provided objecs should be drawn on screen, depending on their position and radius"""
     # swapping y axis because (0, 0) is in top left
     min_dim = (coords.T + radius).T + 2 / zoom > np.array([screen_bounds[0, 0], screen_bounds[1, 1]])
     max_dim = (coords.T - radius).T + 2 / zoom < np.array([screen_bounds[1, 0], screen_bounds[0, 1]])
@@ -251,9 +244,7 @@ if numba_avail and use_numba:
     cross_2d = njit(float64[:](float64[:], float64[:]), **jitkw)(cross_2d)
     compare = njit(float64(float64, float64), **jitkw)(compare)
     compare_coord = njit(float64(float64[:], float64[:]), **jitkw)(compare_coord)
-    orbit_time_to = njit([float64(float64, float64, float64, float64, Omitted(False)),
-                          float64(float64, float64, float64, float64, bool_)],
-                         **jitkw)(orbit_time_to)
+    orbit_time_to = njit(float64(float64, float64, float64, float64, float64), **jitkw)(orbit_time_to)
     point_between = njit(bool_(float64, float64, float64, int64), **jitkw)(point_between)
     angle_diff = njit(float64(float64, float64, int64), **jitkw)(angle_diff)
     newton_root_kepler_ell = njit(float64(float64, float64, float64), **jitkw)(newton_root_kepler_ell)

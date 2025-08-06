@@ -14,22 +14,22 @@ class Textinput():
         self.text_screen = ""
         self.blinking_line = True
         self.timer_hold = 0
-        self.hold_first = 0.4   # delay on first step on button hold
+        self.hold_first = 0.4
         self.timer_repeat = 0
-        self.hold_repeat = 0.04   # delay between 2 steps on button hold
+        self.hold_repeat = 0.04
         self.timer_blink = 0
-        self.blinking_line_on = 0.7   # blinking line on delay
-        self.blinking_line_off = 0.5   # blinking line delay off
+        self.blinking_line_on = 0.7
+        self.blinking_line_off = 0.5
         self.timer_double_click = 0
-        self.double_click_time = 0.4   # delay for detecting double click
+        self.double_click_time = 0.4
         self.disable_blinking_line = False
         self.backspace = False
         self.delete = False
         self.left = False
         self.right = False
         self.enable_repeat = False
-        self.limit_len = None   # limit text length to n chars
-        self.first_click = False   # used for detecting double click
+        self.limit_len = None
+        self.first_click = False
         self.selected = False
         self.pos = [0, 0]
         self.font = None
@@ -44,9 +44,11 @@ class Textinput():
 
 
     def initial_text(self, text, text_id, static_text=None, x_corr=0, limit_len=None, selected=False):
-        """Loads initial text.
+        """
+        Load initial text.
         Static text is text that cannot be deleted and is not returned as value.
-        text_id is used for preventing overwriting initial text."""
+        text_id is used for preventing overwriting initial text.
+        """
         if text_id != self.text_id:
             self.text = text
             self.text_id = text_id
@@ -175,12 +177,8 @@ class Textinput():
         """Draw text, blinking line, selection and border"""
         (x, y) = pos
         (w, h) = size
-
         self.font = font
-
-        # draw border
-        pygame.draw.rect(screen, rgb.white, (x, y, w, h), 1)
-
+        pygame.draw.rect(screen, rgb.white, (x, y, w, h), 1)   # draw border
         self.text_screen = self.text
         self.index_screen = self.textindex
         x += self.x_corr
@@ -191,7 +189,6 @@ class Textinput():
             text = font.render(self.text_screen, True, rgb.white)
             text_rect = text.get_rect(midleft=(x + 6 + text_static[2], y + h/2))
             pygame.draw.rect(screen, rgb.gray1, text_rect)
-
 
         # add static text
         if self.static_text:
@@ -205,11 +202,11 @@ class Textinput():
                 while text_rect[2] > w-10:
                     text_rect = font.render(self.text_screen, True, rgb.white).get_rect(center=(0, 0))
                     text_rect_line = font.render((self.text_screen+"W")[:self.index_screen+1], True, rgb.white).get_rect(center=(x + w/2, y + h/2))
-                    if text_rect_line[2] > w-10:   # if cursor line is over right edge
-                        self.text_screen = self.text_screen[1:]   # remove 1 char from text start
-                        self.index_screen -= 1   # and move index left
-                    else:   # if cursor line is inside input box
-                        self.text_screen = self.text_screen[:-1]   # remove 1 char from text end
+                    if text_rect_line[2] > w-10:
+                        self.text_screen = self.text_screen[1:]
+                        self.index_screen -= 1
+                    else:
+                        self.text_screen = self.text_screen[:-1]
                 text = font.render(self.text_screen, True, rgb.white)
                 text_rect = text.get_rect(midright=(x+w-10, y+h/2))   # draw text from right edge
             else:
@@ -232,7 +229,6 @@ class Textinput():
             self.blinking_line = True
         else:
             if self.blinking_line:
-                # time from seconds to frames. This value is not fixed, since it can change based on fps
                 time_blink = self.blinking_line_on * clock.get_fps()
             else:
                 time_blink = self.blinking_line_off * clock.get_fps()
@@ -254,7 +250,7 @@ class Textinput():
             # initial long timer
             time_hold = self.hold_first * clock.get_fps()
             if self.timer_hold > time_hold:
-                self.enable_repeat = True   # start repeat timer
+                self.enable_repeat = True
             self.timer_hold += 1
             # repeat timer
             if self.enable_repeat:

@@ -11,8 +11,8 @@ class Graphics():
     """Graphics class"""
     def __init__(self):
         pygame.font.init()
-        self.screen_x, self.screen_y = 0, 0   # initial window width, window height
-        self.timed_text_enable = False   # for drawing timed text on screen
+        self.screen_x, self.screen_y = 0, 0
+        self.timed_text_enable = False
         self.timer = 0   # timer for drawing timed text on screen
         self.reload_settings()
         self.color, self.font, self.text_str, self.pos, self.time, self.center = (0, 0, 0), None, "", [0, 0], 0, [0, 0]
@@ -20,9 +20,9 @@ class Graphics():
         self.fontbt = pygame.font.Font("fonts/LiberationSans-Regular.ttf", 22)   # button text font
         self.fontmd = pygame.font.Font("fonts/LiberationSans-Regular.ttf", 16)   # medium text font
         self.fontsm = pygame.font.Font("fonts/LiberationSans-Regular.ttf", 10)   # small text font
-        self.link = pygame.image.load("img/link.png").convert_alpha()
-        self.plus = pygame.image.load("img/plus.png").convert_alpha()
-        self.minus = pygame.image.load("img/minus.png").convert_alpha()
+        self.link = pygame.image.load("images/link.png").convert_alpha()
+        self.plus = pygame.image.load("images/plus.png").convert_alpha()
+        self.minus = pygame.image.load("images/minus.png").convert_alpha()
 
         self.btn_w = 250   # button width
         self.btn_w_h = 200   # for horizontal placement
@@ -45,7 +45,7 @@ class Graphics():
     def reload_settings(self):
         """Reload all settings, should be run every time settings are applied"""
         self.antial = literal_eval(peripherals.load_settings("graphics", "antialiasing"))
-        self.spacing_min = int(peripherals.load_settings("graphics", "grid_spacing_min"))   # minimum and maximum spacing of grid
+        self.spacing_min = int(peripherals.load_settings("graphics", "grid_spacing_min"))
         self.spacing_max = int(peripherals.load_settings("graphics", "grid_spacing_max"))
 
 
@@ -79,8 +79,7 @@ class Graphics():
 
 
     def draw_circle_fill(self, surface, color, center, radius):
-        """Draw a filled circle with optional transparency.
-        Warning: transparency is slow for large circles!"""
+        """Draw a filled circle with optional transparency"""
         if len(color) > 3 and color[3] != 255:
             # adding transparency
             raw_pos = center - radius
@@ -102,24 +101,22 @@ class Graphics():
 
 
     def fill(self, surface, color):
-        """Fill all pixels of the surface with color, preserving transparency."""
+        """Fill all pixels of the surface with color, preserving transparency"""
         w, h = surface.get_size()
         colored_surface = surface.copy()
         if len(color) == 3:
             r, g, b = color
         else:
             r, g, b, _ = color
-
         for x in range(w):
             for y in range(h):
                 a = surface.get_at((x, y))[3]
                 colored_surface.set_at((x, y), pygame.Color(r, g, b, a))
-
         return colored_surface
 
 
     def draw_img(self, surface, img, pos, angle=0, scale=1, center=False):
-        """Draw image. If rotated, it is cenered."""
+        """Draw image, if rotated, it is cenered"""
         if angle:
             if scale != 1:
                 img = pygame.transform.rotozoom(img, angle*180/math.pi, scale)
@@ -157,7 +154,7 @@ class Graphics():
 
 
     def timed_text_init(self, color, font, text, pos, time=2, center=False, fade=0.2):
-        """Timed text on screen, optionally centered to given coordinates, this is activated once"""
+        """Initialize timed text, optionally centered to given coordinates, this is activated once"""
         self.timed_text_enable = True
         self.color, self.font, self.text_str, self.pos, self.center = color, font, text, pos, center
         self.fade = fade * 60
@@ -166,7 +163,7 @@ class Graphics():
 
 
     def timed_text(self, screen):
-        """Print timed text on screen with fade out effect"""
+        """Draw timed text on screen with fade out effect"""
         if self.timed_text_enable is True:
             alpha = 255
             if self.timer > self.time - self.fade:
@@ -179,7 +176,7 @@ class Graphics():
 
 
     def limit_text(self, text, font, width):
-        """Limits text length to defined pixel width, adds "..." at end."""
+        """Limits text length to provided pixel width, adds "..." at end"""
         text_rect = font.render(text, True, rgb.white).get_rect(topleft=(0, 0))
         if text_rect[2] > width - 10:
             while text_rect[2] > width - 10:
@@ -191,23 +188,23 @@ class Graphics():
 
     def draw_grid(self, screen, origin, zoom):
         """Draw grid of lines expanding from origin with size labels"""
-        spacing = 10 * zoom   # initial spacing
-        while spacing < self.spacing_min:   # if spacing gets smaller than limit
-            spacing *= 2   # double increase spacing
-        while spacing > self.spacing_min:   # if spacing gets larger than limit
-            spacing /= 2.  # double decrease spacing
+        spacing = 10 * zoom
+        while spacing < self.spacing_min:
+            spacing *= 2.
+        while spacing > self.spacing_min:
+            spacing /= 2.
         line_num_x = math.ceil(self.screen_x / spacing)
         line_num_y = math.ceil(self.screen_y / spacing)
 
-        for line in range(line_num_x):   # for each vertical line
-            pos_x = origin[0] + (spacing * line)   # calculate its position from origin line
+        for line in range(line_num_x):
+            pos_x = origin[0] + (spacing * line)
             moved = 0   # how much have line index moved
-            while pos_x > self.screen_x:   # as long line is off screen - right
+            while pos_x > self.screen_x:   # if line is off screen - right
                 pos_x -= spacing * line_num_x   # move it left
-                moved -= line_num_x   # moving line index left
+                moved -= line_num_x   # move line index left
             while pos_x < 0:   # if line is off screen - left
                 pos_x += spacing * line_num_x   # move it right
-                moved += line_num_x   # moving line index right
+                moved += line_num_x   # move line index right
             if line == 0 and moved == 0:   # at origin
                 self.draw_line(screen, rgb.red2, (pos_x, 0), (pos_x, self.screen_y), 2)   # red line
                 self.text(screen, rgb.red2, self.fontsm, "0", (pos_x, self.screen_y - 10), True, rgb.black)
@@ -248,7 +245,7 @@ class Graphics():
                     metric.format_si(sim_pos_y, 2),
                     (5+self.btn_s, pos_y-5), False, rgb.black,
                 )
-            else:   # every other line
+            else:
                 self.draw_line(screen, rgb.gray2, (0, pos_y), (self.screen_x, pos_y), 1)
                 sim_pos_y = round(-((line + moved) * spacing) / zoom)
                 self.text(
@@ -259,10 +256,12 @@ class Graphics():
 
 
     def buttons_vertical(self, screen, buttons_txt, pos, prop=None, safe=False):
-        """Draws buttons with mouseover and self.click effect.
+        """
+        Draw buttons with mouseover and self.click effect.
         Properties are passed as list with value for each button.
         Values can be: None - no effect, 0 - red color (OFF), 1 - green color (ON),
-        2 - add link icon on button, 3 - +/- buttons, 4 - highlighted, 5 - disabled"""
+        2 - add link icon on button, 3 - +/- buttons, 4 - highlighted, 5 - disabled.
+        """
         (x, y) = pos
         disable_buttons = False
         if safe is False:
@@ -325,14 +324,16 @@ class Graphics():
             self.text(screen, color_text, self.fontbt, text, (x + self.btn_w/2, y + self.btn_h/2), True)
             if prop is not None and prop[num] == 2:   # add link icon
                 screen.blit(self.link, (x+self.btn_w-40, y))
-            y += self.btn_h + self.space   # calculate position for next button
+            y += self.btn_h + self.space   # position for next button
 
 
     def buttons_horizontal(self, screen, buttons_txt, pos, prop=None, safe=False, alt_width=None):
-        """Draws buttons with mouseover and self.click effect.
+        """
+        Draw buttons with mouseover and self.click effect.
         Properties are passed as list with value for each button.
         Values can be: None - no effect, 0 - red color (OFF), 1 - green color (ON),
-        2 - add link icon on button, 5 - disabled"""
+        2 - add link icon on button, 5 - disabled
+        """
         (x, y) = pos
         btn_w = self.btn_w_h
         if alt_width is not None:
@@ -380,7 +381,7 @@ class Graphics():
 
 
     def buttons_list(self, screen, buttons_txt, pos, list_limit, scroll, selected, safe=False):
-        """Draws buttons in scrollable list with mouseover and self.click effect."""
+        """Draw buttons in scrollable list with mouseover and self.click effect"""
         (x, y) = pos
         disable_buttons = False
         if safe is False:
@@ -426,8 +427,10 @@ class Graphics():
 
 
     def buttons_list_2col(self, screen, left_txt, right_txt, pos, list_limit, scroll, selected, safe=False):
-        """Draws buttons in scrollable list with mouseover and self.click effect.
-        Text is printed on 2 columns snapped to left and right button side."""
+        """
+        Draws buttons in scrollable list with mouseover and self.click effect.
+        Text is printed on 2 columns snapped to left and right button side.
+        """
         (x, y) = pos
         disable_buttons = False
         if safe is False:
@@ -474,8 +477,10 @@ class Graphics():
 
 
     def ask(self, screen, ask_txt, target, yes_txt, pos, red=False):
-        """Draws window with question regarding some target, with cancel and second button with custom text and color.
-        Is not affected by disabling button effects."""
+        """
+        Draw window with question regarding some target, with cancel and second button with custom text and color.
+        Is not affected by disabling button effects.
+        """
         (x, y) = pos
 
         # background
@@ -557,9 +562,11 @@ class Graphics():
 
 
     def buttons_small_v(self, screen, imgs, pos, prop=None, selected=None):
-        """Draws small square buttons with icons VERTICALLY.
+        """
+        Draw small square buttons with icons vertically.
         Properties are passed as list with value for each button.
-        Values can be: None - no effect, 0 - disabled button, 1 - green color (ON)"""
+        Values can be: None - no effect, 0 - disabled button, 1 - green color (ON).
+        """
         (x, y) = pos
         for num, img in enumerate(imgs):
             if prop is not None and prop[num] == 1:
@@ -590,7 +597,7 @@ class Graphics():
 
 
     def buttons_small_h(self, screen, imgs, pos):
-        """Draws small square buttons with icons HORIZONTALLY."""
+        """Draws small square buttons with icons horizontally"""
         (x, y) = pos
         for num, img in enumerate(imgs):
             color = rgb.black
@@ -607,11 +614,17 @@ class Graphics():
 
 
     def text_list(self, screen, texts, pos, size, space, imgs=None, prop=None, selected=0):
-        """Draws texts in list. Optionally with icons in front of text.
+        """
+        Draw texts in list. Optionally with icons in front of text.
         Properties are passed as list with value for each button.
-        Values can be: 0 - Just print text, 1 - Editable text, 2 - 3 input values (for RGB),
-        3 - Red button with larger space, 4 - green button with larger space,
-        5 - icon buttons (icons passed in imgs variable, and selected button in selected variable),"""
+        Values can be:
+        0 - Just print text
+        1 - Editable text
+        2 - 3 input values (for RGB)
+        3 - Red button with larger space
+        4 - green button with larger space
+        5 - icon buttons (icons passed in imgs variable, and selected button in selected variable)
+        """
 
         (x, y) = pos
         (w, h) = size
@@ -675,7 +688,7 @@ class Graphics():
 
 
     def text_list_select(self, screen, texts, pos, size, space, selected, imgs=None):
-        """Draws texts in selectable list. Optionally with icons in front of text."""
+        """Draw texts in selectable list. Optionally with icons in front of text"""
         (x, y) = pos
         (w, h) = size
         for num, text in enumerate(texts):

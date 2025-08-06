@@ -77,5 +77,4 @@ sprite = vessel.svg   # path to vessel sprite in "parts" dir
 
 
 # NOTE:
-# if orbit is hyperbolic, i.e. ecc > 1
-# semi major axis (sma) will and must be negative
+If orbit is hyperbolic, i.e. ecc > 1, semi major axis (sma) will and must be negative

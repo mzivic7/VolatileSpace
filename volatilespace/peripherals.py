@@ -189,7 +189,7 @@ def gen_game_list():
 
 
 def gen_map_list():
-    """Generate list of maps in "Maps" dir. Name and edit date are read from file"""
+    """Generate list of maps in "Maps" dir, name and edit date are read from file"""
     if not os.path.exists("Maps"):
         os.mkdir("Maps")
     files_list = os.listdir("Maps")
@@ -465,8 +465,7 @@ def save_file(path, game_data, conf, body_data, body_orb_data, vessel_data={}, v
         v_sprite = vessel_data["sprite"]
 
         for vessel, v_name in enumerate(v_names):
-
-            # handle if this vessel already exists
+            # if this vessel already exists
             num = 1
             spec_v_name = v_name
             while spec_v_name in system.sections():
@@ -492,7 +491,7 @@ def save_file(path, game_data, conf, body_data, body_orb_data, vessel_data={}, v
 
 
 def new_map(name, date):
-    """Creates new map with initial body and saves to file."""
+    """Create new map with initial body and saves to file"""
     if not os.path.exists("Maps"):
         os.mkdir("Maps")
     if name == "":
@@ -539,7 +538,7 @@ def new_map(name, date):
 
 
 def rename_map(path, name):
-    """Renames map without renaming file"""
+    """Rename map without renaming file"""
     system = ConfigParser()
     system.read(path)
     if name == "":
@@ -559,7 +558,7 @@ def rename_map(path, name):
 
 
 def new_game(name, date):
-    """Creates new game with initial body and saves to file."""
+    """Create new game with initial body and saves to file"""
     if not os.path.exists("Saves"):
         os.mkdir("Saves")
     if name == "":   # there must be name
@@ -614,7 +613,7 @@ def rename_game(path, name):
 
 
 def save_settings(header, key, value):
-    """Saves value of specified setting to settings file"""
+    """Save value of specified setting to settings file"""
     try:
         settings.set(header, key, str(value))
     except Exception:
@@ -625,10 +624,12 @@ def save_settings(header, key, value):
 
 
 def load_settings(header, key):
-    """Load one or multiple settings from same header in settings file.
-    Key must be str, tuple or list. If loading failed, create that header/setting from defaults."""
+    """
+    Load one or multiple settings from same header in settings file.
+    Key must be str, tuple or list. If loading failed, create that header/setting from defaults.
+    """
     try:
-        if isinstance(key, str):   # if key is string (there is only one key)
+        if isinstance(key, str):
             setting = settings.get(header, key)
             if "[" in setting and "]" in setting:   # if returned value is list
                 setting = list(map(float, setting.strip("][").split(", ")))   # str to list of float
@@ -650,12 +651,12 @@ def load_settings(header, key):
 
 
 def delete_settings():
-    """Removes all text from settings.ini so settings can be reverted to default"""
+    """Remove all text from settings.ini so settings can be reverted to default"""
     open("settings.ini", "w").close()
 
 
 def default_keybindings():
-    """ Restores default keybindings to keybindings.ini"""
+    """Restore default keybindings to keybindings.ini"""
     keyb_dict = defaults.keybindings
     keybindings["keybindings"] = keyb_dict
     with open("keybindings.ini", "w") as f:
@@ -663,14 +664,14 @@ def default_keybindings():
 
 
 def save_keybindings(keyb_dict):
-    """Saves all keybindings to keybindings.ini"""
+    """Save all keybindings to keybindings.ini"""
     keybindings["keybindings"] = keyb_dict
     with open("keybindings.ini", "w") as f:
         keybindings.write(f)
 
 
 def load_keybindings():
-    """Loads all keybindings from keybindings.ini"""
+    """Load all keybindings from keybindings.ini"""
     try:
         keybindings.read("keybindings.ini")
         keyb_dict = dict(keybindings["keybindings"])

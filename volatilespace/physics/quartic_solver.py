@@ -20,6 +20,11 @@ except ImportError:
     numba_avail = False
 
 
+# constants
+sq3 = math.sqrt(3)
+pi23 = 2 * math.pi / 3
+
+
 def solve_cubic_one(a, b, c):
     """Calculates only one real root for depressed cubic equation.
     z^3 + az^2 + bz + c = 0
@@ -66,7 +71,8 @@ def solve_quartic(a, b, c, d, e):
     y = max(y, 0)
 
     s = y**2 + b2*y + b2**2/4 - b0
-    if s > 0:   # compatibility for no-numba mode
+    # protection from root of negative number
+    if s > 0:
         if b1 < 0:
             r = -math.sqrt(s)
         else:
