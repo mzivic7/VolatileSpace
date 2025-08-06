@@ -1,5 +1,4 @@
 import math
-from ast import literal_eval
 from itertools import repeat
 
 import numpy as np
@@ -111,9 +110,9 @@ def calc_orb_one(ref, body_mass, gc, a, ecc):
 
 
 # if numba is enabled, compile functions ahead of time
-use_numba = literal_eval(peripherals.load_settings("game", "numba"))
+use_numba = peripherals.load_settings("game", "numba")
 if numba_avail and use_numba:
-    enable_fastmath = literal_eval(peripherals.load_settings("game", "fastmath"))
+    enable_fastmath = peripherals.load_settings("game", "fastmath")
     jitkw = {"cache": True, "fastmath": enable_fastmath}   # numba JIT setings
     concat_wrap = njit((float64[:, :], float64[:], int32, int32, float64[:]), **jitkw)(concat_wrap)
 

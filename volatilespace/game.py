@@ -2,7 +2,6 @@ import math
 import os
 import sys
 import time
-from ast import literal_eval
 
 import numpy as np
 import pygame
@@ -244,7 +243,7 @@ class Game():
 
     def reload_settings(self):
         """Reload all settings for editor and graphics, should be run every time editor is entered"""
-        self.fullscreen = literal_eval(peripherals.load_settings("graphics", "fullscreen"))
+        self.fullscreen = peripherals.load_settings("graphics", "fullscreen")
         avail_res = pygame.display.list_modes()
         self.screen_x, self.screen_y = pygame.display.get_surface().get_size()
         self.screen_dim = np.array((self.screen_x, self.screen_y))
@@ -257,9 +256,9 @@ class Game():
                 pygame.display.set_mode((avail_res[0]), pygame.FULLSCREEN)
             else:
                 pygame.display.set_mode((avail_res[0]))
-        self.antial = literal_eval(peripherals.load_settings("graphics", "antialiasing"))
-        self.mouse_warp = literal_eval(peripherals.load_settings("graphics", "mouse_warp"))
-        self.bg_stars_enable = literal_eval(peripherals.load_settings("background", "stars"))
+        self.antial = peripherals.load_settings("graphics", "antialiasing")
+        self.mouse_warp = peripherals.load_settings("graphics", "mouse_warp")
+        self.bg_stars_enable = peripherals.load_settings("background", "stars")
         bg_stars.reload_settings()
         graphics.reload_settings()
         physics_body.reload_settings()

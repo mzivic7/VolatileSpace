@@ -1,5 +1,4 @@
 import math
-from ast import literal_eval as literal_eval
 
 import pygame
 
@@ -44,7 +43,7 @@ class Graphics():
 
     def reload_settings(self):
         """Reload all settings, should be run every time settings are applied"""
-        self.antial = literal_eval(peripherals.load_settings("graphics", "antialiasing"))
+        self.antial = peripherals.load_settings("graphics", "antialiasing")
         self.spacing_min = int(peripherals.load_settings("graphics", "grid_spacing_min"))
         self.spacing_max = int(peripherals.load_settings("graphics", "grid_spacing_max"))
 

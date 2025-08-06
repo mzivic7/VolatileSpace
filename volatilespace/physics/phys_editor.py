@@ -1,5 +1,4 @@
 import math
-from ast import literal_eval
 from itertools import repeat
 
 import numpy as np
@@ -99,9 +98,9 @@ def check_collision_one(body1, mass, pos, rad):
 
 
 # if numba is enabled, compile functions ahead of time
-use_numba = literal_eval(peripherals.load_settings("game", "numba"))
+use_numba = peripherals.load_settings("game", "numba")
 if numba_avail and use_numba:
-    enable_fastmath = literal_eval(peripherals.load_settings("game", "fastmath"))
+    enable_fastmath = peripherals.load_settings("game", "fastmath")
     jitkw = {"cache": True, "fastmath": enable_fastmath}   # numba JIT setings
     find_parent_one = njit(int32(int32, int64[:], float64[:, :], float64[:]), **jitkw)(find_parent_one)
     gravity_one = njit(float64[:](int32, int64, float64[:], float64[:], float64), **jitkw)(gravity_one)

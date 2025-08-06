@@ -1,5 +1,3 @@
-from ast import literal_eval
-
 import numpy as np
 import pygame
 
@@ -98,14 +96,14 @@ class BgStars():
     def reload_settings(self):
         """Reload all settings, should be run every time settings are changed"""
         self.num = int(peripherals.load_settings("background", "stars_num"))   # how many stars on extended screen
-        self.new_color = literal_eval(peripherals.load_settings("background", "stars_new_color"))
-        self.use_img = literal_eval(peripherals.load_settings("background", "use_img"))
+        self.new_color = peripherals.load_settings("background", "stars_new_color")
+        self.use_img = peripherals.load_settings("background", "use_img")
         # size of frame aded around screen to allow zooming and discreete cluster creation and remember stars that are off screen
         self.frame = int(peripherals.load_settings("background", "extra_frame"))
         self.custom_speed = float(peripherals.load_settings("background", "stars_speed_mult"))
         self.opacity = float(peripherals.load_settings("background", "stars_opacity"))
-        self.cluster_enable = literal_eval(peripherals.load_settings("background", "cluster_enable"))
-        self.cluster_new = literal_eval(peripherals.load_settings("background", "cluster_new"))
+        self.cluster_enable = peripherals.load_settings("background", "cluster_enable")
+        self.cluster_new = peripherals.load_settings("background", "cluster_new")
         self.cluster_num = int(peripherals.load_settings("background", "cluster_num"))
         self.cluster_stars = peripherals.load_settings("background", "cluster_star")   # min and max number of stars in cluster
         self.size_mult = peripherals.load_settings("background", "cluster_size_mult")   # cluster size min and max multiplier

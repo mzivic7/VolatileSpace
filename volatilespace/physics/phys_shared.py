@@ -1,5 +1,4 @@
 import math
-from ast import literal_eval
 
 import numpy as np
 
@@ -235,9 +234,9 @@ def culling(coords, radius, screen_bounds, zoom):
 
 
 # if numba is enabled, compile functions ahead of time
-use_numba = literal_eval(peripherals.load_settings("game", "numba"))
+use_numba = peripherals.load_settings("game", "numba")
 if numba_avail and use_numba:
-    enable_fastmath = literal_eval(peripherals.load_settings("game", "fastmath"))
+    enable_fastmath = peripherals.load_settings("game", "fastmath")
     jitkw = {"cache": True, "fastmath": enable_fastmath}   # numba JIT setings
     dot_2d = njit(float64(float64[:], float64[:]), **jitkw)(dot_2d)
     mag = njit(float64(float64[:]), **jitkw)(mag)

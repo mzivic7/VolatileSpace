@@ -2,6 +2,7 @@ import os
 import shutil
 import subprocess
 import sys
+from ast import literal_eval
 from configparser import ConfigParser
 
 import numpy as np
@@ -630,22 +631,21 @@ def load_settings(header, key):
     """
     try:
         if isinstance(key, str):
-            setting = settings.get(header, key)
-            if "[" in setting and "]" in setting:   # if returned value is list
-                setting = list(map(float, setting.strip("][").split(", ")))   # str to list of float
-                if all(x.is_integer() for x in setting):   # if all values are whole number
-                    setting = list(map(int, setting))   # float to int
+            setting_raw = settings.get(header, key)
+            try:
+                setting = literal_eval(setting_raw.replace("\\", "\\\\"))
+            except ValueError:
+                setting = setting_raw
         else:   # if it is not string, it should be tuple or list
             setting = []
-            for one_key in key:   # for one key in keys
-                one_setting = settings.get(header, one_key)
-                if "[" in one_setting and "]" in one_setting:   # if returned value is list
-                    one_setting = list(map(float, one_setting.strip("][").split(", ")))
-                    if all(x.is_integer() for x in one_setting):
-                        one_setting = list(map(int, one_setting))
-                setting.append(one_setting)
+            for one_key in key:
+                setting_raw = settings.get(header, key)
+                try:
+                    setting.append(literal_eval(setting_raw.replace("\\", "\\\\")))
+                except ValueError:
+                    setting.append(setting_raw)
     except Exception:
-        setting = defaults.settings.get(key)   # load default setting and save it
+        setting = defaults.settings.get(key)
         save_settings(header, key, setting)
     return setting
 

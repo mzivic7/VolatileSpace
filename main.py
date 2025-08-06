@@ -1,5 +1,3 @@
-from ast import literal_eval
-
 import pygame
 from numba import njit  # noqa
 
@@ -36,21 +34,19 @@ def import_editor():
 
 def main():
     """Main function"""
-    # pygame.mixer.pre_init(buffer=2048)
-    # pygame.init()   # not using to not start mixer at all
     pygame.display.init()
     pygame.font.init()
     pygame.display.set_caption("Volatile Space")
     pygame.display.set_icon(pygame.image.load("images/icon.png"))
-    if literal_eval(peripherals.load_settings("graphics", "first_run")) is True:
+    if peripherals.load_settings("graphics", "first_run") is True:
         avail_res = pygame.display.get_desktop_sizes()
         (screen_x, screen_y) = avail_res[0]   # use highest resolution
         peripherals.save_settings("graphics", "resolution", [screen_x, screen_y])
         peripherals.save_settings("graphics", "first_run", False)
     else:
         (screen_x, screen_y) = peripherals.load_settings("graphics", "resolution")
-    fullscreen = literal_eval(peripherals.load_settings("graphics", "fullscreen"))
-    vsync = literal_eval(peripherals.load_settings("graphics", "vsync"))
+    fullscreen = peripherals.load_settings("graphics", "fullscreen")
+    vsync = peripherals.load_settings("graphics", "vsync")
     if fullscreen is True:
         screen = pygame.display.set_mode((screen_x, screen_y), pygame.FULLSCREEN, vsync=vsync)
     else:

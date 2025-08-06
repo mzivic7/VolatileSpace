@@ -28,7 +28,7 @@ After build step 4:
 3. Clone this repository, unzip it
 4. Open terminal, cd to unzipped folder
 5. Setup virtual environment: `uv sync --all-groups`
-6. Run build script: `uv run  build.py`
+6. Run build script: `uv run build.py`
 > [!NOTE]  
 > If built executable does not launch, try building with UPX disabled, see [UPX](#upx).
 

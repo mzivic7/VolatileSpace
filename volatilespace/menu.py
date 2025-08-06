@@ -4,7 +4,6 @@ import shutil
 import sys
 import time
 import webbrowser
-from ast import literal_eval
 
 import numpy as np
 import pygame
@@ -144,7 +143,7 @@ class Menu():
 
     def reload_settings(self):
         """Reload all settings in main menu, should be run every time settings are applied"""
-        self.fullscreen = literal_eval(peripherals.load_settings("graphics", "fullscreen"))
+        self.fullscreen = peripherals.load_settings("graphics", "fullscreen")
         self.avail_res = pygame.display.list_modes()
         self.screen_x, self.screen_y = pygame.display.get_surface().get_size()
         try:
@@ -156,19 +155,19 @@ class Menu():
                 pygame.display.set_mode((self.avail_res[0]), pygame.FULLSCREEN)
             else:
                 pygame.display.set_mode((self.avail_res[0]))
-        self.antial = literal_eval(peripherals.load_settings("graphics", "antialiasing"))
+        self.antial = peripherals.load_settings("graphics", "antialiasing")
         graphics.set_screen()
 
         # for settings menu only
-        self.vsync = literal_eval(peripherals.load_settings("graphics", "vsync"))
-        self.mouse_warp = literal_eval(peripherals.load_settings("graphics", "mouse_warp"))
-        self.bg_stars_enable = literal_eval(peripherals.load_settings("background", "stars"))
+        self.vsync = peripherals.load_settings("graphics", "vsync")
+        self.mouse_warp = peripherals.load_settings("graphics", "mouse_warp")
+        self.bg_stars_enable = peripherals.load_settings("background", "stars")
         self.curve_points = int(peripherals.load_settings("graphics", "curve_points"))
-        self.new_color = literal_eval(peripherals.load_settings("background", "stars_new_color"))
-        self.cluster_enable = literal_eval(peripherals.load_settings("background", "cluster_enable"))
-        self.cluster_new = literal_eval(peripherals.load_settings("background", "cluster_new"))
-        self.numba = literal_eval(peripherals.load_settings("game", "numba"))
-        self.fastmath = literal_eval(peripherals.load_settings("game", "fastmath"))
+        self.new_color = peripherals.load_settings("background", "stars_new_color")
+        self.cluster_enable = peripherals.load_settings("background", "cluster_enable")
+        self.cluster_new = peripherals.load_settings("background", "cluster_new")
+        self.numba = peripherals.load_settings("game", "numba")
+        self.fastmath = peripherals.load_settings("game", "fastmath")
         self.autosave_time = int(peripherals.load_settings("game", "autosave_time"))
 
 

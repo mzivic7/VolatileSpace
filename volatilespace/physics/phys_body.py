@@ -1,6 +1,5 @@
 import importlib.util
 import math
-from ast import literal_eval
 from itertools import repeat
 
 import numpy as np
@@ -111,9 +110,9 @@ def temp_color(temp, base_color):
 
 
 # if numba is enabled, compile functions ahead of time
-use_numba = literal_eval(peripherals.load_settings("game", "numba"))
+use_numba = peripherals.load_settings("game", "numba")
 if numba_avail and use_numba:
-    enable_fastmath = literal_eval(peripherals.load_settings("game", "fastmath"))
+    enable_fastmath = peripherals.load_settings("game", "fastmath")
     jitkw = {"cache": True, "fastmath": enable_fastmath}   # numba JIT setings
 
 
