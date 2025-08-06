@@ -7,7 +7,7 @@ down_prefix = ["m", "µ", "n", "p", "f", "a", "z", "y"]
 def format_si(value, decimal=3):
     """Convert number to string with SI prefix"""
 
-    if value == 0:   # log does not work with 0
+    if value == 0:
         return str(value)
     if value is None:
         return str(0)

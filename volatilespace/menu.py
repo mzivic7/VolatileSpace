@@ -69,8 +69,8 @@ class Menu():
         self.mouse = [0, 0]
         self.scroll = 0
         self.scroll_maps = 0
-        self.scroll_sens = 10   # scroll sensitivity
-        self.selected_item = 0   # when selecting from list
+        self.scroll_sensitivity = 10
+        self.selected_item = 0
         self.selected_path = ""
         self.selected_ng_item = 0   # selecting in new game menu
         self.selected_ng_path = ""
@@ -78,10 +78,10 @@ class Menu():
         self.disable_buttons = False
         self.scrollbar_drag = False
         self.scrollbar_drag_start = 0
-        self.keybinding = False   # is keybinding menu active
-        self.rename = False   # renaming menu
-        self.new_map = False   # new map menu
-        self.new_game = False   # new game menu
+        self.keybinding = False
+        self.rename = False
+        self.new_map = False
+        self.new_game = False
         self.text = ""
 
         self.reload_settings()
@@ -102,7 +102,7 @@ class Menu():
 
         self.screen_change = False
         self.res_change = False
-        self.restart = False   # if restart is needed for settings
+        self.restart = False
         self.no_filedialog = False
         graphics.antial = self.antial
         graphics.set_screen()
@@ -149,7 +149,7 @@ class Menu():
         self.screen_x, self.screen_y = pygame.display.get_surface().get_size()
         try:
             self.selected_res = self.avail_res.index((self.screen_x, self.screen_y))
-        except Exception:   # fail-safe repair if resolution is invalid
+        except Exception:   # fail-safe if resolution is invalid
             self.selected_res = 0   # use maximum resolution
             peripherals.save_settings("graphics", "resolution", list(self.avail_res[0]))
             if self.fullscreen is True:
@@ -159,7 +159,7 @@ class Menu():
         self.antial = literal_eval(peripherals.load_settings("graphics", "antialiasing"))
         graphics.set_screen()
 
-        # for settings menu only:
+        # for settings menu only
         self.vsync = literal_eval(peripherals.load_settings("graphics", "vsync"))
         self.mouse_warp = literal_eval(peripherals.load_settings("graphics", "mouse_warp"))
         self.bg_stars_enable = literal_eval(peripherals.load_settings("background", "stars"))
@@ -203,7 +203,7 @@ class Menu():
             if new_text != text:
                 self.games[num, 1] = new_text
 
-    ###### --Keys-- ######
+
     def input_keys(self, e, from_game=False):
         """Keyboard input"""
         if self.rename or self.new_map or self.new_game:
@@ -300,8 +300,6 @@ class Menu():
                             self.selected_path = "Saves/" + self.maps[self.selected_item, 0]
 
 
-
-    ###### --Mouse-- ######
     def input_mouse(self, e, from_game=False):
         """Mouse input"""
         self.mouse = list(pygame.mouse.get_pos())
@@ -342,8 +340,6 @@ class Menu():
                     self.scrollbar_drag = True
                     self.scrollbar_drag_start = self.mouse[1]
 
-
-
         # left mouse button is released
         if e.type == pygame.MOUSEBUTTONUP and e.button == 1:
 
@@ -362,7 +358,6 @@ class Menu():
                             self.scroll = 0
                         y_pos += self.btn_h + self.space
 
-
             if self.click is True:
                 if self.menu == 1:   # play
                     if self.disable_buttons is False:
@@ -380,7 +375,6 @@ class Menu():
                                             self.menu = 0   # return to main menu instead load menu
                                         self.first_click = num
                                 y_pos += self.btn_h + self.space
-
 
                         # selected menu
                         y_pos = self.map_y_2
@@ -533,10 +527,8 @@ class Menu():
                                 self.disable_buttons = False
                             x_pos += self.btn_w_h + self.space
 
-
             if self.menu == 2:   # multiplayer
                 pass   # WIP #
-
 
             if self.click is True:
                 if self.menu == 3:   # map editor
@@ -555,7 +547,6 @@ class Menu():
                                             self.menu = 0
                                         self.first_click = num
                                 y_pos += self.btn_h + self.space
-
 
                         # selected menu
                         y_pos = self.map_y_2
@@ -647,7 +638,6 @@ class Menu():
                                 self.are_you_sure = False
                                 self.disable_buttons = False
                             x_pos += self.btn_w_h + self.space
-
 
             if self.click is True:
                 if self.menu == 4:   # settings
@@ -790,7 +780,6 @@ class Menu():
                                 self.restart = True
                         x_pos += self.btn_w_h + self.space
 
-
             if self.click is True:
                 if self.menu == 5:   # about
                     y_pos = self.about_y
@@ -812,7 +801,6 @@ class Menu():
                 self.state = 0
 
             self.click = False
-
 
         # moving scrollbar with cursor
         if self.scrollbar_drag is True:
@@ -842,7 +830,6 @@ class Menu():
                 elif self.scroll_maps > max(0, self.maps_list_size - self.maps_list_limit):
                     self.scroll_maps = max(0, self.maps_list_size - self.maps_list_limit)
 
-
         if e.type == pygame.MOUSEWHEEL:
             if self.menu in [1, 3]:
                 if self.menu == 1:
@@ -851,7 +838,7 @@ class Menu():
                     list_size = self.map_list_size
                 if self.scrollbar_drag is False:
                     if self.map_x_1-self.space <= self.mouse[0]-1 <= self.map_x_1+self.btn_w_l+self.space+16 and self.top_margin-self.space <= self.mouse[1]-1 <= self.top_margin+self.list_limit:
-                        self.scroll -= e.y * self.scroll_sens
+                        self.scroll -= e.y * self.scroll_sensitivity
                         if self.scroll < 0:
                             self.scroll = 0
                         elif self.scroll > max(0, list_size - self.list_limit):
@@ -860,10 +847,8 @@ class Menu():
         graphics.update_mouse(self.mouse, self.click, self.disable_buttons)
 
 
-
-    ###### --Graphics-- ######
     def graphics_ui(self, screen, clock):
-        """Drawing GUI menus"""
+        """Draw GUI menus"""
         screen.fill((0, 0, 0))   # color screen black
 
         # main menu
@@ -957,19 +942,16 @@ class Menu():
                     (self.screen_x/2, self.bot_y_ui-21),
                 )
 
-            # double click counter
-            # not graphics related, but must be outside of input functions
+            # double click counter (not graphics related, but must be outside of input functions)
             if self.first_click is not None:
                 self.click_timer += clock.get_fps() / 60
                 if self.click_timer >= 0.5 * 60:
                     self.first_click = None
                     self.click_timer = 0
 
-
         # multiplayer
         elif self.menu == 2:
             pass   # WIP #
-
 
         # map editor
         elif self.menu == 3:
@@ -1031,14 +1013,12 @@ class Menu():
                     (self.screen_x/2, self.bot_y_ui-21),
                 )
 
-            # double click counter
-            # not graphics related, but must be outside of input functions
+            # double click counter (not graphics related, but must be outside of input functions)
             if self.first_click is not None:
                 self.click_timer += clock.get_fps() / 60
                 if self.click_timer >= 0.5 * 60:
                     self.first_click = None
                     self.click_timer = 0
-
 
         # settings
         elif self.menu == 4:
@@ -1091,11 +1071,9 @@ class Menu():
                     (self.screen_x/2, self.bot_y_ui-12), True,
                 )
 
-            # keybinding:
             if self.keybinding is True:
                 keybinding.main(screen, clock)
                 self.keybinding = False
-
 
         # about
         elif self.menu == 5:
@@ -1116,10 +1094,7 @@ class Menu():
                 (self.screen_x/2, self.about_y + self.btn_h*(len(buttons_about)+2)), True,
             )
 
-
-        # version number
         graphics.text(screen, rgb.gray1, self.fontmd, "v" + version, (self.screen_x - 50, self.screen_y - 20))
-
 
 
     def main(self, screen, clock, from_game=False):

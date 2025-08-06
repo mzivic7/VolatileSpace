@@ -26,7 +26,7 @@ numba_avail = bool(importlib.util.find_spec("numba"))
 
 
 def calc_orb_one(body, ref, mass, gc, coi_coef, a, ecc):
-    """Additional body orbital parameters."""
+    """Calculate additional body orbital parameters"""
     if body:   # skip root
         u = gc * mass[ref]   # standard gravitational parameter
         f = a * ecc
@@ -62,7 +62,7 @@ def calc_orb_one(body, ref, mass, gc, coi_coef, a, ecc):
 
 
 def temp_color(temp, base_color):
-    """Set color depending on temperature."""
+    """Calculate color depending on temperature"""
     # mixed color
     fg_opacity = np.where(
         np.logical_and(temp > 1000, temp <= 2300),
@@ -169,7 +169,7 @@ class Physics():
 
 
     def load_conf(self, conf):
-        """Loads physics related config."""
+        """Loads physics related config"""
         self.gc = conf["gc"]
         self.rad_mult = conf["rad_mult"]
         self.mass_thermal_mult = conf["mass_thermal_mult"]
@@ -177,7 +177,7 @@ class Physics():
         self.min_mass = conf["min_planet_mass"]
 
     def load(self, conf, body_data, body_orb_data):
-        """Load new system."""
+        """Load new system"""
         self.load_conf(conf)
         self.names = body_data["name"]
         self.mass = body_data["mass"]
@@ -200,10 +200,12 @@ class Physics():
 
 
     def culling(self, sim_screen, zoom):
-        """Returns separate lists of:
-        - Bodies whose COI is visible on screen,
-        - Bodies that are visible on screen (atmosphere incl),
-        - Bodies whose orbits are inside COI that is visible on screen and COI is larger than N pixels"""
+        """
+        Return separate lists of:
+        - Bodies whose COI is visible on screen
+        - Bodies that are visible on screen (atmosphere incl)
+        - Bodies whose orbits are inside COI that is visible on screen and COI is larger than N pixels
+        """
         atm_radius = (self.radius + self.atm_h) * zoom
         visible_bodies_truth = culling(self.pos, atm_radius, sim_screen, zoom)
         visible_bodies = np.arange(len(self.mass))[visible_bodies_truth]
@@ -218,9 +220,12 @@ class Physics():
 
 
     def initial(self, warp):
-        """Do all body related physics. This should be done only if something changed on body or it's orbit."""
+        """
+        Do all body related physics.
+        This should be done only if something changed on body or it's orbit.
+        """
 
-        # BODY DATA #
+        # body data
         volume = self.mass / self.den
         self.radius = self.rad_mult * np.cbrt(3 * volume / (4 * np.pi))
         thermal_mass = self.mass * self.mass_thermal_mult
@@ -238,7 +243,7 @@ class Physics():
             if all(x != 0 for x in [self.atm_pres0[body], self.atm_scale_h[body], self.atm_den0[body]]):
                 self.atm_h[body] = - self.atm_scale_h[body] * math.log(0.001 / self.atm_den0[body]) * self.rad_mult
 
-        # CLASSIFICATION #
+        # classification
         self.types = np.zeros(len(self.mass))  # it is a dwarf planet
         self.types = np.where(self.mass > self.min_mass, 1, self.types)    # if it has high enough mass: it is a solid planet
         self.types = np.where(self.den < 1500, 2, self.types)    # if it is not dense enough: it is a gas planet
@@ -280,7 +285,7 @@ class Physics():
             "atm_h": self.atm_h,
         }
 
-        # ORBIT DATA #
+        # orbit data
         values = list(map(calc_orb_one, list(range(len(self.mass))), self.ref, repeat(self.mass), repeat(self.gc), repeat(self.coi_coef), self.a, self.ecc))
         self.b, self.f, self.coi, self.pe_d, self.ap_d, self.period, self.n, self.u = list(map(np.array, zip(*values)))
         body_orb = {
@@ -296,25 +301,28 @@ class Physics():
             "n": self.n,
             "dir": self.dr,
             "per": self.period,
+            "u": self.u,
         }
 
-        # MOVE #
+        # move
         self.move(warp)
         for body, _ in enumerate(self.names):
             self.curve(body)
         self.curve_move()
 
-        return body_data, body_orb, self.pos, self.ma, self.curves_mov
+        return body_data, body_orb, self.pos, self.ma, self.ea, self.curves_mov
 
 
     def curve(self, body):
-        """Calculate RELATIVE conic curve line points coordinates for one body.
-        This should be done only if something changed on body or it's orbit, and after points()."""
+        """
+        Calculate RELATIVE conic curve line points coordinates for one body.
+        This should be done only if something changed on body or it's orbit, and after points().
+        """
         self.curves[body] = curve_points(self.ecc[body], self.a[body], self.b[body], self.pea[body], self.t)
 
 
     def move(self, warp):
-        """Move body with mean motion."""
+        """Move body with mean motion"""
         self.ma += self.dr * self.n * warp
         self.ma = np.where(self.ma > 2*np.pi, self.ma - 2*np.pi, self.ma)
         self.ma = np.where(self.ma < 0, self.ma + 2*np.pi, self.ma)
@@ -336,12 +344,14 @@ class Physics():
                            pr_x * math.sin(pea - np.pi) + pr_y * math.cos(pea - np.pi)])
             self.pos[body] = self.pos[self.ref[body]] + pr
             self.ea[body] = ea
-
-        return self.pos, self.ma
+        return self.pos, self.ma, self.ea
 
 
     def selected(self, body):
-        """Do physics for selected body. This should be done every tick after body_move()."""
+        """
+        Do physics for selected body.
+        This should be done every tick after body_move().
+        """
         if body:
             pos_ref = self.pos[self.ref[body]]
             periapsis_arg = self.pea[body]
@@ -350,11 +360,11 @@ class Physics():
             ecc = self.ecc[body]
             ea = self.ea[body]
             ma = self.ma[body]
-            period = self.period[body]
             u = self.u[body]
             ap_d = self.ap_d[body]
             pe_d = self.pe_d[body]
             dr = self.dr[body]
+            n = self.n[body]
 
             rel_pos = self.pos[body] - pos_ref
             distance = mag(rel_pos)   # distance to parent
@@ -373,22 +383,17 @@ class Physics():
                 if ecc < 1:   # ellipse
                     if np.pi < ta < 2*np.pi:
                         ea = 2*np.pi - ea   # quadrant problems
-                    pe_t = orbit_time_to(ma, 0, period, dr)
+                    pe_t = orbit_time_to(ma, 0, ecc, dr, n)
                     ap = np.array([ap_d * math.cos(periapsis_arg), ap_d * math.sin(periapsis_arg)]) + pos_ref
-                    ap_t = orbit_time_to(ma, np.pi, period, dr)
+                    ap_t = orbit_time_to(ma, np.pi, ecc, dr, n)
                 else:
-                    if ecc > 1:   # hyperbola
-                        pe_t = math.sqrt((-a)**3 / u) * ma
-                    else:   # parabola
-                        pe_t = math.sqrt(2*(a/2)**3) * ma
-                    period = 0   # period is undefined
+                    pe_t = orbit_time_to(ma, 0, ecc, dr, n)
                     # there is no apoapsis
                     ap = np.array([0, 0])
                     ap_t = 0
             else:   # circle
                 ma = ta
-                period = (2 * np.pi * math.sqrt(a**3 / u)) / 10
-                pe_t = orbit_time_to(ma, 0, period, dr)
+                pe_t = orbit_time_to(ma, 0, ecc, dr, n)
                 # there is no apoapsis
                 ap = np.array([0, 0])
                 ap_t = 0
@@ -399,7 +404,9 @@ class Physics():
 
 
     def curve_move(self):
-        """Move all orbit curves to parent position.
-        This should be done every tick after move()."""
+        """
+        Move all orbit curves to parent position.
+        This should be done every tick after move().
+        """
         self.curves_mov = curve_move_to(self.curves, self.pos, self.ref, self.f, self.pea)
         return self.curves_mov

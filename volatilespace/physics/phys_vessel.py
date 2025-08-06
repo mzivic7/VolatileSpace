@@ -14,8 +14,8 @@ except ImportError:
 from volatilespace import defaults, peripherals
 from volatilespace.physics.convert import kepler_to_velocity, velocity_to_kepler
 from volatilespace.physics.enhanced_kepler_solver import solve_kepler_ell
-from volatilespace.physics.orbit_intersect_debug import (
-    ell_hyp_intersect,
+from volatilespace.physics.orbit_intersect import (
+    ell_hyp_intersect_circle,
     next_point,
     predict_enter_coi,
     sort_intersect_indices,
@@ -33,32 +33,54 @@ from volatilespace.physics.phys_shared import (
 
 
 def concat_wrap(array, point_start, range_start, range_end, point_end):
-    """Concatenates [point_start, range_start, range_end, point_end] such that if range_start > range_end,
-    range goes from range_end to array_end + array_start to range_start, and point_1 and point_2 swaps places."""
-    # not using np.concatenate because it cannot be easily NJIT-ed with numba, and this is faster
-    out = np.empty((array.shape[0], 2))
+    """
+    Concatenate [point_start, range..., point_end] with wraparound, into a fixed-size output.
+    If wrapped range overflows output size, it is truncated to fit.
+    """
+    max_rows = array.shape[0]
+    out = np.empty((max_rows, 2))
     out[:] = np.nan
+
     if range_start <= range_end:
+        # normal case
+        n_range = range_end - range_start
+        n_available = max_rows - 2  # room for point_start and point_end
+        n_copy = min(n_range, n_available)
         out[0, :] = point_start
-        out[1:1+range_end-range_start, :] = array[range_start:range_end, :]
-        out[1+range_end-range_start, :] = point_end
+        out[1:1+n_copy, :] = array[range_start:range_start+n_copy, :]
+        out[1+n_copy, :] = point_end
     else:
-        out[0, :] = point_end
+        # wrap around
         range_first = array[range_start:, :]
         range_second = array[:range_end, :]
-        out[1:1+range_first.shape[0], :] = range_first
-        out[1+range_first.shape[0]:1+range_first.shape[0]+range_second.shape[0], :] = range_second
-        out[range_first.shape[0]+range_second.shape[0], :] = point_start
-    # if there are nans in input array they need to be cleaned from output:
+        total_range = range_first.shape[0] + range_second.shape[0]
+        n_available = max_rows - 2  # room for point_end and point_start
+        n_copy = min(total_range, n_available)
+        out[0, :] = point_end
+
+        # copy as much as fits from range_first
+        n_first = min(n_copy, range_first.shape[0])
+        out[1:1+n_first, :] = range_first[:n_first, :]
+
+        # copy remaining from range_second
+        n_second = n_copy - n_first
+        out[1+n_first:1+n_first+n_second, :] = range_second[:n_second, :]
+
+        # final point
+        out[1+n_copy, :] = point_start
+
+    # clear any NaNs left
     if np.any(np.isnan(array)):
         out_clean = out[~np.isnan(out[:, 0]), :]
         out[:] = np.nan
-        out[: out_clean.shape[0], :] = out_clean
+        out[:out_clean.shape[0], :] = out_clean
+
     return out
 
 
+
 def calc_orb_one(ref, body_mass, gc, a, ecc):
-    """Additional vessel orbital parameters."""
+    """Additional vessel orbital parameters"""
     u = gc * body_mass[ref]   # standard gravitational parameter
     f = a * ecc
     b = math.sqrt(abs(f**2 - a**2))
@@ -137,17 +159,18 @@ class Physics():
 
 
     def reload_settings(self):
-        """Reload all settings, should be run every time game is entered, or settings have changed."""
+        """Reload all settings, should be run every time game is entered, or settings have changed"""
         self.screen_x, self.screen_y = pygame.display.get_surface().get_size()
         self.curve_points = int(peripherals.load_settings("graphics", "curve_points"))   # number of points from which curve is drawn
         self.curves = np.zeros((len(self.names), self.curve_points, 2))
+        self.predict_coi_limit = int(peripherals.load_settings("game", "predict_coi_limit"))
         self.t = np.linspace(-np.pi, np.pi, self.curve_points)   # parameter
         for vessel, _ in enumerate(self.names):
             self.curve(vessel)
 
 
     def load_conf(self, conf):
-        """Loads physics related config."""
+        """Load physics related config"""
         self.gc = conf["gc"]
         self.rad_mult = conf["rad_mult"]
         self.coi_coef = conf["coi_coef"]
@@ -155,7 +178,7 @@ class Physics():
 
 
     def load(self, conf, body_data, body_orb, vessel_data, vessel_orb_data):
-        """Load vessels and bodies."""
+        """Load vessels and bodies"""
         self.body_mass = body_data["mass"]
         self.body_size = body_data["radius"]
         self.body_ref = body_orb["ref"]
@@ -165,9 +188,11 @@ class Physics():
         self.body_ecc = body_orb["ecc"]
         self.body_pea = body_orb["pea"]
         self.body_n = body_orb["n"]
+        self.body_period = body_orb["per"]
         self.body_dr = body_orb["dir"]
         self.body_coi = body_orb["coi"]
         self.body_atm = body_data["atm_h"]
+        self.body_u = body_orb["u"]
         self.load_conf(conf)
         self.physical_hold = np.array([], dtype=int)
         # vessel internal
@@ -215,9 +240,11 @@ class Physics():
 
 
     def culling(self, sim_screen, zoom, visible_coi):
-        """Returns separate lists of:
+        """
+        Return separate lists of:
         - Vessels that are visible on screen
-        - Vessels whose orbits are inside COI that is visible on screen and COI is larger than N pixels"""
+        - Vessels whose orbits are inside COI that is visible on screen and COI is larger than N pixels
+        """
         visible_vessels_truth = culling(self.pos, np.array([10]*len(self.names)) / zoom, sim_screen, zoom)
         self.visible_vessels = np.arange(len(self.names))[visible_vessels_truth]
         visible_coi_truth = np.array([False]*len(self.body_dr))
@@ -230,9 +257,9 @@ class Physics():
         return self.visible_vessels, self.visible_orbits
 
 
-    def initial(self, warp, body_pos, body_ma):
+    def initial(self, warp, body_pos, body_ma, body_ea):
         """Generate initial vessel data"""
-        # ORBIT DATA #
+        # orbit data
         if len(self.names):
             values = list(map(calc_orb_one, self.ref, repeat(self.body_mass), repeat(self.gc), self.a, self.ecc))
             self.b, self.f, self.pe_d, self.ap_d, self.period, self.n, self.u = list(map(np.array, zip(*values)))
@@ -247,27 +274,27 @@ class Physics():
             "per": self.period,
         }
 
-        # MOVE #
-        self.move(warp, body_pos, body_ma)
+        # move
+        self.move(warp, body_pos, body_ma, body_ea)
         for vessel, _ in enumerate(self.names):
             self.curve(vessel)
         self.curve_move()
         self.prev_ea = np.array(self.ea)
 
-        # POINTS #
+        # get points coordinates
         for vessel, _ in enumerate(self.names):
             self.points(vessel)
         return vessel_orb, self.pos, self.ma, self.curves_mov
 
 
     def change_vessel(self, vessel):
-        """Do all vessel related physics to one vessel. This should be done only if something changed on vessel or it's orbit."""
+        """Do all vessel related physics to one vessel. This should be done only if something changed on vessel or it's orbit"""
         # output is list because reading from dict is slow
 
-        # VESSEL DATA #
+        # vessel_data
         vessel_data = [self.names[vessel]]
 
-        # ORBIT DATA #
+        # orbit data
         a = self.a[vessel]
         ecc = self.ecc[vessel]
         self.u[vessel] = u = self.gc * self.body_mass[self.ref[vessel]]   # standard gravitational parameter
@@ -319,52 +346,59 @@ class Physics():
 
 
     def curve(self, vessel):
-        """Calculate RELATIVE conic curve line points coordinates for one vessel.
-        This should be done only if something changed on vessel or it's orbit, and after points()."""
+        """
+        Calculate RELATIVE conic curve line points coordinates for one vessel.
+        This should be done only if something changed on vessel or it's orbit, and after points().
+        """
         self.curves[vessel] = curve_points(self.ecc[vessel], self.a[vessel], self.b[vessel], self.pea[vessel], self.t)
 
 
     def points(self, vessel, only_enter_coi=False):
-        """Find characteristic points on RELATIVE UNROTATED ellipse for one body.
-        This should be done only if something changed on vessel or it's orbit, after move()."""
+        """
+        Find characteristic points on RELATIVE UNROTATED ellipse for one body.
+        This should be done only if something changed on vessel or it's orbit, after move().
+        """
         ecc = self.ecc[vessel]
         ell = ecc < 1
         ref = self.ref[vessel]
-        pea = self.pea[vessel]
         dr = self.dr[vessel]
         xc = self.f[vessel]   # body is in focus
         yc = 0
         ea = self.ea[vessel]
         b = self.b[vessel]
         a = self.a[vessel]
+        ma = self.ma[vessel]
+        f = self.f[vessel]
+        n = self.n[vessel]
+        pea = self.pea[vessel]
 
         if not only_enter_coi:   # disables irrelevant predictions for prefict_enter_coi_service
 
             if ell and self.pe_d[vessel] > self.body_size[ref]:
                 body_impact_all = np.array([np.nan])
             else:
-                body_impact_all = ell_hyp_intersect(a, b, ecc, xc, yc, self.body_size[ref])
+                body_impact_all = ell_hyp_intersect_circle(a, b, ecc, xc, yc, self.body_size[ref])
             self.body_impact[vessel] = next_point(ea, body_impact_all, dr)
 
             if ell and self.pe_d[vessel] > self.body_size[ref] + self.body_atm[ref]:
                 body_enter_atm_all = np.array([np.nan])
             else:
-                body_enter_atm_all = ell_hyp_intersect(a, b, ecc, xc, yc, self.body_size[ref] + self.body_atm[ref])
+                body_enter_atm_all = ell_hyp_intersect_circle(a, b, ecc, xc, yc, self.body_size[ref] + self.body_atm[ref])
             self.body_enter_atm[vessel] = next_point(ea, body_enter_atm_all, dr)
 
             if ell and self.ap_d[vessel] < self.body_coi[ref]:
                 coi_leave_all = np.array([np.nan])
                 self.coi_leave[vessel] = np.array([np.nan, np.nan])
             else:
-                coi_leave_all = ell_hyp_intersect(a, b, ecc, xc, yc, self.body_coi[ref])
-                # after enter-coi, use future position to avoid triggering leave-coi and selecting wrong poit
+                coi_leave_all = ell_hyp_intersect_circle(a, b, ecc, xc, yc, self.body_coi[ref])
+                # after enter-coi, use future position to avoid triggering leave-coi and selecting wrong point
                 if self.entered_coi == vessel:
                     # calculate vessel ma and ea for next iteration
                     if ell:
-                        next_ma = self.ma[vessel] + self.n[vessel] * dr
+                        next_ma = ma + n * dr
                         next_ea = solve_kepler_ell(ecc, next_ma, 1e-10)
                     else:
-                        next_ma = self.ma[vessel] + self.n[vessel] * dr * -1
+                        next_ma = ma + n * dr * -1
                         next_ea = newton_root_kepler_hyp(ecc, next_ma, ea)
                     self.coi_leave[vessel] = next_point(next_ea, coi_leave_all, dr)
                 else:
@@ -372,21 +406,19 @@ class Physics():
 
         # enter_coi
         enter_data_all = np.empty([0, 5])
-        center_x = self.f[vessel] * np.cos(pea)   # center of ellipse/hyperbola relative to reference
-        center_y = self.f[vessel] * np.sin(pea)
         check_bodies = np.where(self.body_ref == ref)[0]   # all bodies orbiting reference
+        check_bodies = check_bodies[np.logical_and(check_bodies != 0, check_bodies != self.left_coi_prev_ref)]
 
         # after leave-coi, use future position to avoid triggering enter-coi and selecting wrong poit
         if self.left_coi == vessel:
             # calculate VESSEL ma and ea for next iteration
             if ell:
-                next_ma = self.ma[vessel] + self.n[vessel] * dr
+                next_ma = ma + n * dr
                 next_ea = solve_kepler_ell(ecc, next_ma, 1e-10)
             else:
-                next_ma = self.ma[vessel] + self.n[vessel] * dr * -1
+                next_ma = ma + n * dr * -1
                 next_ea = newton_root_kepler_hyp(ecc, next_ma, ea)
             ea = next_ea
-
         for body in check_bodies:
             b_ma = self.body_ma[body]
             if self.left_coi == vessel:
@@ -396,20 +428,27 @@ class Physics():
                 else:
                     b_ma += + self.body_n[body] * self.body_dr[body] * -1
             # find vessel and body ma and time when vessel will enter body coi
-            vessel_data = (ecc, self.ma[vessel], ea, self.pea[vessel], 0.0,
-                           a, b, self.f[vessel], self.period[vessel],
-                           self.body_coi[self.ref[vessel]], self.dr[vessel])
-            body_data = (self.body_ecc[body], b_ma, 0.0, self.body_pea[body], self.body_n[body],
-                         self.body_a[body], self.body_b[body], self.body_f[body], 0.0,
-                         self.body_dr[body], self.body_coi[body])
-            vessel_orbit_center = (center_x, center_y)
-            enter_data_one = predict_enter_coi(vessel_data, body_data, vessel_orbit_center, np.nan)
-            if self.left_coi == vessel and self.left_coi_prev_ref == body:
-                # if vessel has just left COI of checked body, false positive can occur
-                # in that case time_to_new_ma will be very small or very close to period
-                if enter_data_one[4] < self.period[vessel] / 750 or \
-                   self.period[vessel] - enter_data_one[4] < self.period[vessel] / 750:
-                    enter_data_one = np.array([np.nan] * 5)
+            if ecc < 1:
+                period = self.period[vessel]
+            else:
+                if self.ref[vessel] == 0:
+                    # make ma_leave be at the radius of apoapsis + coi of currently checked body
+                    max_radius = self.body_a[body] + self.body_coi[body]
+                    max_point_all = ell_hyp_intersect_circle(a, b, ecc, xc, yc, max_radius)
+                    ea_leave = next_point(ea, max_point_all, dr)[0]
+                    if np.isnan(ea_leave):
+                        continue
+                else:
+                    ea_leave = self.coi_leave[vessel, 0]
+                ma_leave = (ecc * np.sinh(ea_leave) - ea_leave) * -1
+                period = orbit_time_to(ma, ma_leave, ecc, dr, n)
+            vessel_data = (a, b, f, ecc, ma, ea, pea, period, n, dr)
+            body_data = (
+                self.body_a[body], self.body_b[body], self.body_f[body],
+                self.body_ecc[body], b_ma, self.body_ea[body], self.body_pea[body],
+                self.body_n[body], self.body_dr[body], self.body_coi[body],
+            )
+            enter_data_one = predict_enter_coi(vessel_data, body_data, 1e-5, 300)
             enter_data_all = np.vstack((enter_data_all, enter_data_one))
         coi_enter_all = enter_data_all[:, 0]
         first_enter = sort_intersect_indices(ea, coi_enter_all, dr)[0]
@@ -419,10 +458,11 @@ class Physics():
             self.coi_enter[vessel] = np.array([np.nan]*6)
 
 
-    def move(self, warp, body_pos, body_ma):
-        """Move vessel with mean motion."""
+    def move(self, warp, body_pos, body_ma, body_ea):
+        """Move vessel with mean motion"""
         self.body_pos = body_pos
         self.body_ma = body_ma
+        self.body_ea = body_ea
         hyp = np.where(self.ecc > 1, -1, 1)
         self.ma += self.dr * self.n * warp * hyp
         self.ma = np.where(np.logical_and(self.ecc < 1, self.ma > 2*np.pi), self.ma - 2*np.pi, self.ma)
@@ -439,20 +479,24 @@ class Physics():
 
 
     def curve_move(self):
-        """Move all orbit curves to parent position.
-        This should be done every tick, after move()."""
+        """
+        Move all orbit curves to parent position.
+        This should be done every tick, after move().
+        """
         self.curves_mov = curve_move_to(self.curves, self.body_pos, self.ref, self.f, self.pea)
         return self.curves_mov
 
 
     def check_warp(self, warp):
-        """Returns vessel that will in next iteration meet conditions for switching warp, and what is that condition.
+        """
+        Return vessel that will in next iteration meet conditions for switching warp, and what is that condition.
         This should be done every tick after move(), and after points(), which must be run at least once.
         Conditions (situations):
         0 space -> impact
         1 space -> atmosphere
         2 atmosphere -> space
-        3 crossing coi"""
+        3 crossing coi
+        """
 
         situation = None
         alarm_vessel = None
@@ -501,7 +545,7 @@ class Physics():
 
 
     def cross_coi(self):
-        """Changes vessel orbit reference and orbital parametes when it is leaving or entering COI"""
+        """Change vessel orbit reference and orbital parametes when it is leaving or entering COI"""
         for vessel, _ in enumerate(self.names):
             ecc = self.ecc[vessel]
             ell = ecc < 1
@@ -551,6 +595,8 @@ class Physics():
                 if point_between(coi_enter_ea, ea_vessel_1, ea_vessel_2, dr):
                     ref = self.ref[vessel]
                     new_ref = int(coi_enter[0])
+                    if ref == new_ref:
+                        return None
                     new_u = self.gc * self.body_mass[new_ref]
                     ves_abs_pos = self.ea2coord(vessel, coi_enter_ea)
                     ref_abs_pos = self.body_pos[ref]
@@ -570,9 +616,11 @@ class Physics():
 
 
     def predict_enter_coi_service(self):
-        """Runs predict_enter_coi for each vessel periodically,
+        """
+        Run predict_enter_coi for each vessel periodically,
         because used algorithm predicts only up to one full orbit.
-        This service runs predict_enter_coi every half orbit, after vessel passes Pe and Ap."""
+        This service runs predict_enter_coi every half orbit, after vessel passes Pe and Ap.
+        """
         for vessel, _ in enumerate(self.names):
             if np.isnan(self.coi_enter[vessel, 0]):
                 ea_vessel_1 = self.prev_ea[vessel]
@@ -585,9 +633,11 @@ class Physics():
 
 
     def rotate(self, warp, vessel, direction):
-        """Rotates all vessels, and changes rotation speed of active vessel,
+        """
+        Rotate all vessels, and changes rotation speed of active vessel,
         according to its maximum rotation acceleration, in specified direction.
-        If warp is not x1, rotation speeds for all vessels are set to zero."""
+        If warp is not x1, rotation speeds for all vessels are set to zero.
+        """
         if warp == 1:
             self.rot_speed[vessel] += self.rot_acc[vessel] * direction
             self.rot_angle += self.rot_speed
@@ -599,7 +649,7 @@ class Physics():
 
 
     def selected(self, vessel):
-        """Do physics for selected vessel. This should be done every tick after move()."""
+        """Do physics for selected vessel. This should be done every tick after move()"""
         pos_ref = self.body_pos[self.ref[vessel]]
         periapsis_arg = self.pea[vessel]
         a = self.a[vessel]
@@ -607,11 +657,11 @@ class Physics():
         ecc = self.ecc[vessel]
         ea = self.ea[vessel]
         ma = self.ma[vessel]
-        period = self.period[vessel]
         ap_d = self.ap_d[vessel]
         pe_d = self.pe_d[vessel]
         dr = self.dr[vessel]
         u = self.u[vessel]
+        n = self.n[vessel]
 
         rel_pos = self.pos[vessel] - pos_ref
         distance = mag(rel_pos)   # distance to parent
@@ -630,22 +680,17 @@ class Physics():
             if ecc < 1:   # ellipse
                 if np.pi < ta < 2*np.pi:
                     ea = 2*np.pi - ea   # quadrant problems
-                pe_t = orbit_time_to(ma, 0, period, dr)
+                pe_t = orbit_time_to(ma, 0, ecc, dr, n)
                 ap = np.array([ap_d * math.cos(periapsis_arg), ap_d * math.sin(periapsis_arg)]) + pos_ref
-                ap_t = orbit_time_to(ma, np.pi, period, dr)
+                ap_t = orbit_time_to(ma, np.pi, ecc, dr, n)
             else:
-                if ecc > 1:   # hyperbola
-                    pe_t = math.sqrt((-a)**3 / u) * ma
-                else:   # parabola
-                    pe_t = math.sqrt(2*(a/2)**3) * ma
-                period = 0   # period is undefined
+                pe_t = orbit_time_to(ma, 0, ecc, dr, n)
                 # there is no apoapsis
                 ap = np.array([0, 0])
                 ap_t = 0
         else:   # circle
             ma = ta
-            period = (2 * np.pi * math.sqrt(a**3 / u)) / 10
-            pe_t = orbit_time_to(ma, 0, period, dr)
+            pe_t = orbit_time_to(ma, 0, ecc, dr, n)
             # there is no apoapsis
             ap = np.array([0, 0])
             ap_t = 0
@@ -655,13 +700,16 @@ class Physics():
 
 
     def curve_segments(self):
-        """Calculates two segments for each curve on screen.
+        """
+        Calculate two segments for each curve on screen.
         Returns arrays of all x and y points for each segment for all curves on screen.
         Dimensions: (curve, points, axis).
-        This should be done every tick after curve_move(), and after points(), which must be run at least once"""
+        This should be done every tick after curve_move(), and after points(), which must be run at least once.
+        """
         curves_light = np.empty((len(self.names), self.curve_points, 2))   # shape: (vessel, points, axes)
         curves_dark = np.empty((len(self.names), self.curve_points, 2))
-        intersect_type = np.zeros(len(self.names))
+        intersect_type = [0] * len(self.names)
+        intersect_time = [0.0] * len(self.names)
         select_range = np.empty((len(self.names), 2)) * np.nan
         first_intersect = np.empty((len(self.names), 2)) * np.nan
         for vessel in self.visible_orbits:
@@ -689,6 +737,7 @@ class Physics():
                 ea_next = self.body_impact[vessel, 0]
                 coord_next = self.ea2coord(vessel, ea_next)
                 if ell:   # for ellipse
+                    ma_next = ea_next - ecc * np.sin(ea_next)
                     ea_vessel = round(ea * self.curve_points / (2*np.pi))
                     ea_point_next = round(ea_next * self.curve_points / (2*np.pi))
                     if dr > 0:   # CCW
@@ -700,6 +749,7 @@ class Physics():
                             ea_vessel += 1
                         curves_light[vessel] = concat_wrap(curve_light, coord_next, ea_point_next, ea_vessel-1, point_vessel)
                 else:   # for hyperbola
+                    ma_next = (ecc * np.sinh(ea_next) - ea_next) * -1
                     ea_vessel = self.curve_points - round((ea+np.pi) * self.curve_points / (2*np.pi))
                     ea_point_next = self.curve_points - round((ea_next+np.pi) * self.curve_points / (2*np.pi))
                     if dr > 0:   # CCW
@@ -717,6 +767,9 @@ class Physics():
                         else:
                             curves_light[vessel] = concat_wrap(curve_light, point_vessel, ea_vessel+1, ea_point_next, coord_next)
                 first_intersect[vessel] = coord_next
+                ma = self.ma[vessel]
+                ma_next = ea_next - ecc * np.sin(ea_next)
+                intersect_time[vessel] = orbit_time_to(ma, ma_next, ecc, self.dr[vessel], self.n[vessel])
                 intersect_type[vessel] = 1
 
             if next_intersect[0] == 1:   # COI ENTER
@@ -724,6 +777,7 @@ class Physics():
                 ea_next = coi_enter
                 coord_next = self.ea2coord(vessel, ea_next)
                 if ell:   # for ellipse
+                    ma_next = ea_next - ecc * np.sin(ea_next)
                     ea_vessel = round(ea * self.curve_points / (2*np.pi))
                     ea_point_next = round(ea_next * self.curve_points / (2*np.pi))
                     if dr > 0:   # CCW
@@ -731,8 +785,9 @@ class Physics():
                             if ea_vessel == ea_point_next:
                                 ea_vessel -= 1
                             curves_light[vessel] = concat_wrap(curve_light, point_vessel, ea_vessel+1, ea_point_next, coord_next)
+                        elif ea > np.pi and ea < np.pi*1.5:   # ???
+                            curves_light[vessel] = concat_wrap(curve_light, point_vessel, ea_vessel+1, ea_point_next, coord_next)
                         else:
-
                             curves_light[vessel] = concat_wrap(curve_light, coord_next, ea_vessel, ea_point_next, point_vessel)
                     elif ea < np.pi:
                         curves_light[vessel] = concat_wrap(curve_light, coord_next, ea_point_next, ea_vessel-1, point_vessel)
@@ -741,6 +796,7 @@ class Physics():
                             ea_vessel += 1
                         curves_light[vessel] = concat_wrap(curve_light, coord_next, ea_point_next, ea_vessel-1, point_vessel)
                 else:   # for hyperbola
+                    ma_next = (ecc * np.sinh(ea_next) - ea_next) * -1
                     ea_vessel = self.curve_points - round((ea+np.pi) * self.curve_points / (2*np.pi))
                     ea_point_next = self.curve_points - round((ea_next+np.pi) * self.curve_points / (2*np.pi))
                     if dr > 0:   # CCW
@@ -758,6 +814,9 @@ class Physics():
                         else:
                             curves_light[vessel] = concat_wrap(curve_light, point_vessel, ea_vessel+1, ea_point_next, coord_next)
                 first_intersect[vessel] = coord_next
+                ma = self.ma[vessel]
+                ma_next = ea_next - ecc * np.sin(ea_next)
+                intersect_time[vessel] = orbit_time_to(ma, ma_next, ecc, self.dr[vessel], self.n[vessel])
                 intersect_type[vessel] = 2
                 select_range[vessel] = [ea, ea_next]
 
@@ -767,6 +826,7 @@ class Physics():
                     ea_prev = self.coi_leave[vessel, 1]
                     coord_next = self.ea2coord(vessel, ea_next)
                     coord_prev = self.ea2coord(vessel, ea_prev)
+                    ma_next = ea_next - ecc * np.sin(ea_next)
                     ea_vessel = round(ea * self.curve_points / (2*np.pi))
                     ea_point_next = round(ea_next * self.curve_points / (2*np.pi))
                     ea_point_prev = round(ea_prev * self.curve_points / (2*np.pi))
@@ -791,6 +851,7 @@ class Physics():
                     ea_prev = self.coi_leave[vessel, 1]
                     coord_next = self.ea2coord(vessel, ea_next)
                     coord_prev = self.ea2coord(vessel, ea_prev)
+                    ma_next = (ecc * np.sinh(ea_next) - ea_next) * -1
                     ea_vessel = self.curve_points - round((ea+np.pi) * self.curve_points / (2*np.pi))
                     ea_point_next = self.curve_points - round((ea_next+np.pi) * self.curve_points / (2*np.pi))
                     ea_point_prev = self.curve_points - round((ea_prev+np.pi) * self.curve_points / (2*np.pi))
@@ -805,6 +866,8 @@ class Physics():
                         curves_light[vessel] = concat_wrap(curve_light, point_vessel, ea_vessel+1, ea_point_next, coord_next)
                         curves_dark[vessel] = concat_wrap(curve_dark, coord_prev, ea_point_prev, ea_point_next, coord_next)
                 first_intersect[vessel] = coord_next
+                ma = self.ma[vessel]
+                intersect_time[vessel] = orbit_time_to(ma, ma_next, ecc, self.dr[vessel], self.n[vessel])
                 intersect_type[vessel] = 3
 
             elif any(next_intersect == 2):   # COI LEAVE FOR 2 INTERSECTIONS
@@ -837,4 +900,4 @@ class Physics():
             if np.isnan(next_intersect[0]):
                 curves_light[vessel] = curve_light
                 first_intersect[vessel] = np.array([np.nan, np.nan])
-        return curves_light, curves_dark, first_intersect, intersect_type, select_range
+        return curves_light, curves_dark, first_intersect, intersect_type, intersect_time, select_range
