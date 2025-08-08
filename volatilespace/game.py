@@ -1542,13 +1542,13 @@ class Game():
                         (ap_scr[0], ap_scr[1] + 17), True,
                     )
             # draw ghost body
-            if new_ref != 0:
+            if enter_coi and new_ref != 0:
                 ghost_body_creen_pos = self.screen_coords(ghost_body_pos)
                 scr_body_radius = self.radius[new_ref] * self.zoom
                 body_color = tuple(self.color[new_ref])
                 if scr_body_radius >= 5:
                     if self.types[new_ref] != 4:
-                        graphics.draw_circle_fill(screen, rgb.dark(body_color), ghost_body_creen_pos, scr_body_radius)
+                        graphics.draw_circle_fill(screen, rgb.dark(body_color, 0.4), ghost_body_creen_pos, scr_body_radius)
                     else:   # black hole
                         graphics.draw_circle_fill(screen, rgb.black, ghost_body_creen_pos, scr_body_radius)
                         graphics.draw_circle(screen, rgb.dark(rgb.white), ghost_body_creen_pos, scr_body_radius, 2)

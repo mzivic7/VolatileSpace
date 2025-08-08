@@ -2,6 +2,6 @@
 [Savefile](savefile.txt)  
 [Orbital Physics](orbital-index.md)  
 [Stellar Physics](stellar-index.md)  
-[Other Physics](other-physics.mg)  
+[Other Physics](other-index.mg)  
 [Simulation logic](logic.txt)  
 [Todo](todo.txt)  

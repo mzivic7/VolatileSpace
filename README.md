@@ -1,7 +1,6 @@
 # Volatile Space
 2D physics-based universe and spaceflight simulator.  
 Written in Python with pygame-ce.  
-[Download](https://mzivic.itch.io/volatile-space) (itch.io)  
 [Wiki](documentation/wiki.md)  
 
 
