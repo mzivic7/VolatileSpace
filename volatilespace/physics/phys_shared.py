@@ -196,7 +196,7 @@ def orb2xy(a, b, f, ecc, pea, ref_pos, ea):
         x = (x_n * np.cos(pea - np.pi) - y_n * np.sin(pea - np.pi)) + ref_pos[0]
         y = (x_n * np.sin(pea - np.pi) + y_n * np.cos(pea - np.pi)) + ref_pos[1]
         return np.array(([x, y]))
-    return np.array(([None, None]))
+    return np.array(([0.0, 0.0]))
 
 
 def curve_points(ecc, a, b, pea, t):
@@ -218,9 +218,7 @@ def curve_points(ecc, a, b, pea, t):
 
 def curve_move_to(curves, body_pos, ref, f, pea):
     """Align focus of multiple rotated curves points with their refernce body position"""
-    focus_x = f * np.cos(pea)
-    focus_y = f * np.sin(pea)
-    focus = np.column_stack((focus_x, focus_y))
+    focus = np.column_stack((f * np.cos(pea), f * np.sin(pea)))
     return curves + focus[:, np.newaxis, :] + body_pos[ref, np.newaxis, :]
 
 def culling(coords, radius, screen_bounds, zoom):

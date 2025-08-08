@@ -159,7 +159,10 @@ class Game():
         self.visible_body_orbits = np.array([])
         self.visible_vessel_orbits = np.array([])
         self.visible_vessels = np.array([])
-        self.change_vessel = None
+        self.predict_orbit_data = (None, None, None, None, None, None, None)
+        self.change_vessel = []
+        self.current_vessel_predicted = False
+        self.orbit_prediction_time = 0
 
         # DEBUG
         self.physics_debug_time = 1
@@ -212,6 +215,7 @@ class Game():
         self.orb_leave_img_gray = graphics.fill(orb_leave_img, rgb.gray)
         orb_enter_img = pygame.image.load("images/orb_enter.png").convert_alpha()
         self.orb_enter_img_cyan = graphics.fill(orb_enter_img, rgb.cyan)
+        self.orb_enter_img_pink = graphics.fill(orb_enter_img, rgb.pink)
         self.orb_enter_img_gray = graphics.fill(orb_enter_img, rgb.gray)
 
         bg_stars.set_screen()
@@ -346,7 +350,7 @@ class Game():
         physics_vessel.load(self.sim_conf, body_data, body_orb_data, vessel_data, vessel_orb_data)
         vessel_orb_data, self.v_pos, self.v_ma, self.v_curves = physics_vessel.initial(self.warp, self.pos, self.ma, ea)
         self.unpack_vessel(vessel_data, vessel_orb_data)
-
+        self.current_vessel_predicted = False
         self.active_vessel = game_data["vessel"]
         if self.active_vessel is not None and self.active_vessel < len(self.v_ref):
             self.target = self.v_ref[self.active_vessel]
@@ -356,7 +360,6 @@ class Game():
             self.target = None
             self.focus_point([0, 0], 0.5)
         self.target_type = 0
-
 
 
     def focus_point(self, pos, zoom=None):
@@ -820,6 +823,7 @@ class Game():
                                         if self.first_click:
                                             prev_active_vessel = self.active_vessel
                                             self.active_vessel = vessel
+                                            self.current_vessel_predicted = False
                                             self.follow = 1
                                             self.vessel_potential_target = None
                                             self.target = self.v_ref[self.active_vessel]   # set new active vessel's parent to be target
@@ -1226,26 +1230,32 @@ class Game():
                         self.pos, self.ma, ea = physics_body.move(self.warp_phys)
                         self.v_pos, self.v_ma = physics_vessel.move(self.warp_phys, self.pos, self.ma, ea)
                         self.v_rot_angle = physics_vessel.rotate(self.warp, self.active_vessel, self.v_rot_dir)
-                        self.change_vessel = physics_vessel.cross_coi()
+                        change_vessel = physics_vessel.cross_coi()
+                        if change_vessel is not None:
+                            self.change_vessel.append(change_vessel)
                     self.sim_time += 1 * self.warp_phys   # iterate sim_time
                 # regular warp
                 else:
                     self.pos, self.ma, ea = physics_body.move(self.warp)
                     self.v_pos, self.v_ma = physics_vessel.move(self.warp, self.pos, self.ma, ea)
                     self.v_rot_angle = physics_vessel.rotate(self.warp, self.active_vessel, self.v_rot_dir)
-                    self.change_vessel = physics_vessel.cross_coi()
+                    change_vessel = physics_vessel.cross_coi()
+                    if change_vessel is not None:
+                        self.change_vessel.append(change_vessel)
                     self.sim_time += 1 * self.warp   # iterate sim_time
 
                 self.v_rot_dir = 0
                 self.curves = physics_body.curve_move()
 
                 # handling changes on vessel orbit
-                if self.change_vessel is not None:
-                    vessel_data, vessel_orb_data = physics_vessel.change_vessel(self.change_vessel)
-                    self.update_vessel(self.change_vessel, vessel_data, vessel_orb_data)
+                for vessel in self.change_vessel:
+                    if vessel == self.active_vessel:
+                        self.current_vessel_predicted = False
+                    vessel_data, vessel_orb_data = physics_vessel.change_vessel(vessel)
+                    self.update_vessel(vessel, vessel_data, vessel_orb_data)
 
                     # resuming warp after orbit changes
-                    if self.vessel_crossing is not None and self.change_vessel == self.vessel_crossing:
+                    if self.vessel_crossing is not None and vessel == self.vessel_crossing:
                         self.disable_warp_changing = False
                         if self.warp_phys_active:
                             if self.warp_phys_mem is None:
@@ -1266,7 +1276,7 @@ class Game():
                                 (self.screen_x/2, self.screen_y-70), 1.5, True,
                             )
                         self.vessel_crossing = None
-                    self.change_vessel = None
+                self.change_vessel = []
 
                 self.v_curves = physics_vessel.curve_move()
 
@@ -1275,6 +1285,11 @@ class Game():
             self.visible_bodies, self.visible_coi, self.visible_body_orbits = physics_body.culling(sim_screen, self.zoom)
             self.visible_vessels, self.visible_vessel_orbits = physics_vessel.culling(sim_screen, self.zoom, self.visible_coi)
             self.curve_light, self.curve_dark, self.intersect, self.intersect_type, self.intersect_time, self.select_range = physics_vessel.curve_segments()
+
+            if not self.current_vessel_predicted and self.active_vessel is not None:
+                self.current_vessel_predicted = True
+                self.orbit_prediction_time = self.sim_time
+                self.predict_orbit_data = physics_vessel.predict_next_orbit(self.active_vessel)
 
             self.physics_debug_time = time.time() - debug_time   # DEBUG
 
@@ -1377,8 +1392,8 @@ class Game():
         # bodies stuff drawing, WITHOUT bodies - bodies are drawn aftter vessel orbit lines
         # draw body orbit curve lines
         for body in self.visible_body_orbits:
-            curve = self.screen_coords_array(self.curves[body])
             if body != 0:
+                curve = self.screen_coords_array(self.curves[body])
                 line_color = np.where(self.color[body] > 255, 255, self.color[body])
                 graphics.draw_lines(screen, tuple(line_color), curve, 2)
 
@@ -1467,6 +1482,86 @@ class Game():
                                     (ap_scr[0], ap_scr[1] + 17), True,
                                 )
 
+        # draw predicted orbit stuff
+        if self.predict_orbit_data[2] is not None:
+            ap = self.predict_orbit_data[1]
+            pe = self.predict_orbit_data[4]
+            ap_t = self.predict_orbit_data[3]
+            pe_t = self.predict_orbit_data[6]
+            ap_d = self.predict_orbit_data[2]
+            pe_d = self.predict_orbit_data[5]
+            new_ref = self.predict_orbit_data[7]
+            ghost_body_rel_pos = self.predict_orbit_data[8]
+            entry_point = self.predict_orbit_data[9]
+            enter_coi = self.predict_orbit_data[10]
+            ref_coi = self.coi[new_ref]
+            if enter_coi:
+                offset = self.pos[self.ref[new_ref]]
+            else:
+                offset = self.pos[new_ref]
+            ghost_body_pos = offset - ghost_body_rel_pos
+            # draw orbit curve
+            curve = self.screen_coords_array(offset - self.predict_orbit_data[0])
+            graphics.draw_lines(screen, rgb.pink, curve, 2)
+            # draw points on orbit
+            if ap_d > 0:
+                ap_scr = self.screen_coords(offset - ap)
+                ell = True
+            else:   # in case of hyperbola/parabola (ap_d is negative)
+                ap_scr = self.screen_coords(pe)
+                ell = False
+            parent_scr = self.screen_coords(ghost_body_pos)
+            scr_dist = abs(parent_scr - ap_scr)
+            if scr_dist[0] > 8 or scr_dist[1] > 8:   # don't draw Ap and Pe if Ap is too close to parent
+                # periapsis location marker, text: distance and time to it
+                pe_scr = self.screen_coords(offset - pe)
+                if pe_d > self.radius[new_ref]:
+                    graphics.draw_circle_fill(screen, rgb.dark(rgb.lime1), pe_scr, 3)   # periapsis marker
+                    graphics.text(
+                        screen, rgb.dark(rgb.lime1), self.fontsm,
+                        "Periapsis: " + str(round(pe_d, 1)),
+                        (pe_scr[0], pe_scr[1] + 7), True,
+                    )
+                    time = int((pe_t + self.orbit_prediction_time - self.sim_time) / self.ptps)
+                    graphics.text(
+                        screen, rgb.dark(rgb.lime1), self.fontsm,
+                        "T - " + format_time.to_date(time),
+                        (pe_scr[0], pe_scr[1] + 17), True,
+                    )
+                if ell and ap_d <= ref_coi:   # if orbit is ellipse and ap is in coi
+                    graphics.draw_circle_fill(screen, rgb.dark(rgb.lime1), ap_scr, 3)   # apoapsis marker
+                    graphics.text(
+                        screen, rgb.lime1, self.fontsm,
+                        "Apoapsis: " + str(round(ap_d, 1)),
+                        (ap_scr[0], ap_scr[1] + 7), True,
+                    )
+                    time = int((ap_t + self.orbit_prediction_time) - self.sim_time / self.ptps)
+                    graphics.text(
+                        screen, rgb.dark(rgb.lime1), self.fontsm,
+                        "T - " + format_time.to_date(time),
+                        (ap_scr[0], ap_scr[1] + 17), True,
+                    )
+            # draw ghost body
+            if new_ref != 0:
+                ghost_body_creen_pos = self.screen_coords(ghost_body_pos)
+                scr_body_radius = self.radius[new_ref] * self.zoom
+                body_color = tuple(self.color[new_ref])
+                if scr_body_radius >= 5:
+                    if self.types[new_ref] != 4:
+                        graphics.draw_circle_fill(screen, rgb.dark(body_color), ghost_body_creen_pos, scr_body_radius)
+                    else:   # black hole
+                        graphics.draw_circle_fill(screen, rgb.black, ghost_body_creen_pos, scr_body_radius)
+                        graphics.draw_circle(screen, rgb.dark(rgb.white), ghost_body_creen_pos, scr_body_radius, 2)
+                else:   # if body is too small, draw marker with fixed size
+                    graphics.draw_circle_fill(screen, rgb.dark(rgb.gray1), ghost_body_creen_pos, 6)
+                    graphics.draw_circle_fill(screen, rgb.dark(rgb.gray2), ghost_body_creen_pos, 5)
+                    graphics.draw_circle_fill(screen, rgb.dark(body_color), ghost_body_creen_pos, 4)
+                graphics.draw_circle(screen, rgb.dark(rgb.gray2, 0.7), ghost_body_creen_pos, self.coi[new_ref] * self.zoom, 1)
+
+            # entry point
+            if not enter_coi:
+                graphics.draw_img(screen, self.orb_enter_img_pink, self.screen_coords(offset - entry_point), center=True)
+
         # draw vessel orbit curve lines
         for vessel in self.visible_vessel_orbits:
             # get curve intersections and ranges
@@ -1491,19 +1586,19 @@ class Game():
 
         # bodies drawing
         for body in self.visible_bodies:
+            body_screen_pos = self.screen_coords(self.pos[body])
             scr_body_radius = self.radius[body] * self.zoom
             body_color = tuple(self.color[body])
             if scr_body_radius >= 5:
                 if self.types[body] != 4:
-                    graphics.draw_circle_fill(screen, body_color, self.screen_coords(self.pos[body]), scr_body_radius)
+                    graphics.draw_circle_fill(screen, body_color, body_screen_pos, scr_body_radius)
                 else:   # black hole
-                    graphics.draw_circle_fill(screen, rgb.black, self.screen_coords(self.pos[body]), scr_body_radius)
-                    graphics.draw_circle(screen, rgb.white, self.screen_coords(self.pos[body]), scr_body_radius, 2)
+                    graphics.draw_circle_fill(screen, rgb.black, body_screen_pos, scr_body_radius)
+                    graphics.draw_circle(screen, rgb.white, body_screen_pos, scr_body_radius, 2)
             else:   # if body is too small, draw marker with fixed size
-                graphics.draw_circle_fill(screen, rgb.gray1, self.screen_coords(self.pos[body]), 6)
-                graphics.draw_circle_fill(screen, rgb.gray2, self.screen_coords(self.pos[body]), 5)
-                graphics.draw_circle_fill(screen, body_color, self.screen_coords(self.pos[body]), 4)
-
+                graphics.draw_circle_fill(screen, rgb.gray1, body_screen_pos, 6)
+                graphics.draw_circle_fill(screen, rgb.gray2, body_screen_pos, 5)
+                graphics.draw_circle_fill(screen, body_color, body_screen_pos, 4)
 
         # vessel stuff drawing WITH vessels
         for vessel in self.visible_vessel_orbits:

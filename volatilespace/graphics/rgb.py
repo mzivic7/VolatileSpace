@@ -36,6 +36,7 @@ cyan_1 = (15, 70, 90)
 
 purple = (128, 0, 128)
 magenta = (255, 0, 255)
+pink = (112, 32, 69)
 
 gray = (210, 210, 210)
 gray0 = (150, 150, 150)
@@ -43,3 +44,9 @@ gray1 = (96, 96, 96)
 gray2 = (42, 42, 42)
 gray3 = (25, 25, 25)
 black = (0, 0, 0)
+
+
+def dark(rgb, brightness=0.5):
+    """Make color darker"""
+    r, g, b = rgb
+    return (int(r * brightness), int(g * brightness), int(b * brightness))

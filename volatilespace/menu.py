@@ -68,7 +68,7 @@ class Menu():
         self.mouse = [0, 0]
         self.scroll = 0
         self.scroll_maps = 0
-        self.scroll_sensitivity = 10
+        self.scroll_sensitivity = 20
         self.selected_item = 0
         self.selected_path = ""
         self.selected_ng_item = 0   # selecting in new game menu

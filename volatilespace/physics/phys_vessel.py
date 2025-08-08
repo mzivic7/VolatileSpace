@@ -6,6 +6,7 @@ import pygame
 
 try:   # to allow building without numba
     from numba import float64, int32, njit
+    from numba.types import UniTuple
     numba_avail = True
 except ImportError:
     numba_avail = False
@@ -109,13 +110,28 @@ def calc_orb_one(ref, body_mass, gc, a, ecc):
     return b, f, pe_d, ap_d, period, n, u
 
 
+def move(ma, ecc, dr, n, dt):
+    """Move vessel or body"""
+    if ecc < 1:
+        ma += dr * n * dt
+        if ma > 2*np.pi:
+            ma - 2*np.pi
+        elif ma < 0:
+            ma + 2*np.pi
+        ea = solve_kepler_ell(ecc, ma, 1e-10)
+    else:
+        ma += dr * n * -1 * dt
+        ea = newton_root_kepler_hyp(ecc, ma, ma)
+    return ma, ea
+
+
 # if numba is enabled, compile functions ahead of time
 use_numba = peripherals.load_settings("game", "numba")
 if numba_avail and use_numba:
     enable_fastmath = peripherals.load_settings("game", "fastmath")
     jitkw = {"cache": True, "fastmath": enable_fastmath}   # numba JIT setings
     concat_wrap = njit((float64[:, :], float64[:], int32, int32, float64[:]), **jitkw)(concat_wrap)
-
+    move = njit(UniTuple(float64, 2)(float64, float64, float64, float64, float64), **jitkw)(move)
 
 
 class Physics():
@@ -217,6 +233,7 @@ class Physics():
         self.body_enter_atm = np.zeros((len(self.names), 2)) * np.nan
         self.coi_leave = np.zeros((len(self.names), 2)) * np.nan
         self.coi_enter = np.zeros((len(self.names), 6)) * np.nan
+        self.intersect_time = [0.0] * len(self.names)
         self.entered_coi = None
         self.left_coi = None
         self.left_coi_prev_ref = None
@@ -569,12 +586,13 @@ class Physics():
             if next_intersect[0] == 2:   # LEAVE COI
                 if point_between(coi_leave, ea_vessel_1, ea_vessel_2, dr):
                     ref = self.ref[vessel]
-                    new_u = self.gc * self.body_mass[self.body_ref[ref]]
+                    new_ref = self.body_ref[ref]
+                    new_u = self.gc * self.body_mass[new_ref]
                     # calculate vessel and reference relative positions (to their references)
                     ves_abs_pos = self.ea2coord(vessel, coi_leave)
                     ref_abs_pos = self.body_pos[ref]
                     ves_rel_pos = ves_abs_pos - ref_abs_pos
-                    ref_rel_pos = ref_abs_pos - self.body_pos[self.body_ref[ref]]
+                    ref_rel_pos = ref_abs_pos - self.body_pos[new_ref]
                     # calculate vessel and reference relative velocities (to their references)
                     ves_rel_vel = kepler_to_velocity(ves_rel_pos, self.a[vessel], ecc, self.pea[vessel], self.u[vessel], dr)
                     ref_rel_vel = kepler_to_velocity(ref_rel_pos, self.body_a[ref], self.body_ecc[ref], self.body_pea[ref], new_u, self.body_dr[ref])
@@ -584,7 +602,7 @@ class Physics():
                     # convert this position and absolute velocity to orbital parameters
                     self.a[vessel], self.ecc[vessel], self.pea[vessel], self.ma[vessel], self.dr[vessel] = velocity_to_kepler(new_ves_pos, new_ves_vel, new_u, failsafe=1)
                     # set new reference
-                    self.ref[vessel] = self.body_ref[ref]
+                    self.ref[vessel] = new_ref
                     self.left_coi = vessel
                     self.left_coi_prev_ref = ref
                     return vessel
@@ -612,6 +630,115 @@ class Physics():
                     return vessel
 
         return None
+
+
+    def predict_next_orbit(self, vessel):
+        """Predict next orbit for specified vessel, calculate orbit line and ghost body"""
+        coi_enter = self.coi_enter[vessel]
+        if not np.isnan(coi_enter[1]):
+            ref = self.ref[vessel]
+            new_ref = int(coi_enter[0])
+            dt = self.intersect_time[vessel]
+            if not dt:
+                return None, None, None, None, None, None, None, None, None, None, None
+            # predict new bodies position
+            future_new_ref_ea = coi_enter[2]
+            future_new_ref_pos = orb2xy(self.body_a[new_ref], self.body_b[new_ref], self.body_f[new_ref], self.body_ecc[new_ref], self.body_pea[new_ref], np.array((0.0, 0.0)), future_new_ref_ea)
+            # calculate next orbit parameters
+            if ref == new_ref:
+                return None, None, None, None, None, None, None, None, None, None, None
+            new_u = self.gc * self.body_mass[new_ref]
+            future_ves_pos = orb2xy(self.a[vessel], self.b[vessel], self.f[vessel], self.ecc[vessel], self.pea[vessel], np.array((0.0, 0.0)), coi_enter[1])
+            ves_vel = kepler_to_velocity(future_ves_pos, self.a[vessel], self.ecc[vessel], self.pea[vessel], self.u[vessel], self.dr[vessel])
+            new_ref_vel = kepler_to_velocity(future_new_ref_pos, self.body_a[new_ref], self.body_ecc[new_ref], self.body_pea[new_ref], new_u, self.body_dr[new_ref])
+            new_ves_pos = future_ves_pos - future_new_ref_pos
+            new_ves_vel = ves_vel - new_ref_vel
+            a, ecc, pea, ma, dr = velocity_to_kepler(new_ves_pos, new_ves_vel, new_u, failsafe=2)
+            enter_coi = True
+
+        # dont check leave coi if there is impact
+        elif not np.isnan(self.coi_leave[vessel, 0]) and np.isnan(self.body_impact[vessel, 0]):
+            ref = self.ref[vessel]
+            new_ref = self.body_ref[ref]
+            dt = self.intersect_time[vessel]
+            if not dt:
+                return None, None, None, None, None, None, None, None, None, None, None
+            # predict new bodies positions
+            _, future_ref_ea = move(self.body_ma[ref], self.body_ecc[ref], self.body_dr[ref], self.body_n[ref], dt)
+            future_new_ref_pos = np.array((0.0, 0.0))
+            future_ref_pos = orb2xy(self.body_a[ref], self.body_b[ref], self.body_f[ref], self.body_ecc[ref], self.body_pea[ref], future_new_ref_pos, future_ref_ea)
+            # calculate next orbit parameters
+            new_u = self.gc * self.body_mass[new_ref]
+            future_ves_pos = orb2xy(self.a[vessel], self.b[vessel], self.f[vessel], self.ecc[vessel], self.pea[vessel], future_ref_pos, self.coi_leave[vessel, 0])
+            ves_rel_pos = future_ves_pos - future_ref_pos
+            ves_rel_vel = kepler_to_velocity(ves_rel_pos, self.a[vessel], self.ecc[vessel], self.pea[vessel], self.u[vessel], self.dr[vessel])
+            ref_rel_vel = kepler_to_velocity(future_ref_pos, self.body_a[ref], self.body_ecc[ref], self.body_pea[ref], new_u, self.body_dr[ref])
+            new_ves_pos = ves_rel_pos + future_ref_pos
+            new_ves_vel = ves_rel_vel + ref_rel_vel
+            a, ecc, pea, ma, dr = velocity_to_kepler(new_ves_pos, new_ves_vel, new_u, failsafe=1)
+            enter_coi = False
+
+        else:
+            return None, None, None, None, None, None, None, None, None, None, None
+
+        # calculate curve
+        pea_inv = pea
+        pea = pea + np.pi
+        if pea >= 2 * np.pi:
+            pea -= 2 * np.pi
+        b, f, pe_d, ap_d, _, n, _ = calc_orb_one(0, np.array([self.body_mass[new_ref]]), self.gc, a, ecc)
+        curve = curve_points(ecc, a, b, pea, self.t)
+        focus = np.column_stack((f * np.cos(pea), f * np.sin(pea)))
+        curve = curve + focus - future_new_ref_pos
+        ell = ecc < 1
+
+        # intersect curve with coi and cut it
+        if not ell or ap_d > self.body_coi[new_ref]:
+            coi_leave_all = ell_hyp_intersect_circle(a, b, ecc, f, 0, self.body_coi[new_ref])
+            if ell:
+                next_ma = ma + n * dr
+                next_ea = solve_kepler_ell(ecc, next_ma, 1e-10)
+            else:
+                next_ma = ma + n * dr * -1
+                next_ea = newton_root_kepler_hyp(ecc, next_ma, next_ma)
+            coi_leave_all = next_point(next_ea, coi_leave_all, dr)
+            ea_next = coi_leave_all[0]
+            ea_prev = coi_leave_all[1]
+            if not np.isnan(ea_next):
+                coord_next = - orb2xy(a, b, f, ecc, pea_inv, future_new_ref_pos, ea_next)
+                coord_prev = - orb2xy(a, b, f, ecc, pea_inv, future_new_ref_pos, ea_prev)
+                if ell:
+                    ea_point_next = round(ea_next * self.curve_points / (2*np.pi))
+                    ea_point_prev = round(ea_prev * self.curve_points / (2*np.pi))
+                    if dr > 0:
+                        curve = concat_wrap(curve, coord_next, ea_point_prev, ea_point_next, coord_prev)
+                    else:
+                        curve = concat_wrap(curve, coord_prev, ea_point_next, ea_point_prev, coord_next)
+                else:
+                    ea_point_next = self.curve_points - round((ea_next+np.pi) * self.curve_points / (2*np.pi))
+                    ea_point_prev = self.curve_points - round((ea_prev+np.pi) * self.curve_points / (2*np.pi))
+                    if dr > 0:
+                        curve = concat_wrap(curve, coord_next, ea_point_next, ea_point_prev, coord_prev)
+                    else:
+                        curve = concat_wrap(curve, coord_prev, ea_point_prev, ea_point_next, coord_next)
+
+        # calculate ap and pe
+        if ecc != 0:   # not circle
+            if ecc < 1:   # ellipse
+                pe_t = orbit_time_to(ma, 0, ecc, dr, n) + dt
+                ap = np.array([ap_d * math.cos(pea), ap_d * math.sin(pea)]) - future_new_ref_pos
+                ap_t = orbit_time_to(ma, np.pi, ecc, dr, n) + dt
+            else:
+                pe_t = orbit_time_to(ma, 0, ecc, dr, n) + dt
+                ap = np.array([0, 0])
+                ap_t = 0
+        else:   # circle
+            pe_t = orbit_time_to(ma, 0, ecc, dr, n) + dt
+            ap = np.array([0, 0])
+            ap_t = 0
+        pe = np.array([pe_d * math.cos(pea - np.pi), pe_d * math.sin(pea - np.pi)]) - future_new_ref_pos
+
+        return curve, ap, ap_d, ap_t, pe, pe_d, pe_t, new_ref, -future_new_ref_pos, -future_ves_pos, enter_coi
 
 
     def predict_enter_coi_service(self):
@@ -708,7 +835,7 @@ class Physics():
         curves_light = np.empty((len(self.names), self.curve_points, 2))   # shape: (vessel, points, axes)
         curves_dark = np.empty((len(self.names), self.curve_points, 2))
         intersect_type = [0] * len(self.names)
-        intersect_time = [0.0] * len(self.names)
+        self.intersect_time = [0.0] * len(self.names)
         select_range = np.empty((len(self.names), 2)) * np.nan
         first_intersect = np.empty((len(self.names), 2)) * np.nan
         for vessel in self.visible_orbits:
@@ -768,7 +895,7 @@ class Physics():
                 first_intersect[vessel] = coord_next
                 ma = self.ma[vessel]
                 ma_next = ea_next - ecc * np.sin(ea_next)
-                intersect_time[vessel] = orbit_time_to(ma, ma_next, ecc, self.dr[vessel], self.n[vessel])
+                self.intersect_time[vessel] = orbit_time_to(ma, ma_next, ecc, self.dr[vessel], self.n[vessel])
                 intersect_type[vessel] = 1
 
             if next_intersect[0] == 1:   # COI ENTER
@@ -815,7 +942,7 @@ class Physics():
                 first_intersect[vessel] = coord_next
                 ma = self.ma[vessel]
                 ma_next = ea_next - ecc * np.sin(ea_next)
-                intersect_time[vessel] = orbit_time_to(ma, ma_next, ecc, self.dr[vessel], self.n[vessel])
+                self.intersect_time[vessel] = orbit_time_to(ma, ma_next, ecc, self.dr[vessel], self.n[vessel])
                 intersect_type[vessel] = 2
                 select_range[vessel] = [ea, ea_next]
 
@@ -866,7 +993,7 @@ class Physics():
                         curves_dark[vessel] = concat_wrap(curve_dark, coord_prev, ea_point_prev, ea_point_next, coord_next)
                 first_intersect[vessel] = coord_next
                 ma = self.ma[vessel]
-                intersect_time[vessel] = orbit_time_to(ma, ma_next, ecc, self.dr[vessel], self.n[vessel])
+                self.intersect_time[vessel] = orbit_time_to(ma, ma_next, ecc, self.dr[vessel], self.n[vessel])
                 intersect_type[vessel] = 3
 
             elif any(next_intersect == 2):   # COI LEAVE FOR 2 INTERSECTIONS
@@ -899,4 +1026,4 @@ class Physics():
             if np.isnan(next_intersect[0]):
                 curves_light[vessel] = curve_light
                 first_intersect[vessel] = np.array([np.nan, np.nan])
-        return curves_light, curves_dark, first_intersect, intersect_type, intersect_time, select_range
+        return curves_light, curves_dark, first_intersect, intersect_type, self.intersect_time, select_range
