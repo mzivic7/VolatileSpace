@@ -178,7 +178,7 @@ class Menu():
         if len(self.maps) != 0:
             if self.selected_item >= len(self.maps):
                 self.selected_item = len(self.maps) - 1
-            self.selected_path = "Maps/" + self.maps[self.selected_item, 0]
+            self.selected_path = self.maps[self.selected_item, 0]
 
         # limit text size
         for num, text in enumerate(self.maps[:, 1]):
@@ -231,7 +231,7 @@ class Menu():
                             self.new_map = False
                         if self.new_game:
                             self.new_game = False
-                            game_path = self.selected_ng_path.replace("Maps/", "Saves/").replace(".ini", "") + " " + date + ".ini"
+                            game_path = self.selected_ng_path.replace("Maps/", "Saves/").replace("Resources/BuiltinMaps/", "Saves/").replace(".ini", "") + " " + date + ".ini"
                             game_name = self.maps[self.selected_ng_item, 1] + " " + date
                             shutil.copy2(self.selected_ng_path, game_path)    # copy map to games
                             peripherals.rename_game(game_path, game_name)
@@ -287,14 +287,14 @@ class Menu():
                     if self.selected_item < len(self.maps)-1:
                         self.selected_item += 1
                         if self.menu == 3:
-                            self.selected_path = "Maps/" + self.maps[self.selected_item, 0]
+                            self.selected_path = self.maps[self.selected_item, 0]
                         else:
                             self.selected_path = "Saves/" + self.maps[self.selected_item, 0]
                 elif e.key == pygame.K_UP:
                     if self.selected_item > 0:
                         self.selected_item -= 1
                         if self.menu == 3:
-                            self.selected_path = "Maps/" + self.maps[self.selected_item, 0]
+                            self.selected_path = self.maps[self.selected_item, 0]
                         else:
                             self.selected_path = "Saves/" + self.maps[self.selected_item, 0]
 
@@ -415,7 +415,7 @@ class Menu():
                                     self.scroll_maps = 0
                                     self.selected_ng_item = 0
                                     if len(self.maps):
-                                        self.selected_ng_path = "Maps/" + self.maps[0, 0]
+                                        self.selected_ng_path = self.maps[0, 0]
                                     else:
                                         self.selected_ng_path = None
                                 elif num == 2:   # import game
@@ -452,11 +452,11 @@ class Menu():
                                 if y_pos >= self.maps_y - self.btn_h - self.space and y_pos <= self.maps_y + self.maps_list_limit:    # don't detect outside list area
                                     if self.maps_x <= self.mouse[0]-1 <= self.maps_x + self.btn_w_l and y_pos <= self.mouse[1]-1 <= y_pos + self.btn_h:
                                         self.selected_ng_item = num
-                                        self.selected_ng_path = "Maps/" + self.maps[self.selected_ng_item, 0]
+                                        self.selected_ng_path = self.maps[self.selected_ng_item, 0]
                                         if self.first_click == num:   # detect double click
                                             try:
                                                 date = time.strftime("%d-%m-%Y %H-%M")
-                                                game_path = self.selected_ng_path.replace("Maps/", "Saves/").replace(".ini", "") + " " + date + ".ini"
+                                                game_path = self.selected_ng_path.replace("Maps/", "Saves/").replace("Resources/BuiltinMaps/", "Saves/").replace(".ini", "") + " " + date + ".ini"
                                                 game_name = self.maps[self.selected_ng_item, 1] + " " + date
                                                 shutil.copy2(self.selected_ng_path, game_path)    # copy map to games
                                                 peripherals.rename_game(game_path, game_name)
@@ -480,7 +480,7 @@ class Menu():
                                 elif num == 1:   # play
                                     try:
                                         date = time.strftime("%d-%m-%Y %H-%M")
-                                        game_path = self.selected_ng_path.replace("Maps/", "Saves/").replace(".ini", "") + " " + date + ".ini"
+                                        game_path = self.selected_ng_path.replace("Maps/", "Saves/").replace("Resources/BuiltinMaps/", "Saves/").replace(".ini", "") + " " + date + ".ini"
                                         game_name = self.maps[self.selected_ng_item, 1] + " " + date
                                         shutil.copy2(self.selected_ng_path, game_path)    # copy map to games
                                         peripherals.rename_game(game_path, game_name)
@@ -540,7 +540,7 @@ class Menu():
                                 if y_pos >= self.top_margin - self.btn_h - self.space and y_pos <= self.top_margin + self.list_limit:    # don't detect outside list area
                                     if self.map_x_1 <= self.mouse[0]-1 <= self.map_x_1 + self.btn_w_l and y_pos <= self.mouse[1]-1 <= y_pos + self.btn_h:
                                         self.selected_item = num
-                                        self.selected_path = "Maps/" + self.maps[self.selected_item, 0]
+                                        self.selected_path = self.maps[self.selected_item, 0]
                                         if self.first_click == num:   # detect double click
                                             self.state = 2
                                             self.menu = 0

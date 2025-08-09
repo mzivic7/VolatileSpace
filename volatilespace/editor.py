@@ -261,7 +261,7 @@ class Editor():
         self.maps = peripherals.gen_map_list()
         self.map_list_size = len(self.maps) * self.btn_h + len(self.maps) * self.space
         if len(self.maps) != 0:
-            self.selected_path = "Maps/" + self.maps[self.selected_item, 0]
+            self.selected_path = self.maps[self.selected_item, 0]
 
         # limit text size
         for num, text in enumerate(self.maps[:, 1]):
@@ -275,7 +275,7 @@ class Editor():
             self.selected_item = 0
         else:
             self.selected_item = selected_item[0]
-            self.selected_path = "Maps/" + self.maps[self.selected_item, 0]
+            self.selected_path = self.maps[self.selected_item, 0]
 
 
     def load_system(self, system):
@@ -532,11 +532,11 @@ class Editor():
                     if e.key == pygame.K_DOWN:
                         if self.selected_item < len(self.maps)-1:
                             self.selected_item += 1
-                            self.selected_path = "Maps/" + self.maps[self.selected_item, 0]
+                            self.selected_path = self.maps[self.selected_item, 0]
                     elif e.key == pygame.K_UP:
                         if self.selected_item > 0:
                             self.selected_item -= 1
-                            self.selected_path = "Maps/" + self.maps[self.selected_item, 0]
+                            self.selected_path = self.maps[self.selected_item, 0]
 
         # input in right ui
         elif self.input_value is not None:
@@ -976,7 +976,7 @@ class Editor():
                                 if y_pos >= self.maps_y - self.btn_h - self.space and y_pos <= self.maps_y + self.list_limit:    # don't detect outside list area
                                     if self.maps_x <= self.mouse_raw[0]-1 <= self.maps_x + self.btn_w_l and y_pos <= self.mouse_raw[1]-1 <= y_pos + self.btn_h:
                                         self.selected_item = num
-                                        self.selected_path = "Maps/" + self.maps[self.selected_item, 0]
+                                        self.selected_path = self.maps[self.selected_item, 0]
                                         if self.first_click == num:   # detect double click
                                             if self.file_path == self.selected_path:   # don't ask to save over current file
                                                 self.save(self.file_path)
@@ -1018,7 +1018,7 @@ class Editor():
                             if y_pos >= self.maps_y - self.btn_h - self.space and y_pos <= self.maps_y + self.list_limit:    # don't detect outside list area
                                 if self.maps_x <= self.mouse_raw[0]-1 <= self.maps_x + self.btn_w_l and y_pos <= self.mouse_raw[1]-1 <= y_pos + self.btn_h:
                                     self.selected_item = num
-                                    self.selected_path = "Maps/" + self.maps[self.selected_item, 0]
+                                    self.selected_path = self.maps[self.selected_item, 0]
                                     if self.first_click == num:   # detect double click
                                         self.ask = "load"
                                         self.click = False   # don't carry click to ask window

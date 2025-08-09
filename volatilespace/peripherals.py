@@ -193,21 +193,27 @@ def gen_map_list():
     """Generate list of maps in "Maps" dir, name and edit date are read from file"""
     if not os.path.exists("Maps"):
         os.mkdir("Maps")
-    files_list = os.listdir("Maps")
+    if not os.path.exists("Resources/BuiltinMaps"):
+        os.makedirs(os.path.expanduser("Resources/BuiltinMaps"), exist_ok=True)
 
     # filter only files with .ini extension
     map_files = []
-    for file_name in files_list:
+    for file_name in os.listdir("Maps"):
         if file_name[-4:] == ".ini":
-            map_files.append(file_name)
+            map_files.append(os.path.join("Maps", file_name))
+    for file_name in os.listdir("Resources/BuiltinMaps"):
+        if file_name[-4:] == ".ini":
+            map_files.append(os.path.join("Resources", "BuiltinMaps", file_name))
 
     # get data
     maps = np.empty((0, 3), dtype=object)
     for map_file in map_files:
         map_save = ConfigParser()
-        map_save.read("Maps/" + map_file)
+        map_save.read(map_file)
         try:
             name = map_save.get("game_data", "name").strip('"')
+            if "BuiltinMaps" in map_file:
+                name += " - Builtin"
             date = map_save.get("game_data", "date").strip('"')
             maps = np.vstack((maps, [map_file, name, date]))
         except Exception:

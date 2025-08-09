@@ -207,7 +207,7 @@ class Game():
         body_star = pygame.image.load("images/star.png").convert_alpha()
         body_bh = pygame.image.load("images/bh.png").convert_alpha()
         self.body_imgs = [body_dwarf, body_planet_solid, body_planet_gas, body_star, body_bh]
-        self.vessel_img = graphics.fill(pygame.image.load_sized_svg("images/vessel.svg", (24, 24)), rgb.gray).convert_alpha()
+        self.vessel_img = graphics.fill(pygame.image.load("images/vessel.png").convert_alpha(), rgb.gray)
         self.target_img = pygame.image.load("images/target.png").convert_alpha()
         self.impact_img = pygame.image.load("images/impact.png").convert_alpha()
         orb_leave_img = pygame.image.load("images/orb_leave.png").convert_alpha()
@@ -220,6 +220,12 @@ class Game():
 
         bg_stars.set_screen()
         graphics.set_screen()
+
+        # parts
+        self.parts = {}
+        for part_name in os.listdir("Resources/Parts"):
+            part_path = os.path.join("Resources/Parts", part_name, f"{part_name}.png")
+            self.parts[part_name] = (pygame.image.load(part_path).convert_alpha(), )
 
 
     def set_screen(self):
@@ -432,7 +438,7 @@ class Game():
 
     def unpack_vessel(self, vessel_data, vessel_orb):
         """Unpack vessel data from vessel dict and update it in this class"""
-        # body data
+        # vessel data
         self.v_names = vessel_data["name"]
         self.v_mass = vessel_data["mass"]
         self.v_rot_angle = vessel_data["rot_angle"]
@@ -857,10 +863,13 @@ class Game():
                     if self.zoom > self.zoom_step or e.y == 1:   # prevent zooming below zoom_step, zoom can't be 0, but allow zoom to increase
                         self.zoom_step = self.zoom / 10
                         self.zoom += e.y * self.zoom_step
-                        # zoom translation to center
-                        self.zoom_x += (self.screen_x / 2 / (self.zoom - e.y * self.zoom_step)) - (self.screen_x / (self.zoom * 2))
-                        self.zoom_y += (self.screen_y / 2 / (self.zoom - e.y * self.zoom_step)) - (self.screen_y / (self.zoom * 2))
-                        # these values are added only to displayed objects, traces... But not to real position
+                        if self.zoom > 100:
+                            self.zoom = 100
+                        else:
+                            # zoom translation to center
+                            self.zoom_x += (self.screen_x / 2 / (self.zoom - e.y * self.zoom_step)) - (self.screen_x / (self.zoom * 2))
+                            self.zoom_y += (self.screen_y / 2 / (self.zoom - e.y * self.zoom_step)) - (self.screen_y / (self.zoom * 2))
+                            # these values are added only to displayed stuff, but not to real position
 
 
     def ui_mouse(self, e):
@@ -1614,7 +1623,10 @@ class Game():
             active = self.active_vessel is not None and self.active_vessel == vessel
 
             if active:
-                graphics.draw_img(screen, self.vessel_img, vessel_pos, angle=vessel_rot-np.pi/2, scale=0.75, center=True)
+                if self.zoom > 5:
+                    graphics.draw_img(screen, self.parts[self.v_sprite[vessel]][0], vessel_pos, angle=vessel_rot-np.pi/2, scale=self.zoom/100, center=True)
+                else:
+                    graphics.draw_img(screen, self.vessel_img, vessel_pos, angle=vessel_rot-np.pi/2, scale=0.75, center=True)
 
             # active vessel and target vessel
             if active or target:
@@ -1715,9 +1727,12 @@ class Game():
                                     graphics.draw_img(screen, self.orb_leave_img_gray, intersect, center=True)
 
             # target vessel
-            if self.target is not None and self.target_type == 1 and self.target == vessel:
-                graphics.draw_img(screen, self.vessel_img, vessel_pos, angle=vessel_rot-np.pi/2, scale=0.75, center=True)
-                graphics.draw_img(screen, self.target_img, vessel_pos, center=True)
+            if not active and self.target is not None and self.target_type == 1 and self.target == vessel:
+                if self.zoom > 1:
+                    graphics.draw_img(screen,  self.parts[self.v_sprite[vessel]][0], vessel_pos, angle=vessel_rot-np.pi/2, scale=self.zoom/100, center=True)
+                else:
+                    graphics.draw_img(screen, self.vessel_img, vessel_pos, angle=vessel_rot-np.pi/2, scale=0.75, center=True)
+                    graphics.draw_img(screen, self.target_img, vessel_pos, center=True)
                 ta, pe, pe_t, ap, ap_t, distance, speed_orb, speed_hor, speed_vert = physics_vessel.selected(vessel)
                 if self.right_menu == 2:
                     self.orbit_data_menu = [
@@ -1736,8 +1751,11 @@ class Game():
                     ]
 
             # all other vessels
-            elif vessel in self.visible_vessels:
-                graphics.draw_img(screen, self.vessel_img, vessel_pos, angle=vessel_rot-np.pi/2, scale=0.75, center=True)
+            elif not active and vessel in self.visible_vessels:
+                if self.zoom > 1:
+                    graphics.draw_img(screen,  self.parts[self.v_sprite[vessel]][0], vessel_pos, angle=vessel_rot-np.pi/2, scale=self.zoom/100, center=True)
+                else:
+                    graphics.draw_img(screen, self.vessel_img, vessel_pos, angle=vessel_rot-np.pi/2, scale=0.75, center=True)
 
 
     def graphics_ui(self, screen, clock):

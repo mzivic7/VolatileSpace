@@ -1,6 +1,3 @@
-Vessel close view
-    Load and display rotated sprites
-    Switc icon/sprite when zooming
 Planet rotation
 Planet shadows
 Near vessel warp switching
@@ -13,8 +10,10 @@ Collisions
     vessel-vessel pixel collisions
     vessel destruction
     release phys-warp when vessel is destroyed
-    planet-planet collisions (handle vessels orbiting deleted planet)
-    vessel-planet collisions (temporarily planet is just circle)
+    planet-planet collisions
+    handle vessels orbiting deleted planet
+    vessel-planet collisions
+    temporarily planet is just circle
 Orbit points UI
     time to point
     ap/pe icons
@@ -48,7 +47,7 @@ SAS
     hold rotated position
     bot gui buttons
 Rebuilt editor physics
-Prograde/retrograde, radial/antiradial with W/A/S/D in editor
+Prograde/retrograde/radial/antiradial with W/S/D/A in editor
 
 
 ### GAME ###
