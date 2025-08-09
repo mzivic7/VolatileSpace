@@ -1,11 +1,14 @@
-Planet rotation
-Planet shadows
 Near vessel warp switching
-    Calculate radius around vessel from vessel size and scale
+    Calculate radius around vessel from vessel size
     Switch warp if vessel will be inside that radius
 Add velocity in facing direction
 Option to not recalculate in 60 tps
 Temporary way to spawn vessel in orbit
+Planet shadows
+    Light effect around sun
+    Calculate shadows polygons
+    Crop light effect with shadows
+Planet rotation
 Collisions
     vessel-vessel pixel collisions
     vessel destruction
@@ -15,7 +18,7 @@ Collisions
     vessel-planet collisions
     temporarily planet is just circle
 Orbit points UI
-    time to point
+    time to point where mouse is
     ap/pe icons
     for points: ap/pe, leave/enter, impact
     mouseover - show data and warp button

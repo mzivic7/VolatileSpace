@@ -36,7 +36,7 @@ def build(nonumba, noupx):
     shutil.copytree("fonts/", "dist/VolatileSpace/fonts/", dirs_exist_ok=True)
     shutil.copytree("parts/", "dist/VolatileSpace/parts/", dirs_exist_ok=True)
     shutil.copytree("documentation/", "dist/VolatileSpace/documentation/", dirs_exist_ok=True)
-    shutil.copytree("maps_builtin/", "dist/VolatileSpace/Maps/", dirs_exist_ok=True)
+    shutil.copytree("Resources/", "dist/VolatileSpace/Resources/", dirs_exist_ok=True)
 
     # cleanup
     try:
